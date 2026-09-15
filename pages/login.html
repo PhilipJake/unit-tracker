@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unitflow Login</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="auth-page">
+    <div class="auth-shell">
+      <div class="auth-visual">
+        <div class="auth-brand">
+          <div class="auth-brand-mark">U</div>
+          <span>unitflow</span>
+        </div>
+
+        <div>
+          <h1 class="tagline">
+            Track every unit with clarity.
+            <small>Client asset monitoring for branch operations and support teams.</small>
+          </h1>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-inner">
+          <div class="auth-card-header">
+            <h2>Sign in</h2>
+            <p>Use your account credentials to continue</p>
+          </div>
+
+          <form class="auth-form" id="loginForm">
+            <div class="form-field">
+              <label for="username">Username</label>
+              <input id="username" name="username" type="text" placeholder="Enter username" required />
+            </div>
+
+            <div class="form-field">
+              <label for="password">Password</label>
+              <input id="password" name="password" type="password" placeholder="Enter password" required />
+            </div>
+
+            <button type="submit" class="auth-button">Login</button>
+          </form>
+
+          <div class="auth-link">
+            Need help? <a href="#">Contact admin</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/auth.js"></script>
+  </body>
+</html>
