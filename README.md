@@ -1,44 +1,84 @@
-# Unitflow
+# Client Unit Tracker
 
-Static client unit tracker UI backed by the supplied Google Sheet through Google Apps Script.
+A lightweight web app for tracking client units by branch using Google Sheets as the live database.
 
-## Run the interface
+## Folder Structure
 
-Open `index.html` in a browser. When `API_URL` is configured, the login page validates credentials against the `Accounts` sheet through Google Apps Script. If `API_URL` is blank, the UI runs in local demo mode.
+- `index.html` – main dashboard page
+- `css/styles.css` – dashboard styles
+- `js/app.js` – app logic and polling
+- `js/data.js` – CSV parsing and live fetch logic
+- `js/ui.js` – rendering summary and table UI
+- `gs/config.js` – Google Sheets configuration
 
-Demo accounts all use password `demo123`:
+## How it works
 
-- `technician`: full workspace access
-- `office`: all branches and unit data
-- `rosales.admin`: BNB Rosales branch only
+This app reads data directly from a Google Sheet using the public CSV export URL.
 
-When using the Apps Script backend before creating your first permanent account, the script automatically adds a temporary row to the `Accounts` sheet. Sign in with username `temp.technician` and password `UnitflowTemp2026!`. Use it to create a permanent technician account, then remove `TEMP_TECHNICIAN` and `ensureTemporaryAccount` from `gs/Code.gs` and redeploy the web app.
+- When the app loads, it fetches the spreadsheet data.
+- It updates the dashboard automatically on a timed refresh.
+- The table is populated from the Google Sheet, not static demo data.
 
-## Connect Google Sheets
+## Required Google Sheet setup
 
-1. In the supplied spreadsheet, create sheets named `Accounts`, `Units`, and `Branches`. The current Apps Script also creates these tabs automatically if they are missing.
-2. Add these header rows:
-   - `Accounts`: `name`, `username`, `password`, `role`, `branch`, `status`
-   - `Units`: `Unit Code`, `Client Name`, `Model`, `Processor`, `RAM`, `Storage Size (HDD/SSD/SD)`, `Unit Price`, `Status`, `Current Location`, `Date Received`, `Released Date`
-   - `Branches`: `name`, `created`
-3. Open **Extensions > Apps Script**, paste in `gs/Code.gs`, and deploy it as a web app. Set access to the people who should use the tracker.
-4. Put the deployed web app URL into `API_URL` at the top of `js/app.js`.
-5. Branch tabs are synchronized automatically when branches or units are created, edited, or deleted. No default branches are recreated automatically.
-6. If old branch tabs remain after deleting their branch rows, select `cleanupOrphanBranchSheets` and click **Run** once. It deletes only tabs using the Unitflow unit-table headers that no longer have an active branch row.
-7. To remove all branch rows and tabs at once, select `deleteAllBranches` and click **Run**. This preserves `Accounts`, `Units`, and `Branches`.
+1. Create a Google Sheet with a sheet name like `Units`.
+2. Add the exact columns below as the header row:
 
-If the Apps Script log says `Service Spreadsheets failed while accessing document`, select `authorizeSpreadsheet` in Apps Script and click **Run**. Approve the requested Google permissions. The account running Apps Script must have Editor access to the spreadsheet. Then run `setupSpreadsheet` and redeploy the web app.
+   `Unit Code, Client Name, Unit Price, Specs, Uploaded Branch, Current Location, Date Received, Date Released, Status`
 
-Branch creation uses a minimal sheet-creation path to avoid heavy formatting calls during the request. After pasting the latest `gs/Code.gs`, create a new deployment version; the existing web app deployment will otherwise continue running the older branch-creation code.
+3. Put your data under those headers.
+4. In the Google Sheet, make sure the sheet is shared publicly or available through the CSV export endpoint.
+5. Copy the spreadsheet ID from the URL and paste it into `gs/config.js`.
 
-### Spreadsheet access error
+Example Sheet URL:
 
-If Apps Script reports that it cannot access spreadsheet ID `1kSpF64p6kyRRkEKrd5DrUjmHr1wkyNAkZTG-DlrBHeA`, open the spreadsheet while signed in to the same Google account that owns the Apps Script project. Make sure that account has Editor access to the sheet, run `setupSpreadsheet` once to complete authorization, and redeploy the web app with **Execute as: Me** and **Who has access: Anyone**. If the Apps Script owner is a different account, share the spreadsheet with that account before redeploying.
+`https://docs.google.com/spreadsheets/d/1ABC123XYZ/edit#gid=0`
 
-For production, replace the plain-text password column with salted password hashes and move login to a proper identity provider. Google Apps Script is suitable for a small internal tool, but it should not be treated as a high-security identity system.
+Spreadsheet ID:
 
-Unit statuses are restricted to: `For observation`, `Released`, `For release`, `To be transfered`, and `In warehouse`.
+`1ABC123XYZ`
 
-Unit prices are entered and displayed in Philippine Peso (`PHP`).
+## Update config
 
-Technician accounts can view and manage the complete workspace, including accounts. Office accounts can view the complete workspace and accounts, but cannot edit accounts. Admin accounts see their permitted unit locations: their assigned branch, `BNB Rosales branch`, and `Warehouse`. Admins can edit units and change their location only among those three locations. Admins cannot access Accounts or Branches management.
+Open `gs/config.js` and replace:
+
+```js
+sheetId: 'PASTE_YOUR_GOOGLE_SHEET_ID_HERE'
+```
+
+with your real Google Sheet ID.
+
+## Run locally
+
+You can open `index.html` directly in the browser, or serve the folder with a local web server.
+
+Example:
+
+```bash
+cd unir-tracker
+python -m http.server 8000
+```
+
+Then visit:
+
+`http://localhost:8000`
+
+## Notes
+
+- The app polls the Google Sheet every 15 seconds by default.
+- You can change the refresh interval in `gs/config.js`.
+- The app expects the sheet to be exported as CSV and the first sheet/tab to be used by default.
+
+## Messaging
+
+The Messages page uses the Apps Script web app for both reads and writes. The deployed Apps Script entry file is `gs/code.gs`; redeploy the web app after updating that file. The script creates a `Messages` sheet automatically with these columns:
+
+`Message ID, Sender, Sender Name, Recipient, Recipient Name, Subject, Body, Sent At, Read`
+
+Users can send messages to other accounts, view inbox and sent messages, search message content, and mark inbox messages as read.
+
+Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUnitTracker Attachments`. The Messages sheet stores the attachment names and Drive links. The browser limits each send to 20 MB total attachment data, and the Apps Script deployment must be authorized to use Google Drive.
+
+## Sample data
+
+If you want the database to have live functionality, the sheet itself is the source of truth. There is no default demo dataset included in the app.
