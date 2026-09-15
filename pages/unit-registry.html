@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unit Registry</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">U</div>
+        <span>unitflow</span>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-label">Workspace</div>
+        <a class="nav-item" href="../index.html">
+          <span class="nav-icon">▣</span>
+          Overview
+        </a>
+        <a class="nav-item messages-nav-item" href="messages.html" aria-label="Open Messages">
+          <span class="nav-icon">✉</span>
+          Messages
+          <span class="nav-count" data-message-nav-count hidden></span>
+        </a>
+        <a class="nav-item active" href="unit-registry.html">
+          <span class="nav-icon">▤</span>
+          Unit registry
+        </a>
+        <a class="nav-item" href="branches.html">
+          <span class="nav-icon">⎇</span>
+          Branches
+        </a>
+        <a class="nav-item" href="accounts.html">
+          <span class="nav-icon">◉</span>
+          Accounts
+        </a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Unit Registry</div>
+
+        <div class="topbar-right">
+          <div class="sync-pill">
+            <span class="dot live"></span>
+            <span>Live sync</span>
+          </div>
+
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false">
+              <div class="user-avatar">TS</div>
+              <span id="topbarUserName">Technician</span>
+            </button>
+            <div class="user-dropdown" id="userDropdown" hidden>
+              <button type="button" id="logoutButton">Logout</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="page-toolbar">
+          <div class="search-box">
+            <input id="unitSearchInput" type="text" placeholder="Search units" aria-label="Search units" />
+          </div>
+
+          <div class="page-actions">
+            <button class="action-btn" id="exportUnitCsvBtn" type="button">Export</button>
+            <button class="action-btn primary" id="openUnitModalBtn">+ New unit</button>
+          </div>
+        </div>
+
+        <section class="panel table-panel">
+          <div class="table-wrap">
+            <table class="unit-registry-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Unit Specs</th>
+                  <th>Unit Price</th>
+                  <th>Unit Brand</th>
+                  <th>Client Name</th>
+                  <th>Warranty</th>
+                  <th>Date of Purchase</th>
+                  <th>Date of Return</th>
+                  <th>Running Days</th>
+                  <th>Unit Problem</th>
+                  <th>Status</th>
+                  <th>Branch Location</th>
+                  <th>Inclusion</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="unitRegistryTableBody">
+                <tr>
+                  <td colspan="14" class="empty-state">Loading live spreadsheet data…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="unitModalBackdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unitModalTitle">
+        <div class="modal-header">
+          <h3 id="unitModalTitle">Add Unit</h3>
+          <button class="modal-close" id="closeUnitModalBtn" aria-label="Close modal">×</button>
+        </div>
+
+        <form class="unit-form" id="unitForm">
+          <div class="form-grid">
+            <div class="field-group">
+              <label for="unitCode">Code</label>
+              <input id="unitCode" name="unitCode" type="text" placeholder="UF-1049" required />
+            </div>
+
+            <div class="field-group">
+              <label for="unitSpecs">Unit Specs</label>
+              <input id="unitSpecs" name="unitSpecs" type="text" placeholder="Model / Processor / Ram / Storage" required />
+            </div>
+
+            <div class="field-group unit-price-field">
+              <label for="unitPrice">Unit Price</label>
+              <input id="unitPrice" name="unitPrice" type="number" min="0" step="0.01" placeholder="Enter price" />
+            </div>
+
+            <div class="field-group">
+              <label for="unitBrand">Unit Brand</label>
+              <select id="unitBrand" name="unitBrand" required>
+                <option value="">Select brand</option>
+                <option>Dell</option>
+                <option>Lenovo</option>
+                <option>Asus</option>
+                <option>Toshiba</option>
+                <option>Fujitsu</option>
+                <option>HP</option>
+                <option>Acer</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="clientName">Client Name</label>
+              <input id="clientName" name="clientName" type="text" placeholder="Client name" required />
+            </div>
+
+            <div class="field-group">
+              <label for="warranty">Warranty</label>
+              <select id="warranty" name="warranty" required>
+                <option value="">Select warranty</option>
+                <option>Within warranty</option>
+                <option>Without warranty</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="datePurchase">Date of Purchase</label>
+              <input id="datePurchase" name="datePurchase" type="date" required />
+            </div>
+
+            <div class="field-group">
+              <label for="dateReturn">Date of Return</label>
+              <input id="dateReturn" name="dateReturn" type="date" />
+            </div>
+
+            <div class="field-group">
+              <label for="unitProblem">Unit Problem</label>
+              <input id="unitProblem" name="unitProblem" type="text" placeholder="Problem description" />
+            </div>
+
+            <div class="field-group">
+              <label for="status">Status</label>
+              <select id="status" name="status" required>
+                <option value="">Select status</option>
+                <option>Released</option>
+                <option>For observation</option>
+                <option>Urgent</option>
+                <option>Battery swelling</option>
+                <option>For Replacement</option>
+                <option>None</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="branchLocation">Branch Location</label>
+              <input id="branchLocation" name="branchLocation" type="text" placeholder="Assigned branch" readonly required />
+            </div>
+
+            <div class="field-group">
+              <label for="currentLocation">Current Location</label>
+              <select id="currentLocation" name="currentLocation" required>
+                <option value="">Select current location</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label>Inclusions</label>
+              <div class="inclusion-checklist" style="display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 0.7rem 0.8rem; border: 1px solid #dfe3eb; border-radius: 10px; background: white;">
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Charger" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Charger
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Laptop Bag" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Laptop Bag
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Mouse" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Mouse
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Mousepad" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Mousepad
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Earphones" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Earphones
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="Laptop Table" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Laptop Table
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" name="inclusionOption" value="SmartWatch" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> SmartWatch
+                </label>
+              </div>
+              <input type="hidden" id="inclusion" name="inclusion" value="" />
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="action-btn" id="cancelUnitModalBtn">Cancel</button>
+            <button type="submit" class="action-btn primary" id="saveUnitButton">Save Unit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="messageModalBackdrop" aria-hidden="true">
+      <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="messageModalTitle">
+        <div class="modal-header">
+          <h3 id="messageModalTitle">Notice</h3>
+          <button class="modal-close" id="closeMessageModalBtn" aria-label="Close message">×</button>
+        </div>
+        <div class="modal-body" id="messageModalBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="action-btn primary" id="okMessageModalBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/unit-modal.js"></script>
+  </body>
+</html>

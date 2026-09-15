@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register Unit</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body>
+    <main class="container" style="max-width: 700px;">
+      <section class="panel">
+        <h2>Register a New Unit</h2>
+        <form id="unitForm">
+          <div class="controls" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <div class="field-group">
+              <label for="unitCode">Unit Code</label>
+              <input id="unitCode" name="unitCode" required />
+            </div>
+            <div class="field-group">
+              <label for="clientName">Client Name</label>
+              <input id="clientName" name="clientName" required />
+            </div>
+            <div class="field-group">
+              <label for="unitPrice">Unit Price</label>
+              <input id="unitPrice" name="unitPrice" required />
+            </div>
+            <div class="field-group">
+              <label for="specs">Specs</label>
+              <input id="specs" name="specs" placeholder="Processor, SSD, etc." required />
+            </div>
+            <div class="field-group">
+              <label for="uploadedBranch">Uploaded Branch</label>
+              <input id="uploadedBranch" name="uploadedBranch" placeholder="Assigned branch" readonly required />
+            </div>
+            <div class="field-group">
+              <label for="currentLocation">Current Location</label>
+              <select id="currentLocation" name="currentLocation" required>
+                <option value="">Select current location</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="dateReceived">Date Received</label>
+              <input id="dateReceived" name="dateReceived" type="date" required />
+            </div>
+            <div class="field-group">
+              <label for="dateReturn">Return Date</label>
+              <input id="dateReturn" name="dateReturn" type="date" />
+            </div>
+            <div class="field-group">
+              <label for="status">Status</label>
+              <select id="status" name="status">
+                <option value="In Stock">In Stock</option>
+                <option value="Assigned">Assigned</option>
+                <option value="Released">Released</option>
+                <option value="Returned">Returned</option>
+                <option value="Pending Return">Pending Return</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center;">
+            <button type="submit" class="panel" style="padding: 0.75rem 1.2rem; background: var(--primary); color: white; border: none; border-radius: 10px; cursor: pointer;">Register Unit</button>
+            <a href="../index.html" style="text-decoration: none; color: var(--primary); font-weight: 700;">Back to dashboard</a>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const uploadedBranchField = document.getElementById('uploadedBranch');
+      if (uploadedBranchField) {
+        uploadedBranchField.value = String(localStorage.getItem('unitflowBranch') || '').trim();
+      }
+
+      const currentLocationSelect = document.getElementById('currentLocation');
+      const assignedBranch = uploadedBranchField ? uploadedBranchField.value.trim() : '';
+      const locationOptions = [assignedBranch, 'BNB Rosales', 'Warehouse'].filter((value, index, values) => {
+        return value && values.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index;
+      });
+      if (currentLocationSelect) {
+        currentLocationSelect.innerHTML = locationOptions.length
+          ? locationOptions.map((value) => `<option value="${value}">${value}</option>`).join('')
+          : '<option value="">Select current location</option>';
+        if (assignedBranch) currentLocationSelect.value = assignedBranch;
+      }
+
+      document.getElementById('unitForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(formData.entries());
+        try {
+          const response = await fetch('PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL', {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(payload).toString()
+          });
+
+          alert('Unit registered successfully. The live dashboard will sync after the sheet refreshes.');
+          form.reset();
+        } catch (error) {
+          alert('Registration failed. Please add your Apps Script web app URL in the form.');
+        }
+      });
+    </script>
+  </body>
+</html>

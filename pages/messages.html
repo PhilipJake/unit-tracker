@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Messages</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">U</div><span>unitflow</span></div>
+      <nav class="nav">
+        <div class="nav-label">Workspace</div>
+        <a class="nav-item" href="../index.html"><span class="nav-icon">▣</span>Overview</a>
+        <a class="nav-item active messages-nav-item" href="messages.html" aria-label="Open Messages"><span class="nav-icon">✉</span>Messages <span class="nav-count" id="navUnreadCount" data-message-nav-count hidden></span></a>
+        <a class="nav-item" href="unit-registry.html"><span class="nav-icon">▤</span>Unit registry</a>
+        <a class="nav-item" href="branches.html"><span class="nav-icon">⎇</span>Branches</a>
+        <a class="nav-item" href="accounts.html"><span class="nav-icon">◉</span>Accounts</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Messages</div>
+        <div class="topbar-right">
+          <div class="sync-pill"><span class="dot live"></span><span>Live sync</span></div>
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false"><div class="user-avatar">TS</div><span id="topbarUserName">Technician</span></button>
+            <div class="user-dropdown" id="userDropdown" hidden><button type="button" id="logoutButton">Logout</button></div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content messages-content">
+        <div class="header-row messages-heading">
+          <div class="heading-block"><div class="eyebrow">Workspace communication</div><h1>Messages</h1><p>Keep unit and branch updates in one place.</p></div>
+          <button class="action-btn primary" id="composeMessageBtn" type="button">+ New message</button>
+        </div>
+
+        <section class="messages-layout panel">
+          <div class="conversation-column">
+            <div class="message-tabs" role="tablist">
+              <button class="message-tab active" data-view="inbox" role="tab" aria-selected="true">Inbox</button>
+              <button class="message-tab" data-view="sent" role="tab" aria-selected="false">Sent</button>
+            </div>
+            <div class="message-search"><input id="messageSearchInput" type="search" placeholder="Search messages" aria-label="Search messages" /></div>
+            <div id="conversationList" class="conversation-list"><div class="empty-state">Loading messages…</div></div>
+          </div>
+          <article id="messageViewer" class="message-viewer"><div class="message-placeholder"><span class="message-placeholder-icon">✉</span><h2>Select a message</h2><p>Choose a conversation to read the full update.</p></div></article>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="composeBackdrop" aria-hidden="true">
+      <div class="modal compose-modal" role="dialog" aria-modal="true" aria-labelledby="composeTitle">
+        <div class="modal-header"><h3 id="composeTitle">New message</h3><button class="modal-close" id="closeComposeBtn" aria-label="Close message form">×</button></div>
+        <form class="unit-form" id="composeForm" autocomplete="off">
+          <div class="field-group"><label for="recipientInput"><span>To</span><span class="recipient-copy-toggle"><button type="button" class="recipient-copy-button" id="showCcButton" aria-controls="ccInput" aria-expanded="false">Cc</button><button type="button" class="recipient-copy-button" id="showBccButton" aria-controls="bccInput" aria-expanded="false">Bcc</button></span></label><div class="recipient-picker" id="recipientPicker"><div class="recipient-chips" id="recipientChips"></div><input id="recipientInput" type="text" autocomplete="off" placeholder="Add recipients" aria-label="Add recipients" /><div class="recipient-options" id="recipientOptions" hidden></div></div><select id="recipientSelect" name="recipient" multiple hidden></select><small class="field-hint">Type a name and select one or more recipients.</small></div>
+          <div class="field-group recipient-copy-field" id="ccField" hidden><label for="ccRecipientInput">Cc</label><div class="recipient-picker" id="ccPicker"><div class="recipient-chips" id="ccChips"></div><input id="ccRecipientInput" type="text" autocomplete="off" placeholder="Add Cc recipients" aria-label="Add Cc recipients" /><div class="recipient-options" id="ccOptions" hidden></div></div></div>
+          <div class="field-group recipient-copy-field" id="bccField" hidden><label for="bccRecipientInput">Bcc</label><div class="recipient-picker" id="bccPicker"><div class="recipient-chips" id="bccChips"></div><input id="bccRecipientInput" type="text" autocomplete="off" placeholder="Add Bcc recipients" aria-label="Add Bcc recipients" /><div class="recipient-options" id="bccOptions" hidden></div></div></div>
+          <div class="field-group"><label for="messageSubject">Subject</label><input id="messageSubject" name="subject" type="text" maxlength="120" autocomplete="off" placeholder="What is this about?" required /></div>
+          <div class="field-group"><label for="messageBody">Message</label><div class="format-toolbar" role="toolbar" aria-label="Text formatting"><select data-format-command="fontName" aria-label="Font"><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Courier New">Courier New</option></select><select data-format-command="fontSize" aria-label="Text size"><option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">Huge</option></select><button type="button" data-format-command="bold" aria-label="Bold"><strong>B</strong></button><button type="button" data-format-command="italic" aria-label="Italic"><em>I</em></button><button type="button" data-format-command="underline" aria-label="Underline"><u>U</u></button><label class="format-color" aria-label="Text color">A<input type="color" data-format-command="foreColor" value="#121a16" /></label><button type="button" data-format-command="justifyLeft" aria-label="Align left">≡</button><button type="button" data-format-command="justifyCenter" aria-label="Align center">≡</button><button type="button" data-format-command="justifyRight" aria-label="Align right">≡</button><button type="button" data-format-command="insertUnorderedList" aria-label="Bulleted list">•</button><button type="button" data-format-command="insertOrderedList" aria-label="Numbered list">1.</button><button type="button" data-format-command="outdent" aria-label="Decrease indent">←</button><button type="button" data-format-command="indent" aria-label="Increase indent">→</button><button type="button" data-format-command="formatBlock" data-format-value="blockquote" aria-label="Quote">❝</button><button type="button" data-format-command="strikeThrough" aria-label="Strikethrough"><s>S</s></button><button type="button" data-format-command="removeFormat" aria-label="Clear formatting">Tx</button></div><div id="messageBody" class="rich-text-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write an update…"></div><label class="attachment-button" for="messageAttachments">Attach files</label><input id="messageAttachments" type="file" multiple hidden /><div class="attachment-list" id="messageAttachmentList"></div></div>
+          <div class="modal-actions"><button type="button" class="action-btn" id="cancelComposeBtn">Cancel</button><button type="submit" class="action-btn primary">Send message</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="message-toast" id="messageToast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/messages.js"></script>
+  </body>
+</html>

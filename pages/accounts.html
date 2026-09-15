@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Accounts</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">U</div>
+        <span>unitflow</span>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-label">Workspace</div>
+        <a class="nav-item" href="../index.html">
+          <span class="nav-icon">▣</span>
+          Overview
+        </a>
+        <a class="nav-item messages-nav-item" href="messages.html" aria-label="Open Messages">
+          <span class="nav-icon">✉</span>
+          Messages
+          <span class="nav-count" data-message-nav-count hidden></span>
+        </a>
+        <a class="nav-item" href="unit-registry.html">
+          <span class="nav-icon">▤</span>
+          Unit registry
+        </a>
+        <a class="nav-item" href="branches.html">
+          <span class="nav-icon">⎇</span>
+          Branches
+        </a>
+        <a class="nav-item active" href="accounts.html">
+          <span class="nav-icon">◉</span>
+          Accounts
+        </a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Accounts</div>
+
+        <div class="topbar-right">
+          <div class="sync-pill">
+            <span class="dot live"></span>
+            <span>Live sync</span>
+          </div>
+
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false">
+              <div class="user-avatar">TS</div>
+              <span id="topbarUserName">Technician</span>
+            </button>
+            <div class="user-dropdown" id="userDropdown" hidden>
+              <button type="button" id="logoutButton">Logout</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="page-toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="Search accounts" aria-label="Search accounts" />
+          </div>
+
+          <div class="page-actions">
+            <button class="action-btn primary" id="openAccountModalBtn">+ Add account</button>
+          </div>
+        </div>
+
+        <section class="panel table-panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Full Name</th>
+                  <th>Account Type</th>
+                  <th>Email</th>
+                  <th>Branch</th>
+                  <th>Created</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="accountsTableBody">
+                <tr>
+                  <td colspan="8" class="empty-state">Loading accounts from the spreadsheet…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="accountModalBackdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+        <div class="modal-header">
+          <h3 id="accountModalTitle">Add Account</h3>
+          <button class="modal-close" id="closeAccountModalBtn" aria-label="Close modal">×</button>
+        </div>
+
+        <form class="unit-form" id="accountForm">
+          <div class="form-grid">
+            <div class="field-group">
+              <label for="accountUsername">Username</label>
+              <input id="accountUsername" name="accountUsername" type="text" placeholder="Enter username" required />
+            </div>
+
+            <div class="field-group">
+              <label for="accountPassword">Password</label>
+              <input id="accountPassword" name="accountPassword" type="password" placeholder="Enter password" required />
+            </div>
+
+            <div class="field-group">
+              <label for="accountTypeSelect">Account Type</label>
+              <select id="accountTypeSelect" name="accountTypeSelect" required>
+                <option value="">Select account type</option>
+                <option value="Super Admin">Super Admin</option>
+                <option value="Administrator">Administrator</option>
+                <option value="Main Head Admin">Main Head Admin</option>
+                <option value="Branch Head Admin">Branch Head Admin</option>
+                <option value="Office">Office</option>
+                <option value="Technician">Technician</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="accountFullName">Full Name</label>
+              <input id="accountFullName" name="accountFullName" type="text" placeholder="Full name" required />
+            </div>
+
+            <div class="field-group">
+              <label for="accountEmail">Email</label>
+              <input id="accountEmail" name="accountEmail" type="email" placeholder="email@example.com" required />
+            </div>
+
+            <div class="field-group">
+              <label for="accountBranch">Branch</label>
+              <select id="accountBranch" name="accountBranch">
+                <option value="">No branch assigned</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="action-btn" id="cancelAccountModalBtn">Cancel</button>
+            <button type="submit" class="action-btn primary">Save Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="messageModalBackdrop" aria-hidden="true">
+      <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="messageModalTitle">
+        <div class="modal-header">
+          <h3 id="messageModalTitle">Notice</h3>
+          <button class="modal-close" id="closeMessageModalBtn" aria-label="Close message">×</button>
+        </div>
+        <div class="modal-body" id="messageModalBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="action-btn primary" id="okMessageModalBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/accounts.js"></script>
+  </body>
+</html>
