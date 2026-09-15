@@ -55,7 +55,7 @@ You can open `index.html` directly in the browser, or serve the folder with a lo
 Example:
 
 ```bash
-cd unir-tracker
+cd unit-tracker
 python -m http.server 8000
 ```
 
