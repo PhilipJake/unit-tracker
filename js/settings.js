@@ -28,9 +28,9 @@ function renderPermissions(permissions = getRolePermissions()) {
 function renderPageAccess(access = getPageAccess()) {
   pageAccessGrid.innerHTML = pageAccessRoles.map((role) => `
     <article class="page-access-card">
-      <div><strong>${role}</strong><span>${role === 'Super Admin' ? 'Locked' : ['Administrator'].includes(role) ? 'Can manage access' : 'Workspace role'}</span></div>
+      <div><strong>${role}</strong><span>${role === 'Super Admin' ? 'Can manage access' : ['Administrator'].includes(role) ? 'Can manage access' : 'Workspace role'}</span></div>
       <div class="page-access-options">
-        ${Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `<label class="permission-toggle"><input type="checkbox" data-page-role="${role}" data-page="${page}" ${access[role][page] ? 'checked' : ''} ${role === 'Super Admin' ? 'disabled' : ''}><span>${page}</span></label>`).join('')}
+        ${Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `<label class="permission-toggle"><input type="checkbox" data-page-role="${role}" data-page="${page}" ${access[role][page] ? 'checked' : ''}><span>${page}</span></label>`).join('')}
       </div>
     </article>
   `).join('');

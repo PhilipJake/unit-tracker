@@ -174,7 +174,7 @@ function readPermissionSettings(spreadsheet) {
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
   permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5] };
-  pageAccess['Super Admin'] = { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
+  pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
   return jsonResponse({ ok: true, permissions, pageAccess });
 }
 
@@ -196,8 +196,8 @@ function savePermissionSettings(spreadsheet, values) {
   const rows = defaults.map((defaultRow) => {
     const role = defaultRow[0];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
-    const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
-    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? true : Boolean(roleAccess.Overview), role === 'Super Admin' ? true : Boolean(roleAccess.Messages), role === 'Super Admin' ? true : Boolean(roleAccess['Unit registry']), role === 'Super Admin' ? true : Boolean(roleAccess.Trash), role === 'Super Admin' ? true : Boolean(roleAccess.Branches), role === 'Super Admin' ? true : Boolean(roleAccess.Accounts)];
+    const roleAccess = pageAccess[role] || {};
+    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -249,6 +249,22 @@ function isValidContactInfo(value) {
 function isProtectedSuperAdminRequest(actorRole, accountType) {
   return ['Administrator', 'Main Head Admin'].includes(String(actorRole || '').trim())
     && String(accountType || '').trim() === 'Super Admin';
+}
+
+function getAccountRoleRank(role) {
+  const ranks = {
+    'branch head admin': 1,
+    office: 2,
+    technician: 2,
+    'main head admin': 3,
+    administrator: 4,
+    'super admin': 5
+  };
+  return ranks[String(role || '').trim().replace(/\s+/g, ' ').toLowerCase()] || 0;
+}
+
+function cannotEditHigherAccountRole(actorRole, targetRole) {
+  return getAccountRoleRank(actorRole) < getAccountRoleRank(targetRole);
 }
 
 function uploadMessageAttachments(rawAttachments) {
@@ -525,14 +541,25 @@ function updateAccountRow(spreadsheet, values) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Username column not found' })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  const rowToWrite = buildRowForAction('accounts', values);
-
   for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
     const currentUsername = String(data[rowIndex][usernameIndex] || '').trim();
     if (currentUsername === targetUsername || (targetUsername === '' && currentUsername === String(values.username || '').trim())) {
+      const currentAccountType = accountTypeIndex === -1 ? '' : data[rowIndex][accountTypeIndex];
+      if (cannotEditHigherAccountRole(values.actorRole, currentAccountType) || cannotEditHigherAccountRole(values.actorRole, values.accountType)) {
+        return jsonResponse({ ok: false, error: 'The current role cannot edit a higher-ranked account role' });
+      }
       if (isProtectedSuperAdminRequest(values.actorRole, accountTypeIndex === -1 ? '' : data[rowIndex][accountTypeIndex])) {
         return jsonResponse({ ok: false, error: 'This account cannot be edited by the current role' });
       }
+      const statusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+      const existingStatus = statusIndex === -1 ? 'Active' : String(data[rowIndex][statusIndex] || 'Active').trim();
+      const requestedStatus = String(values.status || '').trim();
+      if (String(values.actorRole || '').trim() !== 'Super Admin') {
+        values.status = existingStatus;
+      } else if (String(values.actorRole || '').trim() === 'Super Admin' && requestedStatus && !['active', 'inactive', 'disabled'].includes(requestedStatus.toLowerCase())) {
+        return jsonResponse({ ok: false, error: 'Invalid account status' });
+      }
+      const rowToWrite = buildRowForAction('accounts', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
       targetRange.setValues([rowToWrite]);
       syncBranchManagerFromAccount(spreadsheet, values.fullName || '', values.branch || values.accountBranch || values.branchName || '', values.originalBranch || '');

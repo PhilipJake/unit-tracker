@@ -5,6 +5,8 @@ const closeAccountModalBtn = document.getElementById('closeAccountModalBtn');
 const cancelAccountModalBtn = document.getElementById('cancelAccountModalBtn');
 const accountForm = document.getElementById('accountForm');
 const accountBranchField = document.getElementById('accountBranch');
+const accountStatusGroup = document.getElementById('accountStatusGroup');
+const accountStatusField = document.getElementById('accountStatus');
 const accountTypeSelect = document.getElementById('accountTypeSelect');
 const messageModalBackdrop = document.getElementById('messageModalBackdrop');
 const messageModalBody = document.getElementById('messageModalBody');
@@ -67,6 +69,13 @@ function applyAccountTypeOptions() {
   }
 }
 
+function applyAccountStatusOptions() {
+  if (!accountStatusGroup || !accountStatusField) return;
+  const isSuperAdmin = localStorage.getItem('unitflowRole') === 'Super Admin';
+  accountStatusGroup.hidden = !isSuperAdmin;
+  accountStatusField.disabled = !isSuperAdmin;
+}
+
 async function loadBranchOptions() {
   if (!accountBranchField) return;
 
@@ -92,6 +101,22 @@ function isProtectedSuperAdminAccount(accountType, currentRole) {
   const normalizedRole = normalizeAccountRole(currentRole);
   const normalizedAccountType = normalizeAccountRole(accountType);
   return ['main head admin', 'administrator'].includes(normalizedRole) && normalizedAccountType === 'super admin';
+}
+
+function getAccountRoleRank(role) {
+  const ranks = {
+    'branch head admin': 1,
+    office: 2,
+    technician: 2,
+    'main head admin': 3,
+    administrator: 4,
+    'super admin': 5
+  };
+  return ranks[normalizeAccountRole(role)] || 0;
+}
+
+function cannotEditHigherRole(accountType, currentRole) {
+  return getAccountRoleRank(currentRole) < getAccountRoleRank(accountType);
 }
 
 function getDisplayedAccountType(accountType, currentRole) {
@@ -200,9 +225,11 @@ function openAccountModal(mode = 'create', account = null) {
     delete accountForm.dataset.createdAt;
     delete accountForm.dataset.originalBranch;
     accountForm.reset();
+    if (accountStatusField) accountStatusField.value = 'Active';
   }
 
   applyAccountTypeOptions();
+  applyAccountStatusOptions();
   accountModalBackdrop.classList.add('visible');
   accountModalBackdrop.setAttribute('aria-hidden', 'false');
 }
@@ -224,6 +251,10 @@ function populateAccountForm(account) {
     const field = accountForm.elements.namedItem(key);
     if (field) field.value = value;
   });
+
+  if (accountStatusField) {
+    accountStatusField.value = account.status || account.accountStatus || 'Active';
+  }
 }
 
 function closeAccountModal() {
@@ -298,7 +329,7 @@ async function saveAccountToSheet(event) {
     return;
   }
 
-  const body = new URLSearchParams({
+  const bodyValues = {
     action: isEditMode ? 'updateaccount' : 'accounts',
     username,
     password,
@@ -308,12 +339,17 @@ async function saveAccountToSheet(event) {
     branch,
     branchName: branch,
     accountBranch: branch,
-    status: 'Active',
-      createdAt: isEditMode && accountForm.dataset.createdAt ? accountForm.dataset.createdAt : new Date().toISOString(),
+    createdAt: isEditMode && accountForm.dataset.createdAt ? accountForm.dataset.createdAt : new Date().toISOString(),
     originalUsername: activeEditUsername || username,
     originalBranch,
     actorRole: currentRole || ''
-  }).toString();
+  };
+
+  if (!isEditMode || currentRole === 'Super Admin') {
+    bodyValues.status = accountStatusField ? accountStatusField.value : 'Active';
+  }
+
+  const body = new URLSearchParams(bodyValues).toString();
 
   try {
     const response = await fetch(appScriptUrl, {
@@ -442,7 +478,8 @@ if (accountsTableBody) {
     const button = event.target.closest('button');
     if (!button) return;
 
-    if (localStorage.getItem('unitflowRole') === 'Office') {
+    const currentRole = localStorage.getItem('unitflowRole');
+    if (currentRole === 'Office') {
       return;
     }
 
@@ -456,8 +493,8 @@ if (accountsTableBody) {
       if (account) {
         const accountType = String(account.accountType || account.role || account.userType || '').trim();
 
-        if (isProtectedSuperAdminAccount(accountType, currentRole)) {
-          showPopupMessage(`${currentRole} cannot edit a Super Admin account.`);
+        if (cannotEditHigherRole(accountType, currentRole)) {
+          showPopupMessage(`${currentRole} cannot edit an account with the ${accountType} role.`);
           return;
         }
 
@@ -472,7 +509,6 @@ if (accountsTableBody) {
       const rows = await DATA.fetchAccounts();
       const account = rows.find((item) => String(item.username || item.userName || item.accountUsername || '').trim() === username);
       const accountType = account ? String(account.accountType || account.role || account.userType || '').trim() : '';
-      const currentRole = localStorage.getItem('unitflowRole');
 
       if (isProtectedSuperAdminAccount(accountType, currentRole)) {
         showPopupMessage(`${currentRole} cannot delete a Super Admin account.`);
@@ -503,5 +539,6 @@ if (accountTypeSelect) {
 
 document.addEventListener('DOMContentLoaded', () => {
   applyAccountTypeOptions();
+  applyAccountStatusOptions();
   loadAccounts();
 });
