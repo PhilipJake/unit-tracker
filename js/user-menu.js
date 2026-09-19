@@ -1,10 +1,10 @@
 const ACCESS_RULES = {
   'Super Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   Administrator: {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   'Main Head Admin': {
@@ -33,7 +33,70 @@ function getCurrentRole() {
 function getCurrentPagePath() {
   const currentPath = window.location.pathname;
   const normalized = currentPath.split('/').pop();
-  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('unit-registry.html') ? 'pages/unit-registry.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : '../index.html';
+  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('unit-registry.html') ? 'pages/unit-registry.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
+}
+
+const DEFAULT_ROLE_PERMISSIONS = {
+  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true },
+  Administrator: { view: true, create: true, edit: true, delete: true, export: true },
+  'Main Head Admin': { view: true, create: true, edit: true, delete: false, export: true },
+  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false },
+  Office: { view: true, create: false, edit: false, delete: false, export: false },
+  Technician: { view: true, create: true, edit: true, delete: false, export: false }
+};
+
+const PAGE_ACCESS_OPTIONS = {
+  Overview: '../index.html',
+  Messages: 'pages/messages.html',
+  'Unit registry': 'pages/unit-registry.html',
+  Branches: 'pages/branches.html',
+  Accounts: 'pages/accounts.html'
+};
+
+const DEFAULT_PAGE_ACCESS = {
+  'Super Admin': Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
+  Administrator: Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
+  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true },
+  'Branch Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Branches: false, Accounts: false },
+  Office: { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true },
+  Technician: { Overview: true, Messages: true, 'Unit registry': true, Branches: false, Accounts: false }
+};
+
+function getRolePermissions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('unitflowRolePermissions') || '{}');
+    const permissions = Object.keys(DEFAULT_ROLE_PERMISSIONS).reduce((rolePermissions, role) => {
+      rolePermissions[role] = { ...DEFAULT_ROLE_PERMISSIONS[role], ...(saved[role] || {}) };
+      return rolePermissions;
+    }, {});
+    permissions['Super Admin'] = { ...DEFAULT_ROLE_PERMISSIONS['Super Admin'] };
+    return permissions;
+  } catch (error) {
+    return JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS));
+  }
+}
+
+function canManageAction(action, role = getCurrentRole()) {
+  const permissions = getRolePermissions();
+  return Boolean(permissions[role] && permissions[role][action]);
+}
+
+function getPageAccess() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('unitflowPageAccess') || '{}');
+    const access = Object.keys(DEFAULT_PAGE_ACCESS).reduce((pageAccess, role) => {
+      pageAccess[role] = { ...DEFAULT_PAGE_ACCESS[role], ...(saved[role] || {}) };
+      return pageAccess;
+    }, {});
+    access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
+    return access;
+  } catch (error) {
+    return JSON.parse(JSON.stringify(DEFAULT_PAGE_ACCESS));
+  }
+}
+
+function isPermissionManager(role = getCurrentRole()) {
+  return ['Super Admin', 'Administrator'].includes(role);
 }
 
 function isAllowedPage(targetHref, allowedPages) {
@@ -43,8 +106,16 @@ function isAllowedPage(targetHref, allowedPages) {
 }
 
 function getAllowedPagesForRole(role) {
-  const config = ACCESS_RULES[role] || ACCESS_RULES.Technician;
-  return config.pages || [];
+  const pageAccess = getPageAccess()[role] || DEFAULT_PAGE_ACCESS.Technician;
+  const pages = Object.entries(PAGE_ACCESS_OPTIONS)
+    .filter(([page]) => pageAccess[page])
+    .map(([, path]) => path);
+
+  if (isPermissionManager(role)) {
+    pages.push('pages/settings.html');
+  }
+
+  return pages;
 }
 
 function resolveRoutePath(targetPath) {
@@ -69,6 +140,13 @@ function applyRoleRestrictions() {
     const canAccessBranches = allowedPages.some((page) => page.endsWith('pages/branches.html') || page.endsWith('branches.html'));
     manageBranchLink.style.display = canAccessBranches ? '' : 'none';
     manageBranchLink.setAttribute('aria-hidden', String(!canAccessBranches));
+  }
+
+  const settingsLink = document.getElementById('settingsLink');
+  if (settingsLink) {
+    const canAccessSettings = isPermissionManager(role);
+    settingsLink.style.display = canAccessSettings ? '' : 'none';
+    settingsLink.setAttribute('aria-hidden', String(!canAccessSettings));
   }
 
   const viewAllUnitsLink = document.getElementById('viewAllUnitsLink');
@@ -113,10 +191,16 @@ function applyRoleRestrictions() {
       exportButton.style.display = 'none';
     }
 
-    document.querySelectorAll('.table-actions button.edit, .table-actions button.delete').forEach((button) => {
-      button.disabled = true;
-      button.style.display = 'none';
-    });
+  }
+
+  const createButtons = document.querySelectorAll('#openUnitModalBtn, #openBranchModalBtn, #openAccountModalBtn');
+  createButtons.forEach((button) => {
+    button.style.display = canManageAction('create', role) ? '' : 'none';
+  });
+
+  const exportButton = document.getElementById('exportUnitCsvBtn');
+  if (exportButton) {
+    exportButton.style.display = canManageAction('export', role) ? '' : 'none';
   }
 }
 

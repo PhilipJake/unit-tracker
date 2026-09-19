@@ -135,8 +135,6 @@ async function loadAccounts() {
     }
 
     const currentRole = localStorage.getItem('unitflowRole');
-    const isOfficeRole = currentRole === 'Office';
-
     accountsTableBody.innerHTML = rows
       .map((row) => {
         const username = row.username || row.userName || row.accountUsername || '';
@@ -147,6 +145,8 @@ async function loadAccounts() {
         const created = formatAccountCreatedDate(row.created || row.createdAt || row.dateCreated || row['created at'] || '');
         const status = row.status || 'Active';
         const isProtected = isProtectedSuperAdminAccount(accountType, currentRole);
+        const canEdit = canManageAction('edit', currentRole) && !isProtected;
+        const canDelete = canManageAction('delete', currentRole) && !isProtected;
         const displayedAccountType = getDisplayedAccountType(accountType, currentRole);
         const displayedUsername = getDisplayedAccountUsername(username, accountType, currentRole);
 
@@ -158,11 +158,12 @@ async function loadAccounts() {
             <td>${escapeHtml(fullName || '—')}</td>
             <td>${escapeHtml(displayedAccountType || '—')}</td>
             <td>${escapeHtml(email || '—')}</td>
-            <td>${escapeHtml(branch || '—')}</td>
+            <td class="account-branch-cell">${escapeHtml(branch || '—')}</td>
             <td>${escapeHtml(created || '—')}</td>
             <td><span class="badge ${statusClass}">${escapeHtml(status || 'Active')}</span></td>
             <td class="table-actions">
-              ${isOfficeRole || isProtected ? '<span class="view-only">View only</span>' : '<button class="edit">Edit</button><button class="delete">Delete</button>'}
+              <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+              <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
             </td>
           </tr>
         `;
@@ -377,6 +378,10 @@ if (openAccountModalBtn) {
     if (localStorage.getItem('unitflowRole') === 'Office') {
       return;
     }
+
+    const currentRole = localStorage.getItem('unitflowRole');
+    if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
+    if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
     await loadBranchOptions();
     openAccountModal('create');
   });
@@ -435,7 +440,6 @@ if (accountsTableBody) {
       const rows = await DATA.fetchAccounts();
       const account = rows.find((item) => String(item.username || item.userName || item.accountUsername || '').trim() === username);
       if (account) {
-        const currentRole = localStorage.getItem('unitflowRole');
         const accountType = String(account.accountType || account.role || account.userType || '').trim();
 
         if (isProtectedSuperAdminAccount(accountType, currentRole)) {

@@ -389,9 +389,7 @@ function initUnitModal() {
   if (exportButton) {
     exportButton.addEventListener('click', () => {
       const role = localStorage.getItem('unitflowRole');
-      const allowedRoles = ['Super Admin', 'Main Head Admin', 'Office'];
-
-      if (!allowedRoles.includes(role || '')) {
+      if (!canManageAction('export', role)) {
         showPopupMessage('You do not have permission to export the unit registry.');
         return;
       }
@@ -477,6 +475,10 @@ function initUnitModal() {
       const unitCode = (row && row.dataset.unitCode) ? row.dataset.unitCode : (row && row.cells && row.cells[0] ? row.cells[0].textContent.trim() : '');
 
       if (!unitCode || !row) return;
+
+      const currentRole = localStorage.getItem('unitflowRole');
+      if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
+      if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
 
       if (button.classList.contains('edit')) {
         const rows = await DATA.fetchUnits();
@@ -602,6 +604,8 @@ function renderRegistryTable(rows) {
       const branch = unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '—';
       const inclusion = unit.inclusion || '—';
       const isOfficeRole = currentRole === 'Office';
+      const canEdit = canManageAction('edit', currentRole);
+      const canDelete = canManageAction('delete', currentRole);
 
       return `
         <tr data-unit-code="${escapeHtml(code)}">
@@ -620,7 +624,8 @@ function renderRegistryTable(rows) {
           <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
           <td class="table-actions">
-            ${isOfficeRole ? '<span class="view-only">View only</span>' : '<button class="edit">Edit</button><button class="delete">Delete</button>'}
+            <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+            <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
           </td>
         </tr>
       `;

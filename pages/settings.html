@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings | Unitflow</title>
+    <link rel="icon" type="image/svg+xml" href="../images/favicon.svg" />
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">U</div><span>unitflow</span></div>
+      <nav class="nav">
+        <div class="nav-label">Workspace</div>
+        <a class="nav-item" href="../index.html"><span class="nav-icon">▣</span>Overview</a>
+        <a class="nav-item messages-nav-item" href="messages.html" aria-label="Open Messages"><span class="nav-icon">✉</span>Messages<span class="nav-count" data-message-nav-count hidden></span></a>
+        <a class="nav-item" href="unit-registry.html"><span class="nav-icon">▤</span>Unit registry</a>
+        <a class="nav-item" href="branches.html"><span class="nav-icon">⎇</span>Branches</a>
+        <a class="nav-item" href="accounts.html"><span class="nav-icon">◉</span>Accounts</a>
+        <a class="nav-item active" id="settingsLink" href="settings.html"><span class="nav-icon">⚙</span>Settings</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Settings</div>
+        <div class="topbar-right">
+          <div class="sync-pill"><span class="dot live"></span><span>Local policy</span></div>
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false"><div class="user-avatar">SA</div><span id="topbarUserName">Administrator</span></button>
+            <div class="user-dropdown" id="userDropdown" hidden><button type="button" id="logoutButton">Logout</button></div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content settings-content">
+        <div class="header-row">
+          <div class="heading-block">
+            <div class="eyebrow">Access control</div>
+            <h1>Role permissions</h1>
+            <p>Choose what each role can do across the workspace.</p>
+          </div>
+          <div class="settings-status" id="settingsStatus" role="status" aria-live="polite"></div>
+        </div>
+
+        <section class="panel access-panel">
+          <div class="panel-header">
+            <div><h2>Page Access</h2><p class="panel-subtitle">Choose which workspace pages each role can open.</p></div>
+          </div>
+          <div class="page-access-grid" id="pageAccessGrid"></div>
+        </section>
+
+        <section class="panel permissions-panel">
+          <div class="panel-header">
+            <div><h2>Permissions</h2><p class="panel-subtitle">Control create, edit, delete, and export actions.</p></div>
+            <div class="permission-legend"><span class="permission-dot allowed"></span>Allowed <span class="permission-dot restricted"></span>Restricted</div>
+          </div>
+          <div class="permissions-role-list" id="permissionsTableBody"></div>
+          <div class="permissions-actions"><button class="action-btn" id="resetPermissionsBtn" type="button">Reset defaults</button><button class="action-btn primary" id="savePermissionsBtn" type="button">Save permissions</button></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/settings.js"></script>
+  </body>
+</html>

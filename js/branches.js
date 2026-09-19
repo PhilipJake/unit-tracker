@@ -41,8 +41,6 @@ async function loadBranches() {
     }
 
     const currentRole = localStorage.getItem('unitflowRole');
-    const isOfficeRole = currentRole === 'Office';
-
     branchesTableBody.innerHTML = rows
       .map((row) => {
         const branchName = row.branchName || row.branchname || row.name || '';
@@ -53,15 +51,19 @@ async function loadBranches() {
 
         const badgeClass = normalizeBranchStatus(status) === 'inactive' ? 'released' : 'in-stock';
 
+        const canEdit = canManageAction('edit', currentRole);
+        const canDelete = canManageAction('delete', currentRole);
+
         return `
           <tr data-branch-name="${escapeHtml(branchName)}">
             <td>${escapeHtml(branchName || '—')}</td>
-            <td>${escapeHtml(branchCode || '—')}</td>
+            <td class="branch-code-cell">${escapeHtml(branchCode || '—')}</td>
             <td>${escapeHtml(location || '—')}</td>
             <td>${escapeHtml(manager || '—')}</td>
-            <td><span class="badge ${badgeClass}">${escapeHtml(status || 'Active')}</span></td>
+            <td class="branch-status-cell"><span class="badge ${badgeClass}">${escapeHtml(status || 'Active')}</span></td>
             <td class="table-actions">
-              ${isOfficeRole ? '<span class="view-only">View only</span>' : '<button class="edit">Edit</button><button class="delete">Delete</button>'}
+              <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+              <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
             </td>
           </tr>
         `;
@@ -320,6 +322,10 @@ if (openBranchModalBtn) {
     if (localStorage.getItem('unitflowRole') === 'Office') {
       return;
     }
+
+    const currentRole = localStorage.getItem('unitflowRole');
+    if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
+    if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
     openBranchModal('create');
   });
 }

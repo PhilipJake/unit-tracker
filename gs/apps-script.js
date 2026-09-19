@@ -3,6 +3,10 @@ const SPREADSHEET_ID = '1tmUvhVy490c2j6io2czia9cOenVZ-NkyncDEgudmuLA';
 function doGet(e) {
   const action = String(e && e.parameter && e.parameter.action || '').toLowerCase();
 
+  if (action === 'permissions') {
+    return readPermissionSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
+  }
+
   if (action === 'messages') {
     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ensureSheet(spreadsheet, 'Messages');
@@ -25,6 +29,10 @@ function doPost(e) {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   const values = e && e.parameter ? e.parameter : {};
   const action = String(values.action || 'units').toLowerCase();
+
+  if (action === 'savepermissions') {
+    return savePermissionSettings(spreadsheet, values);
+  }
 
   if (action === 'deletebranch') {
     return deleteBranchRow(spreadsheet, values.branchName || values.name || '');
@@ -88,6 +96,94 @@ function doPost(e) {
     sheetName,
     inserted: row
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getPermissionHeaders() {
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Overview', 'Messages', 'Unit registry', 'Branches', 'Accounts'];
+}
+
+function getDefaultPermissionRows() {
+  return [
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, false, true, true, true, true, true],
+    ['Main Head Admin', true, true, true, false, true, true, true, true, true, true],
+    ['Branch Head Admin', true, true, true, false, false, true, true, true, false, false],
+    ['Technician', true, true, true, false, false, true, true, true, false, false]
+  ];
+}
+
+function ensurePermissionSheet(spreadsheet) {
+  let sheet = spreadsheet.getSheetByName('Permissions');
+  if (!sheet) sheet = spreadsheet.insertSheet('Permissions');
+
+  const headers = getPermissionHeaders();
+  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  const currentHeaders = headerRange.getValues()[0];
+  if (currentHeaders.every((cell) => String(cell).trim() === '')) {
+    headerRange.setValues([headers]);
+  }
+
+  if (sheet.getLastRow() <= 1) {
+    sheet.getRange(2, 1, getDefaultPermissionRows().length, headers.length).setValues(getDefaultPermissionRows());
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.setTabColor('#7fe2a7');
+  return sheet;
+}
+
+function toPermissionBoolean(value) {
+  return ['true', '1', 'yes', 'on'].includes(String(value).trim().toLowerCase()) || value === true;
+}
+
+function readPermissionSettings(spreadsheet) {
+  const sheet = ensurePermissionSheet(spreadsheet);
+  const values = sheet.getDataRange().getValues();
+  const rows = values.slice(1).filter((row) => String(row[0] || '').trim());
+  const permissions = {};
+  const pageAccess = {};
+
+  rows.forEach((row) => {
+    const role = String(row[0]).trim();
+    permissions[role] = { view: toPermissionBoolean(row[1]), create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]) };
+    pageAccess[role] = { Overview: toPermissionBoolean(row[6]), Messages: toPermissionBoolean(row[7]), 'Unit registry': toPermissionBoolean(row[8]), Branches: toPermissionBoolean(row[9]), Accounts: toPermissionBoolean(row[10]) };
+  });
+
+  const defaults = getDefaultPermissionRows();
+  const superAdminDefaults = defaults[0];
+  permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5] };
+  pageAccess['Super Admin'] = { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true };
+  return jsonResponse({ ok: true, permissions, pageAccess });
+}
+
+function savePermissionSettings(spreadsheet, values) {
+  if (!['Super Admin', 'Administrator'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin or Administrator can save permissions' });
+  }
+
+  let permissions;
+  let pageAccess;
+  try {
+    permissions = JSON.parse(String(values.permissions || '{}'));
+    pageAccess = JSON.parse(String(values.pageAccess || '{}'));
+  } catch (error) {
+    return jsonResponse({ ok: false, error: 'Invalid permission data' });
+  }
+
+  const defaults = getDefaultPermissionRows();
+  const rows = defaults.map((defaultRow) => {
+    const role = defaultRow[0];
+    const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
+    const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
+    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? true : Boolean(roleAccess.Overview), role === 'Super Admin' ? true : Boolean(roleAccess.Messages), role === 'Super Admin' ? true : Boolean(roleAccess['Unit registry']), role === 'Super Admin' ? true : Boolean(roleAccess.Branches), role === 'Super Admin' ? true : Boolean(roleAccess.Accounts)];
+  });
+
+  const sheet = ensurePermissionSheet(spreadsheet);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, getPermissionHeaders().length).setValues([getPermissionHeaders()]);
+  sheet.getRange(2, 1, rows.length, getPermissionHeaders().length).setValues(rows);
+  return jsonResponse({ ok: true, action: 'savePermissions' });
 }
 
 function markMessageRead(spreadsheet, messageId) {
