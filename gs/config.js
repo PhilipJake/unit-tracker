@@ -7,7 +7,7 @@ window.GS_CONFIG = {
   sheetName: 'Units',
   accountsSheetName: 'Accounts',
   branchesSheetName: 'Branches',
-  appScriptUrl: 'https://script.google.com/macros/s/AKfycbz0DoPhprPflyNnZlZF96WwFPtQkmdMZn0wOJ-SA7PgS5a1ExTY8IS03yHpqFKkvWah7w/exec'
+  appScriptUrl: 'https://script.google.com/macros/s/AKfycbyZf2FE5uJ84PxwVKVdRs-POMG4iDqmG48jGTlNfAj7eRU83PlZoqNWXoFSnCshWFB4Sg/exec'
 };
 
 window.GS_CONFIG.sheetUrl = `https://docs.google.com/spreadsheets/d/${window.GS_CONFIG.sheetId}/export?format=csv&gid=${window.GS_CONFIG.gid}`;

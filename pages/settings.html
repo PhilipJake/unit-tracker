@@ -61,6 +61,19 @@
       </main>
     </div>
 
+    <div class="modal-backdrop" id="settingsMessageModalBackdrop" aria-hidden="true">
+      <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="settingsMessageModalTitle">
+        <div class="modal-header">
+          <h3 id="settingsMessageModalTitle">Notice</h3>
+          <button class="modal-close" id="closeSettingsMessageModalBtn" type="button" aria-label="Close message">×</button>
+        </div>
+        <div class="modal-body" id="settingsMessageModalBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="action-btn primary" id="okSettingsMessageModalBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
     <script src="../gs/config.js"></script>
     <script src="../js/data.js"></script>
     <script src="../js/user-menu.js"></script>

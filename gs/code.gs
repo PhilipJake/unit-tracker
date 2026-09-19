@@ -94,6 +94,10 @@ function doPost(e) {
 
   sheet.appendRow(row);
 
+  if (action === 'accounts') {
+    syncBranchManagerFromAccount(spreadsheet, values.fullName || '', values.branch || values.accountBranch || values.branchName || '', values.originalBranch || '');
+  }
+
   return ContentService.createTextOutput(JSON.stringify({
     ok: true,
     action,
@@ -423,11 +427,43 @@ function updateAccountRow(spreadsheet, values) {
       }
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
       targetRange.setValues([rowToWrite]);
+      syncBranchManagerFromAccount(spreadsheet, values.fullName || '', values.branch || values.accountBranch || values.branchName || '', values.originalBranch || '');
       return ContentService.createTextOutput(JSON.stringify({ ok: true, action: 'updateAccount', updatedUsername: values.username || targetUsername })).setMimeType(ContentService.MimeType.JSON);
     }
   }
 
   return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Account not found for update' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function syncBranchManagerFromAccount(spreadsheet, accountName, branchName, originalBranchName) {
+  const managerName = String(accountName || '').trim();
+  const targetBranch = String(branchName || '').trim();
+  const previousBranch = String(originalBranchName || '').trim();
+  if (!managerName) return;
+
+  const sheet = spreadsheet.getSheetByName('Branches');
+  if (!sheet) return;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const branchNameIndex = headers.findIndex((header) => String(header).trim().toLowerCase().includes('branch name'));
+  const managerIndex = headers.findIndex((header) => ['head admin', 'manager', 'branch manager'].includes(String(header).trim().toLowerCase()));
+  if (branchNameIndex === -1 || managerIndex === -1) return;
+
+  const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const normalizedPreviousBranch = normalize(previousBranch);
+  const normalizedTargetBranch = normalize(targetBranch);
+
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    const currentBranch = String(data[rowIndex][branchNameIndex] || '').trim();
+    const currentManager = String(data[rowIndex][managerIndex] || '').trim();
+    if (normalizedPreviousBranch && normalize(currentBranch) === normalizedPreviousBranch && normalize(currentManager) === normalize(managerName)) {
+      sheet.getRange(rowIndex + 1, managerIndex + 1).setValue('');
+    }
+    if (normalizedTargetBranch && normalize(currentBranch) === normalizedTargetBranch) {
+      sheet.getRange(rowIndex + 1, managerIndex + 1).setValue(managerName);
+    }
+  }
 }
 
 function ensureSheet(spreadsheet, sheetName) {

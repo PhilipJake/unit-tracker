@@ -410,6 +410,7 @@ function initUnitModal() {
       }
 
       const headers = [
+        'Branch Location',
         'Unit Code',
         'Unit Specs',
         'Unit Price',
@@ -422,11 +423,11 @@ function initUnitModal() {
         'Running Days',
         'Unit Problem',
         'Status',
-        'Branch Location',
         'Inclusion'
       ];
 
       const rowsCsv = filteredRows.map((unit) => [
+        unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '',
         unit.unitCode || '',
         unit.specs || '',
         unit.unitPrice || '',
@@ -439,7 +440,6 @@ function initUnitModal() {
         unit.runningDays || '',
         unit.unitProblem || '',
         unit.status || '',
-        unit.uploadedBranch || unit.branchLocation || '',
         unit.inclusion || ''
       ]);
 
@@ -609,19 +609,19 @@ function renderRegistryTable(rows) {
 
       return `
         <tr data-unit-code="${escapeHtml(code)}">
+          <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
           <td>${escapeHtml(specs)}</td>
           <td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>
-          <td>${escapeHtml(brand)}</td>
-          <td>${escapeHtml(client)}</td>
+          <td class="unit-brand-cell">${escapeHtml(brand)}</td>
+          <td class="unit-client-cell">${escapeHtml(client)}</td>
           <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
           <td><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
-          <td><span class="center-stack">${renderStackedText(runningDays)}</span></td>
+          <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
           <td>${escapeHtml(problem)}</td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
-          <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
           <td class="table-actions">
             <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>

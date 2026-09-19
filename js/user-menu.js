@@ -181,18 +181,6 @@ function applyRoleRestrictions() {
     item.title = 'Not available for this role';
   });
 
-  if (role === 'Office') {
-    document.querySelectorAll('.action-btn.primary, #openUnitModalBtn, #openBranchModalBtn, #openAccountModalBtn').forEach((element) => {
-      element.style.display = 'none';
-    });
-
-    const exportButton = document.getElementById('exportUnitCsvBtn');
-    if (exportButton) {
-      exportButton.style.display = 'none';
-    }
-
-  }
-
   const createButtons = document.querySelectorAll('#openUnitModalBtn, #openBranchModalBtn, #openAccountModalBtn');
   createButtons.forEach((button) => {
     button.style.display = canManageAction('create', role) ? '' : 'none';

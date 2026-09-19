@@ -79,12 +79,10 @@
 
         <section class="panel table-panel">
           <div class="table-wrap">
-            <table>
+            <table class="branches-table">
               <thead>
                 <tr>
                   <th>Branch Name</th>
-                  <th>Branch Code</th>
-                  <th>Location</th>
                   <th>Manager</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -92,7 +90,7 @@
               </thead>
               <tbody id="branchesTableBody">
                 <tr>
-                  <td colspan="6" class="empty-state">Loading branches from the spreadsheet…</td>
+                  <td colspan="4" class="empty-state">Loading branches from the spreadsheet…</td>
                 </tr>
               </tbody>
             </table>
@@ -132,7 +130,7 @@
 
             <div class="field-group">
               <label for="headAdminSelect">Head Admin</label>
-              <select id="headAdminSelect" name="headAdminSelect" required>
+              <select id="headAdminSelect" name="headAdminSelect">
                 <option value="">Loading head admins…</option>
               </select>
             </div>

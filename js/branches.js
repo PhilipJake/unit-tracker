@@ -16,17 +16,22 @@ const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 let activeEditBranchName = '';
 let activeBranchRecord = null;
+let pendingConfirmAction = null;
 
-function showPopupMessage(message) {
+function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return;
 
+  pendingConfirmAction = onConfirm;
   messageModalBody.textContent = message;
   messageModalBackdrop.classList.add('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'false');
+  if (okMessageModalBtn) okMessageModalBtn.textContent = onConfirm ? 'Yes' : 'OK';
 }
 
 function closePopupMessage() {
   if (!messageModalBackdrop) return;
+  pendingConfirmAction = null;
+  if (okMessageModalBtn) okMessageModalBtn.textContent = 'OK';
   messageModalBackdrop.classList.remove('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'true');
 }
@@ -36,7 +41,7 @@ async function loadBranches() {
     const rows = await DATA.fetchBranches();
 
     if (!rows.length) {
-      branchesTableBody.innerHTML = '<tr><td colspan="6" class="empty-state">No branches found in the Branches sheet.</td></tr>';
+      branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No branches found in the Branches sheet.</td></tr>';
       return;
     }
 
@@ -44,8 +49,6 @@ async function loadBranches() {
     branchesTableBody.innerHTML = rows
       .map((row) => {
         const branchName = row.branchName || row.branchname || row.name || '';
-        const branchCode = row.branchCode || row.branchcode || row.branchType || row.branchtype || row.code || '';
-        const location = row.location || row.branchLocation || row.address || '';
         const manager = row.manager || row.branchManager || row.headAdmin || row.headadmin || row.head || '';
         const status = row.status || 'Active';
 
@@ -57,9 +60,7 @@ async function loadBranches() {
         return `
           <tr data-branch-name="${escapeHtml(branchName)}">
             <td>${escapeHtml(branchName || '—')}</td>
-            <td class="branch-code-cell">${escapeHtml(branchCode || '—')}</td>
-            <td>${escapeHtml(location || '—')}</td>
-            <td>${escapeHtml(manager || '—')}</td>
+            <td class="branch-manager-cell">${escapeHtml(manager || '—')}</td>
             <td class="branch-status-cell"><span class="badge ${badgeClass}">${escapeHtml(status || 'Active')}</span></td>
             <td class="table-actions">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
@@ -71,7 +72,7 @@ async function loadBranches() {
       .join('');
   } catch (error) {
     console.error(error);
-    branchesTableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Unable to load branches from the spreadsheet. Please check the Branches sheet and Google Sheet ID.</td></tr>';
+    branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load branches from the spreadsheet. Please check the Branches sheet and Google Sheet ID.</td></tr>';
   }
 }
 
@@ -86,7 +87,7 @@ async function loadHeadAdminOptions() {
     });
 
     if (!filtered.length) {
-      headAdminSelect.innerHTML = '<option value="">No eligible head admins found</option>';
+      headAdminSelect.innerHTML = '<option value="">No head admin assigned</option>';
       return;
     }
 
@@ -133,7 +134,8 @@ function syncBranchName() {
 function openBranchModal(mode = 'create', branch = null) {
   if (!branchModalBackdrop) return;
 
-  if (localStorage.getItem('unitflowRole') === 'Office') {
+  const currentRole = localStorage.getItem('unitflowRole');
+  if (!canManageAction(mode === 'edit' ? 'edit' : 'create', currentRole)) {
     return;
   }
 
@@ -224,9 +226,15 @@ async function saveBranchToSheet(event) {
   const branchName = String(formData.get('branchName') || '').trim();
   const branchLocation = branchLocationFromForm || (activeBranchRecord && (activeBranchRecord.location || activeBranchRecord.branchLocation || activeBranchRecord.address)) || '';
   const headAdmin = headAdminFromForm || (activeBranchRecord && (activeBranchRecord.manager || activeBranchRecord.branchManager || activeBranchRecord.headAdmin || activeBranchRecord.headadmin || activeBranchRecord.head)) || '';
+  const isEditMode = branchForm.dataset.mode === 'edit';
 
-  if (!branchType || !branchName || !branchLocation || !headAdmin) {
-    showPopupMessage('Please complete all branch fields.');
+  if (!canManageAction(isEditMode ? 'edit' : 'create', localStorage.getItem('unitflowRole'))) {
+    showPopupMessage(`You do not have permission to ${isEditMode ? 'edit' : 'create'} branches.`);
+    return;
+  }
+
+  if (!branchType || !branchName || !branchLocation) {
+    showPopupMessage('Please complete the branch type, name, and location.');
     return;
   }
 
@@ -237,7 +245,6 @@ async function saveBranchToSheet(event) {
     return;
   }
 
-  const isEditMode = branchForm.dataset.mode === 'edit';
   const body = new URLSearchParams({
     action: isEditMode ? 'updateBranch' : 'branches',
     branchType,
@@ -319,13 +326,8 @@ function escapeHtml(value) {
 
 if (openBranchModalBtn) {
   openBranchModalBtn.addEventListener('click', () => {
-    if (localStorage.getItem('unitflowRole') === 'Office') {
-      return;
-    }
-
     const currentRole = localStorage.getItem('unitflowRole');
-    if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
-    if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
+    if (!canManageAction('create', currentRole)) return;
     openBranchModal('create');
   });
 }
@@ -351,7 +353,11 @@ if (closeMessageModalBtn) {
 }
 
 if (okMessageModalBtn) {
-  okMessageModalBtn.addEventListener('click', closePopupMessage);
+  okMessageModalBtn.addEventListener('click', () => {
+    const confirmAction = pendingConfirmAction;
+    closePopupMessage();
+    if (confirmAction) confirmAction();
+  });
 }
 
 if (messageModalBackdrop) {
@@ -398,37 +404,30 @@ if (branchesTableBody) {
     }
 
     if (button.classList.contains('delete')) {
-      const confirmed = window.confirm(`Delete branch ${branchName}?`);
-      if (!confirmed) return;
-
-      const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
-      if (!appScriptUrl) {
-        showPopupMessage('Please configure the Apps Script URL before deleting a branch.');
-        return;
-      }
-
-      try {
-        const response = await fetch(appScriptUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({ action: 'deleteBranch', branchName }).toString()
-        });
-
-        const result = await response.json().catch(() => null);
-
-        if (!response.ok || (result && result.ok === false)) {
-          const message = result && result.error ? result.error : 'Branch delete failed';
-          throw new Error(message);
+      showPopupMessage(`Delete branch ${branchName}?`, async () => {
+        const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
+        if (!appScriptUrl) {
+          showPopupMessage('Please configure the Apps Script URL before deleting a branch.');
+          return;
         }
 
-        showPopupMessage('Branch deleted successfully.');
-        loadBranches();
-      } catch (error) {
-        console.error('Delete branch failed:', error);
-        showPopupMessage('Delete failed. Please confirm the Apps Script URL is correct.');
-      }
+        try {
+          const response = await fetch(appScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ action: 'deleteBranch', branchName }).toString()
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok || (result && result.ok === false)) {
+            throw new Error(result && result.error ? result.error : 'Branch delete failed');
+          }
+          showPopupMessage('Branch deleted successfully.');
+          loadBranches();
+        } catch (error) {
+          console.error('Delete branch failed:', error);
+          showPopupMessage('Delete failed. Please confirm the Apps Script URL is correct.');
+        }
+      });
     }
   });
 }

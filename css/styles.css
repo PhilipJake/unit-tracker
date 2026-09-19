@@ -905,6 +905,24 @@ table {
   table-layout: auto;
 }
 
+.branches-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.branches-table th:nth-child(1),
+.branches-table td:nth-child(1) { width: 34%; }
+
+.branches-table th:nth-child(2),
+.branches-table td:nth-child(2) { width: 28%; }
+
+.branches-table th:nth-child(3),
+.branches-table td:nth-child(3) { width: 18%; }
+
+.branches-table th:nth-child(4),
+.branches-table td:nth-child(4) { width: 20%; }
+
 th, td {
   text-align: left;
   padding: 8px 6px;
@@ -1352,7 +1370,13 @@ td {
   text-align: center;
 }
 
-.branch-code-cell {
+.branch-manager-cell {
+  text-align: center;
+}
+
+.unit-client-cell,
+.unit-running-days-cell,
+.unit-brand-cell {
   text-align: center;
 }
 

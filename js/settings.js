@@ -5,6 +5,10 @@ const pageAccessGrid = document.getElementById('pageAccessGrid');
 const settingsStatus = document.getElementById('settingsStatus');
 const savePermissionsBtn = document.getElementById('savePermissionsBtn');
 const resetPermissionsBtn = document.getElementById('resetPermissionsBtn');
+const settingsMessageModalBackdrop = document.getElementById('settingsMessageModalBackdrop');
+const settingsMessageModalBody = document.getElementById('settingsMessageModalBody');
+const closeSettingsMessageModalBtn = document.getElementById('closeSettingsMessageModalBtn');
+const okSettingsMessageModalBtn = document.getElementById('okSettingsMessageModalBtn');
 
 function cloneDefaultPermissions() {
   return JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS));
@@ -38,6 +42,21 @@ function showSettingsStatus(message, state = 'success') {
   window.setTimeout(() => {
     if (settingsStatus.textContent === message) settingsStatus.textContent = '';
   }, 2600);
+}
+
+function showSettingsMessage(message, title = 'Notice') {
+  const titleElement = document.getElementById('settingsMessageModalTitle');
+  if (!settingsMessageModalBackdrop || !settingsMessageModalBody) return;
+  if (titleElement) titleElement.textContent = title;
+  settingsMessageModalBody.textContent = message;
+  settingsMessageModalBackdrop.classList.add('visible');
+  settingsMessageModalBackdrop.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettingsMessage() {
+  if (!settingsMessageModalBackdrop) return;
+  settingsMessageModalBackdrop.classList.remove('visible');
+  settingsMessageModalBackdrop.setAttribute('aria-hidden', 'true');
 }
 
 function getFormPermissions() {
@@ -79,10 +98,12 @@ async function savePermissions() {
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     showSettingsStatus('Permissions saved to Google Sheets');
+    showSettingsMessage('Permissions saved successfully.', 'Permissions saved');
   } catch (error) {
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     showSettingsStatus('Saved locally; Google Sheets was unavailable.', 'notice');
+    showSettingsMessage('Permissions were saved locally, but could not be saved to Google Sheets.', 'Save warning');
     console.error('Unable to save permissions to Google Sheets:', error);
   }
 }
@@ -119,4 +140,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadPermissionsFromServer();
   savePermissionsBtn.addEventListener('click', savePermissions);
   resetPermissionsBtn.addEventListener('click', resetPermissions);
+  closeSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
+  okSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
+  settingsMessageModalBackdrop.addEventListener('click', (event) => {
+    if (event.target === settingsMessageModalBackdrop) closeSettingsMessage();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeSettingsMessage();
+  });
 });

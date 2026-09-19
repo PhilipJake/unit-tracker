@@ -11,17 +11,22 @@ const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 let activeEditUsername = '';
+let pendingConfirmAction = null;
 
-function showPopupMessage(message) {
+function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return;
 
+  pendingConfirmAction = onConfirm;
   messageModalBody.textContent = message;
   messageModalBackdrop.classList.add('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'false');
+  if (okMessageModalBtn) okMessageModalBtn.textContent = onConfirm ? 'Yes' : 'OK';
 }
 
 function closePopupMessage() {
   if (!messageModalBackdrop) return;
+  pendingConfirmAction = null;
+  if (okMessageModalBtn) okMessageModalBtn.textContent = 'OK';
   messageModalBackdrop.classList.remove('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'true');
 }
@@ -178,7 +183,8 @@ async function loadAccounts() {
 function openAccountModal(mode = 'create', account = null) {
   if (!accountModalBackdrop) return;
 
-  if (localStorage.getItem('unitflowRole') === 'Office') {
+  const currentRole = localStorage.getItem('unitflowRole');
+  if (!canManageAction(mode === 'edit' ? 'edit' : 'create', currentRole)) {
     return;
   }
 
@@ -186,11 +192,13 @@ function openAccountModal(mode = 'create', account = null) {
     activeEditUsername = String(account.username || account.userName || account.accountUsername || '').trim();
     accountForm.dataset.mode = 'edit';
     accountForm.dataset.createdAt = account.created || account.createdAt || account.dateCreated || account['created at'] || '';
+    accountForm.dataset.originalBranch = account.branch || account.branchLocation || account.branchName || '';
     populateAccountForm(account);
   } else {
     activeEditUsername = '';
     accountForm.dataset.mode = 'create';
     delete accountForm.dataset.createdAt;
+    delete accountForm.dataset.originalBranch;
     accountForm.reset();
   }
 
@@ -244,6 +252,12 @@ async function saveAccountToSheet(event) {
   const email = String(formData.get('accountEmail') || '').trim();
   const branch = String(formData.get('accountBranch') || '').trim();
   const isEditMode = accountForm.dataset.mode === 'edit';
+  const originalBranch = String(accountForm.dataset.originalBranch || '').trim();
+
+  if (!canManageAction(isEditMode ? 'edit' : 'create', currentRole)) {
+    showPopupMessage(`You do not have permission to ${isEditMode ? 'edit' : 'create'} accounts.`);
+    return;
+  }
 
   if (!username || !password || !accountType || !fullName || !email) {
     showPopupMessage('Please complete all required account fields.');
@@ -297,6 +311,7 @@ async function saveAccountToSheet(event) {
     status: 'Active',
       createdAt: isEditMode && accountForm.dataset.createdAt ? accountForm.dataset.createdAt : new Date().toISOString(),
     originalUsername: activeEditUsername || username,
+    originalBranch,
     actorRole: currentRole || ''
   }).toString();
 
@@ -375,13 +390,8 @@ function escapeHtml(value) {
 
 if (openAccountModalBtn) {
   openAccountModalBtn.addEventListener('click', async () => {
-    if (localStorage.getItem('unitflowRole') === 'Office') {
-      return;
-    }
-
     const currentRole = localStorage.getItem('unitflowRole');
-    if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
-    if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
+    if (!canManageAction('create', currentRole)) return;
     await loadBranchOptions();
     openAccountModal('create');
   });
@@ -408,7 +418,11 @@ if (closeMessageModalBtn) {
 }
 
 if (okMessageModalBtn) {
-  okMessageModalBtn.addEventListener('click', closePopupMessage);
+  okMessageModalBtn.addEventListener('click', () => {
+    const confirmAction = pendingConfirmAction;
+    closePopupMessage();
+    if (confirmAction) confirmAction();
+  });
 }
 
 if (messageModalBackdrop) {
@@ -465,9 +479,9 @@ if (accountsTableBody) {
         return;
       }
 
-      const confirmed = window.confirm(`Delete account ${username}?`);
-      if (!confirmed) return;
-      await deleteAccountFromSheet(username);
+      showPopupMessage(`Delete account ${username}?`, async () => {
+        await deleteAccountFromSheet(username);
+      });
     }
   });
 }
