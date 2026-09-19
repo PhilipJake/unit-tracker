@@ -38,9 +38,12 @@ function initializeClientUnitTrackerSheets() {
     'Status'
   ];
 
+  const trashHeaders = unitsHeaders.concat(['Deleted At', 'Deleted By', 'Expires At']);
+
   const unitsSheet = ensureSheet(spreadsheet, 'Units', unitsHeaders);
   const accountsSheet = ensureSheet(spreadsheet, 'Accounts', accountsHeaders);
   const branchesSheet = ensureSheet(spreadsheet, 'Branches', branchesHeaders);
+  const trashSheet = ensureSheet(spreadsheet, 'Trash', trashHeaders);
   seedDemoAccounts(accountsSheet);
   seedDemoBranches(branchesSheet);
 
@@ -53,6 +56,7 @@ function initializeClientUnitTrackerSheets() {
     accountsGid: accountsSheet.getSheetId(),
     branchesSheet: branchesSheet.getName(),
     branchesGid: branchesSheet.getSheetId(),
+    trashGid: trashSheet.getSheetId(),
     config: {
       sheetId: spreadsheet.getId(),
       gid: unitsSheet.getSheetId(),

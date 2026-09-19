@@ -1362,6 +1362,15 @@ td {
   color: var(--red-text);
 }
 
+.trash-table .table-actions .delete {
+  min-width: 92px;
+  line-height: 1.15;
+}
+
+.trash-table .table-actions .delete span {
+  display: block;
+}
+
 .account-branch-cell {
   text-align: center;
 }

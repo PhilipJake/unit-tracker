@@ -46,6 +46,14 @@ const DATA = {
 
     const result = await response.json();
     return Array.isArray(result.rows) ? result.rows : [];
+  },
+
+  async fetchTrash() {
+    const config = window.GS_CONFIG || {};
+    const response = await fetch(`${config.appScriptUrl}?action=trash`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Trash request failed with status ${response.status}.`);
+    const result = await response.json();
+    return Array.isArray(result.rows) ? result.rows : [];
   }
 };
 

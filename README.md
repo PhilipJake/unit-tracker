@@ -79,6 +79,10 @@ Users can send messages to other accounts, view inbox and sent messages, search 
 
 Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUnitTracker Attachments`. The Messages sheet stores the attachment names and Drive links. The browser limits each send to 20 MB total attachment data, and the Apps Script deployment must be authorized to use Google Drive.
 
+## Trash
+
+Run `initializeClientUnitTrackerSheets()` in Apps Script to create the `Trash` sheet. Deleting a unit moves its original row to Trash with `Deleted At`, `Deleted By`, and `Expires At` metadata. The Trash page can restore or permanently delete units; expired rows are removed when Trash is loaded. Redeploy the Apps Script web app after updating `gs/code.gs`.
+
 ## Sample data
 
 If you want the database to have live functionality, the sheet itself is the source of truth. There is no default demo dataset included in the app.

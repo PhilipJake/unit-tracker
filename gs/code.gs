@@ -22,6 +22,11 @@ function doGet(e) {
     return jsonResponse({ ok: true, rows });
   }
 
+  if (action === 'trash') {
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    return readTrashRows(spreadsheet);
+  }
+
   return HtmlService.createHtmlOutput('Client Unit Tracker Apps Script is running.');
 }
 
@@ -35,7 +40,15 @@ function doPost(e) {
   }
 
   if (action === 'deleteunit') {
-    return deleteUnitRow(spreadsheet, values.unitCode || values.code || '');
+    return deleteUnitRow(spreadsheet, values.unitCode || values.code || '', values);
+  }
+
+  if (action === 'restoreunit') {
+    return restoreUnitRow(spreadsheet, values.unitCode || values.code || '');
+  }
+
+  if (action === 'purgeunit') {
+    return purgeUnitRow(spreadsheet, values.unitCode || values.code || '');
   }
 
   if (action === 'updateunit') {
@@ -107,17 +120,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Overview', 'Messages', 'Unit registry', 'Branches', 'Accounts'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts'];
 }
 
 function getDefaultPermissionRows() {
   return [
-    ['Super Admin', true, true, true, true, true, true, true, true, true, true],
-    ['Administrator', true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, false, true, true, true, true, true],
-    ['Main Head Admin', true, true, true, false, true, true, true, true, true, true],
-    ['Branch Head Admin', true, true, true, false, false, true, true, true, false, false],
-    ['Technician', true, true, true, false, false, true, true, true, false, false]
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, false, true, true, true, false, true, true],
+    ['Main Head Admin', true, true, true, false, true, true, true, true, false, true, true],
+    ['Branch Head Admin', true, true, true, false, false, true, true, true, false, false, false],
+    ['Technician', true, true, true, false, false, true, true, true, false, false, false]
   ];
 }
 
@@ -155,13 +168,13 @@ function readPermissionSettings(spreadsheet) {
   rows.forEach((row) => {
     const role = String(row[0]).trim();
     permissions[role] = { view: toPermissionBoolean(row[1]), create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]) };
-    pageAccess[role] = { Overview: toPermissionBoolean(row[6]), Messages: toPermissionBoolean(row[7]), 'Unit registry': toPermissionBoolean(row[8]), Branches: toPermissionBoolean(row[9]), Accounts: toPermissionBoolean(row[10]) };
+    pageAccess[role] = { Overview: toPermissionBoolean(row[6]), Messages: toPermissionBoolean(row[7]), 'Unit registry': toPermissionBoolean(row[8]), Trash: toPermissionBoolean(row[9]), Branches: toPermissionBoolean(row[10]), Accounts: toPermissionBoolean(row[11]) };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
   permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5] };
-  pageAccess['Super Admin'] = { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true };
+  pageAccess['Super Admin'] = { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
   return jsonResponse({ ok: true, permissions, pageAccess });
 }
 
@@ -184,7 +197,7 @@ function savePermissionSettings(spreadsheet, values) {
     const role = defaultRow[0];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
-    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? true : Boolean(roleAccess.Overview), role === 'Super Admin' ? true : Boolean(roleAccess.Messages), role === 'Super Admin' ? true : Boolean(roleAccess['Unit registry']), role === 'Super Admin' ? true : Boolean(roleAccess.Branches), role === 'Super Admin' ? true : Boolean(roleAccess.Accounts)];
+    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? true : Boolean(roleAccess.Overview), role === 'Super Admin' ? true : Boolean(roleAccess.Messages), role === 'Super Admin' ? true : Boolean(roleAccess['Unit registry']), role === 'Super Admin' ? true : Boolean(roleAccess.Trash), role === 'Super Admin' ? true : Boolean(roleAccess.Branches), role === 'Super Admin' ? true : Boolean(roleAccess.Accounts)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -270,28 +283,102 @@ function getCodeColumnIndex(headerRow) {
   return matchIndex;
 }
 
-function deleteUnitRow(spreadsheet, unitCode) {
+function getTrashHeaders(unitHeaders) {
+  return unitHeaders.concat(['Deleted At', 'Deleted By', 'Expires At']);
+}
+
+function getUnitRecord(sheet, unitCode) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const codeIndex = getCodeColumnIndex(headers);
+  if (codeIndex === -1) return null;
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (String(data[rowIndex][codeIndex] || '').trim() === String(unitCode).trim()) {
+      return { headers, values: data[rowIndex], rowIndex: rowIndex + 1 };
+    }
+  }
+  return null;
+}
+
+function getTrashSheet(spreadsheet, unitHeaders) {
+  return ensureSheet(spreadsheet, 'Trash', getTrashHeaders(unitHeaders));
+}
+
+function serializeTrashDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return String(value || '');
+}
+
+function readTrashRows(spreadsheet) {
+  const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
+  const trashSheet = getTrashSheet(spreadsheet, unitsSheet.getDataRange().getValues()[0] || []);
+  const values = trashSheet.getDataRange().getValues();
+  const headers = values[0] || [];
+  const deletedAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const expiresAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const codeIndex = getCodeColumnIndex(headers);
+  const now = new Date();
+  for (let rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
+    const expiresAt = new Date(values[rowIndex][expiresAtIndex]);
+    if (expiresAtIndex !== -1 && !Number.isNaN(expiresAt.getTime()) && expiresAt <= now) trashSheet.deleteRow(rowIndex + 1);
+  }
+  const current = trashSheet.getDataRange().getValues();
+  const currentHeaders = current[0] || [];
+  const currentCodeIndex = getCodeColumnIndex(currentHeaders);
+  const currentDeletedIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const currentExpiresIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const currentClientIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase().includes('client name'));
+  const currentBranchIndex = currentHeaders.findIndex((header) => ['branch location', 'uploaded branch', 'current location'].includes(String(header).trim().toLowerCase()));
+  const rows = current.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== '')).map((row) => ({ unitCode: row[currentCodeIndex] || '', clientName: currentClientIndex === -1 ? '' : row[currentClientIndex] || '', branchLocation: currentBranchIndex === -1 ? '' : row[currentBranchIndex] || '', deletedAt: currentDeletedIndex === -1 ? '' : serializeTrashDate(row[currentDeletedIndex]), expiresAt: currentExpiresIndex === -1 ? '' : serializeTrashDate(row[currentExpiresIndex]) }));
+  return jsonResponse({ ok: true, rows });
+}
+
+function deleteUnitRow(spreadsheet, unitCode, values) {
   if (!unitCode) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Missing unit code' })).setMimeType(ContentService.MimeType.JSON);
   }
 
   const sheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
-  const data = sheet.getDataRange().getValues();
-  const headerRow = data[0] || [];
-  const codeIndex = getCodeColumnIndex(headerRow);
-
-  if (codeIndex === -1) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Code column not found' })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
-    if (String(data[rowIndex][codeIndex] || '').trim() === String(unitCode).trim()) {
-      sheet.deleteRow(rowIndex + 1);
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, action: 'deleteUnit', deletedCode: unitCode })).setMimeType(ContentService.MimeType.JSON);
+  const record = getUnitRecord(sheet, unitCode);
+  if (!record) {
+    const codeIndex = getCodeColumnIndex(sheet.getDataRange().getValues()[0] || []);
+    if (codeIndex === -1) {
+      return jsonResponse({ ok: false, error: 'Code column not found' });
     }
+    return jsonResponse({ ok: false, error: 'Unit not found' });
   }
 
-  return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unit not found' })).setMimeType(ContentService.MimeType.JSON);
+  const trashSheet = getTrashSheet(spreadsheet, record.headers);
+  const deletedAt = new Date();
+  const expiresAt = new Date(deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+  trashSheet.appendRow(record.values.concat([deletedAt, values.actorName || values.actorRole || 'Unknown', expiresAt]));
+  sheet.deleteRow(record.rowIndex);
+  return jsonResponse({ ok: true, action: 'deleteUnit', deletedCode: unitCode });
+}
+
+function restoreUnitRow(spreadsheet, unitCode) {
+  const trashSheet = spreadsheet.getSheetByName('Trash');
+  const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
+  if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
+  const record = getUnitRecord(trashSheet, unitCode);
+  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
+  const unitColumnCount = (unitsSheet.getDataRange().getValues()[0] || []).length;
+  unitsSheet.appendRow(record.values.slice(0, unitColumnCount));
+  trashSheet.deleteRow(record.rowIndex);
+  return jsonResponse({ ok: true, action: 'restoreUnit', restoredCode: unitCode });
+}
+
+function purgeUnitRow(spreadsheet, unitCode) {
+  const trashSheet = spreadsheet.getSheetByName('Trash');
+  if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
+  const record = getUnitRecord(trashSheet, unitCode);
+  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
+  trashSheet.deleteRow(record.rowIndex);
+  return jsonResponse({ ok: true, action: 'purgeUnit', purgedCode: unitCode });
 }
 
 function deleteBranchRow(spreadsheet, branchName) {

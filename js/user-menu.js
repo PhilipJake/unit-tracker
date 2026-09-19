@@ -1,10 +1,10 @@
 const ACCESS_RULES = {
   'Super Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   Administrator: {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   'Main Head Admin': {
@@ -33,7 +33,7 @@ function getCurrentRole() {
 function getCurrentPagePath() {
   const currentPath = window.location.pathname;
   const normalized = currentPath.split('/').pop();
-  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('unit-registry.html') ? 'pages/unit-registry.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
+  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('unit-registry.html') ? 'pages/unit-registry.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
@@ -49,6 +49,7 @@ const PAGE_ACCESS_OPTIONS = {
   Overview: '../index.html',
   Messages: 'pages/messages.html',
   'Unit registry': 'pages/unit-registry.html',
+  Trash: 'pages/trash.html',
   Branches: 'pages/branches.html',
   Accounts: 'pages/accounts.html'
 };
@@ -56,10 +57,10 @@ const PAGE_ACCESS_OPTIONS = {
 const DEFAULT_PAGE_ACCESS = {
   'Super Admin': Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
   Administrator: Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
-  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true },
+  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true },
   'Branch Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Branches: false, Accounts: false },
-  Office: { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true },
-  Technician: { Overview: true, Messages: true, 'Unit registry': true, Branches: false, Accounts: false }
+  Office: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true },
+  Technician: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false }
 };
 
 function getRolePermissions() {
