@@ -45,9 +45,22 @@
           </form>
 
           <div class="auth-link">
-            Need help? <a href="#">Contact admin</a>
+            Need help? <a href="#" id="contactAdminLink">Contact admin</a>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="contactAdminBackdrop" aria-hidden="true">
+      <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="contactAdminTitle">
+        <div class="modal-header"><h3 id="contactAdminTitle">Contact admin</h3><button class="modal-close" id="contactAdminClose" type="button" aria-label="Close contact form">×</button></div>
+        <form class="modal-body auth-form" id="contactAdminForm">
+          <p>Send a message to Super Admin and Administrator.</p>
+          <div class="form-field"><label for="contactAdminName">Your name</label><input id="contactAdminName" name="name" type="text" required /></div>
+          <div class="form-field"><label for="contactAdminContact">Email</label><input id="contactAdminContact" name="contact" type="email" required /></div>
+          <div class="form-field"><label for="contactAdminMessage">Message</label><textarea id="contactAdminMessage" name="message" rows="4" required></textarea></div>
+          <div class="modal-actions"><button type="button" class="action-btn" id="contactAdminCancel">Cancel</button><button type="submit" class="action-btn primary">Send message</button></div>
+        </form>
       </div>
     </div>
 

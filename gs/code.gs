@@ -39,6 +39,10 @@ function doPost(e) {
     return savePermissionSettings(spreadsheet, values);
   }
 
+  if (action === 'contactadmin') {
+    return createContactAdminMessage(spreadsheet, values);
+  }
+
   if (action === 'deleteunit') {
     return deleteUnitRow(spreadsheet, values.unitCode || values.code || '', values);
   }
@@ -230,6 +234,55 @@ function markMessageRead(spreadsheet, messageId) {
   }
 
   return jsonResponse({ ok: false, error: 'Message not found' });
+}
+
+function createContactAdminMessage(spreadsheet, values) {
+  const requesterName = String(values.requesterName || '').trim();
+  const requesterContact = String(values.requesterContact || '').trim();
+  const message = String(values.message || '').trim();
+  if (!requesterName || !requesterContact || !message) {
+    return jsonResponse({ ok: false, error: 'Name, email, and message are required' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requesterContact)) {
+    return jsonResponse({ ok: false, error: 'A valid email address is required' });
+  }
+
+  const accountsSheet = spreadsheet.getSheetByName('Accounts');
+  if (!accountsSheet) return jsonResponse({ ok: false, error: 'Accounts sheet not found' });
+  const accountData = accountsSheet.getDataRange().getValues();
+  const headers = accountData[0] || [];
+  const usernameIndex = headers.findIndex((header) => ['username', 'user name'].includes(String(header).trim().toLowerCase()));
+  const roleIndex = headers.findIndex((header) => ['account type', 'role', 'user type'].includes(String(header).trim().toLowerCase()));
+  const nameIndex = headers.findIndex((header) => ['full name', 'fullname', 'name'].includes(String(header).trim().toLowerCase()));
+  const statusIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  if (usernameIndex === -1 || roleIndex === -1) return jsonResponse({ ok: false, error: 'Admin account fields not found' });
+
+  const admins = accountData.slice(1).filter((row) => {
+    const roleMatches = ['super admin', 'administrator'].includes(String(row[roleIndex] || '').trim().toLowerCase());
+    const status = statusIndex === -1 ? 'active' : String(row[statusIndex] || 'active').trim().toLowerCase();
+    return roleMatches && !['inactive', 'disabled', 'deactivated'].includes(status);
+  });
+  if (!admins.length) return jsonResponse({ ok: false, error: 'No administrator accounts found' });
+
+  const recipient = admins.map((row) => String(row[usernameIndex] || '').trim()).filter(Boolean).join(',');
+  const recipientName = admins.map((row) => String(nameIndex === -1 ? '' : row[nameIndex] || '').trim() || String(row[usernameIndex] || '').trim()).filter(Boolean).join(',');
+  const messagesSheet = ensureSheet(spreadsheet, 'Messages');
+  const messageId = `MSG-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const row = buildRowForAction('messages', {
+    messageId,
+    sender: 'contact-form',
+    senderName: `${requesterName} (${requesterContact})`,
+    recipient,
+    recipientName,
+    subject: 'Login assistance request',
+    body: message,
+    sentAt: new Date().toISOString(),
+    read: 'FALSE',
+    threadId: `THREAD-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    attachments: '[]'
+  });
+  messagesSheet.appendRow(row);
+  return jsonResponse({ ok: true, action: 'contactAdmin', recipientCount: admins.length });
 }
 
 function jsonResponse(payload) {

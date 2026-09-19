@@ -19,6 +19,66 @@ function resolveAppPath(targetPath) {
 }
 
 const loginForm = document.getElementById('loginForm');
+const contactAdminLink = document.getElementById('contactAdminLink');
+const contactAdminBackdrop = document.getElementById('contactAdminBackdrop');
+const contactAdminForm = document.getElementById('contactAdminForm');
+
+function closeContactAdminForm() {
+  if (!contactAdminBackdrop) return;
+  contactAdminBackdrop.classList.remove('visible');
+  contactAdminBackdrop.setAttribute('aria-hidden', 'true');
+}
+
+if (contactAdminLink && contactAdminBackdrop && contactAdminForm) {
+  contactAdminLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    contactAdminBackdrop.classList.add('visible');
+    contactAdminBackdrop.setAttribute('aria-hidden', 'false');
+    document.getElementById('contactAdminName').focus();
+  });
+
+  document.getElementById('contactAdminClose').addEventListener('click', closeContactAdminForm);
+  document.getElementById('contactAdminCancel').addEventListener('click', closeContactAdminForm);
+  contactAdminBackdrop.addEventListener('click', (event) => {
+    if (event.target === contactAdminBackdrop) closeContactAdminForm();
+  });
+
+  contactAdminForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(contactAdminForm);
+    const config = window.GS_CONFIG || {};
+    const appScriptUrl = String(config.appScriptUrl || '').trim();
+    if (!appScriptUrl) {
+      showAppPopup('Contact admin is not configured yet.');
+      return;
+    }
+
+    const submitButton = contactAdminForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const response = await fetch(appScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          action: 'contactAdmin',
+          requesterName: String(formData.get('name') || '').trim(),
+          requesterContact: String(formData.get('contact') || '').trim(),
+          message: String(formData.get('message') || '').trim()
+        }).toString()
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result || result.ok === false) throw new Error('Contact request failed');
+      closeContactAdminForm();
+      contactAdminForm.reset();
+      showAppPopup('Your message was sent to the administrators.');
+    } catch (error) {
+      console.error(error);
+      showAppPopup('Your message could not be sent. Please try again later.');
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+}
 
 async function authenticateAccount(username, password) {
   const config = window.GS_CONFIG || {};

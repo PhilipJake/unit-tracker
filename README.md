@@ -77,6 +77,8 @@ The Messages page uses the Apps Script web app for both reads and writes. The de
 
 Users can send messages to other accounts, view inbox and sent messages, search message content, and mark inbox messages as read.
 
+The login page's `Contact admin` form sends an in-app message to every active account whose role is `Super Admin` or `Administrator`. Redeploy the Apps Script web app after updating `gs/code.gs` for this form to work.
+
 Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUnitTracker Attachments`. The Messages sheet stores the attachment names and Drive links. The browser limits each send to 20 MB total attachment data, and the Apps Script deployment must be authorized to use Google Drive.
 
 ## Trash
