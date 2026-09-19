@@ -79,8 +79,9 @@ function applyAccountStatusOptions() {
 async function loadBranchOptions() {
   if (!accountBranchField) return;
 
-  accountBranchField.innerHTML = '<option value="">Select branch</option>';
+  accountBranchField.innerHTML = '<option value="" disabled selected>Select branch</option>';
   accountBranchField.insertAdjacentHTML('beforeend', '<option value="Main Office">Main Office</option>');
+  accountBranchField.insertAdjacentHTML('beforeend', '<option value="Technical">Technical</option>');
 
   try {
     const branches = await DATA.fetchBranches();

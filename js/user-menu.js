@@ -235,6 +235,101 @@ function logoutUser() {
   window.location.href = resolveRoutePath('pages/login.html');
 }
 
+function closeChangePasswordModal(backdrop) {
+  backdrop.classList.remove('visible');
+  backdrop.setAttribute('aria-hidden', 'true');
+}
+
+function openChangePasswordModal() {
+  let backdrop = document.getElementById('changePasswordBackdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.id = 'changePasswordBackdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+    backdrop.innerHTML = `
+      <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle">
+        <div class="modal-header">
+          <h3 id="changePasswordTitle">Change Password</h3>
+          <button class="modal-close" id="closeChangePasswordButton" type="button" aria-label="Close change password form">×</button>
+        </div>
+        <form class="modal-body unit-form" id="changePasswordForm" autocomplete="off">
+          <div class="field-group"><label for="currentPassword">Current password</label><input id="currentPassword" name="currentPassword" type="password" required /></div>
+          <div class="field-group"><label for="newPassword">New password</label><input id="newPassword" name="newPassword" type="password" minlength="6" required /></div>
+          <div class="field-group"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" name="confirmPassword" type="password" minlength="6" required /></div>
+          <div class="modal-actions"><button type="button" class="action-btn" id="cancelChangePasswordButton">Cancel</button><button type="submit" class="action-btn primary">Update password</button></div>
+        </form>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const close = () => closeChangePasswordModal(backdrop);
+    document.getElementById('closeChangePasswordButton').addEventListener('click', close);
+    document.getElementById('cancelChangePasswordButton').addEventListener('click', close);
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) close();
+    });
+    document.getElementById('changePasswordForm').addEventListener('submit', submitPasswordChange);
+  }
+
+  backdrop.classList.add('visible');
+  backdrop.setAttribute('aria-hidden', 'false');
+  document.getElementById('currentPassword').focus();
+}
+
+async function submitPasswordChange(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const currentPassword = String(formData.get('currentPassword') || '');
+  const newPassword = String(formData.get('newPassword') || '');
+  const confirmPassword = String(formData.get('confirmPassword') || '');
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  if (newPassword.length < 6) {
+    window.alert('Your new password must be at least 6 characters long.');
+    return;
+  }
+  if (newPassword === currentPassword) {
+    window.alert('Your new password must be different from your current password.');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    window.alert('The new passwords do not match.');
+    return;
+  }
+
+  const appScriptUrl = String((window.GS_CONFIG && window.GS_CONFIG.appScriptUrl) || '').trim();
+  if (!appScriptUrl) {
+    window.alert('Password changes are not configured yet.');
+    return;
+  }
+
+  submitButton.disabled = true;
+  try {
+    const response = await fetch(appScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        action: 'changePassword',
+        username: String(localStorage.getItem('unitflowUser') || '').trim(),
+        currentPassword,
+        newPassword
+      }).toString()
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result || result.ok === false) {
+      throw new Error(result && result.error ? result.error : 'Unable to change password');
+    }
+    closeChangePasswordModal(document.getElementById('changePasswordBackdrop'));
+    form.reset();
+    window.alert('Your password was changed successfully.');
+  } catch (error) {
+    window.alert(error.message || 'Your password could not be changed.');
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 function initUserMenu() {
   if (!localStorage.getItem('unitflowRole')) {
     window.location.href = resolveRoutePath('pages/login.html');
@@ -245,6 +340,15 @@ function initUserMenu() {
   const userMenuButton = document.getElementById('userMenuButton');
   const userDropdown = document.getElementById('userDropdown');
   const logoutButton = document.getElementById('logoutButton');
+  let changePasswordButton = document.getElementById('changePasswordButton');
+
+  if (userDropdown && !changePasswordButton) {
+    changePasswordButton = document.createElement('button');
+    changePasswordButton.type = 'button';
+    changePasswordButton.id = 'changePasswordButton';
+    changePasswordButton.textContent = 'Change Password';
+    userDropdown.insertBefore(changePasswordButton, logoutButton || null);
+  }
 
   applyRoleRestrictions();
   updateMessageNavCount();
@@ -265,6 +369,10 @@ function initUserMenu() {
 
   if (logoutButton) {
     logoutButton.addEventListener('click', logoutUser);
+  }
+
+  if (changePasswordButton) {
+    changePasswordButton.addEventListener('click', openChangePasswordModal);
   }
 
   document.addEventListener('click', (event) => {

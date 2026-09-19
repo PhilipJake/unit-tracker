@@ -43,6 +43,10 @@ function doPost(e) {
     return createContactAdminMessage(spreadsheet, values);
   }
 
+  if (action === 'changepassword') {
+    return changeAccountPassword(spreadsheet, values);
+  }
+
   if (action === 'deleteunit') {
     return deleteUnitRow(spreadsheet, values.unitCode || values.code || '', values);
   }
@@ -292,6 +296,38 @@ function jsonResponse(payload) {
 function isAdministratorCreatingSuperAdmin(values) {
   return String(values.actorRole || '').trim() === 'Administrator'
     && String(values.accountType || '').trim() === 'Super Admin';
+}
+
+function changeAccountPassword(spreadsheet, values) {
+  const sheet = spreadsheet.getSheetByName('Accounts') || spreadsheet.getSheets()[0];
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const usernameIndex = headers.findIndex((header) => String(header).trim().toLowerCase().includes('username'));
+  const passwordIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'password');
+  const username = String(values.username || '').trim();
+  const currentPassword = String(values.currentPassword || '');
+  const newPassword = String(values.newPassword || '');
+
+  if (!username || !currentPassword || newPassword.length < 6) {
+    return jsonResponse({ ok: false, error: 'Please provide valid password details' });
+  }
+  if (newPassword === currentPassword) {
+    return jsonResponse({ ok: false, error: 'The new password must be different from the current password' });
+  }
+  if (usernameIndex === -1 || passwordIndex === -1) {
+    return jsonResponse({ ok: false, error: 'Account credentials columns not found' });
+  }
+
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (String(data[rowIndex][usernameIndex] || '').trim().toLowerCase() !== username.toLowerCase()) continue;
+    if (String(data[rowIndex][passwordIndex] || '') !== currentPassword) {
+      return jsonResponse({ ok: false, error: 'Current password is incorrect' });
+    }
+    sheet.getRange(rowIndex + 1, passwordIndex + 1).setValue(newPassword);
+    return jsonResponse({ ok: true, action: 'changePassword' });
+  }
+
+  return jsonResponse({ ok: false, error: 'Account not found' });
 }
 
 function isValidContactInfo(value) {
