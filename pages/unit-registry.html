@@ -83,6 +83,7 @@
                   <th>Unit Price</th>
                   <th>Unit Brand</th>
                   <th>Client Name</th>
+                  <th>Contact Info</th>
                   <th>Warranty</th>
                   <th>Date of Purchase</th>
                   <th>Date of Return</th>
@@ -96,7 +97,7 @@
               </thead>
               <tbody id="unitRegistryTableBody">
                 <tr>
-                  <td colspan="14" class="empty-state">Loading live spreadsheet data…</td>
+                  <td colspan="15" class="empty-state">Loading live spreadsheet data…</td>
                 </tr>
               </tbody>
             </table>
@@ -146,6 +147,11 @@
             <div class="field-group">
               <label for="clientName">Client Name</label>
               <input id="clientName" name="clientName" type="text" placeholder="Client name" required />
+            </div>
+
+            <div class="field-group">
+              <label for="contactInfo">Contact Info</label>
+              <input id="contactInfo" name="contactInfo" type="tel" inputmode="tel" maxlength="14" pattern="\+63 [0-9]{10}" title="Enter exactly 10 digits after the +63 prefix, for example +63 9171234567" placeholder="+63 9171234567" required />
             </div>
 
             <div class="field-group">

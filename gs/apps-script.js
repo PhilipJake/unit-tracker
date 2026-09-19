@@ -64,6 +64,9 @@ function doPost(e) {
     return jsonResponse({ ok: false, error: 'Administrator cannot create a Super Admin account' });
   }
   const headers = getHeadersForAction(action);
+  if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
+    return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
+  }
   if (action === 'messages') {
     values.attachments = uploadMessageAttachments(values.attachments || '[]');
   }
@@ -119,6 +122,11 @@ function jsonResponse(payload) {
 function isAdministratorCreatingSuperAdmin(values) {
   return String(values.actorRole || '').trim() === 'Administrator'
     && String(values.accountType || '').trim() === 'Super Admin';
+}
+
+function isValidContactInfo(value) {
+  const contactInfo = String(value || '').trim();
+  return /^\+63[0-9]{10}$/.test(contactInfo);
 }
 
 function isProtectedSuperAdminRequest(actorRole, accountType) {
@@ -312,6 +320,14 @@ function ensureSheet(spreadsheet, sheetName) {
         ? 'messages'
         : 'units';
   const desiredHeaders = getHeadersForAction(sheetAction);
+  if (sheetAction === 'units') {
+    const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), desiredHeaders.length)).getValues()[0];
+    const hasContactInfo = existingHeaders.some((header) => String(header).trim().toLowerCase() === 'contact info');
+    const clientNameIndex = existingHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'client name');
+    if (!hasContactInfo && clientNameIndex >= 0) {
+      sheet.insertColumnAfter(clientNameIndex + 1);
+    }
+  }
   const headerRange = sheet.getRange(1, 1, 1, desiredHeaders.length);
   const firstRow = headerRange.getValues()[0];
   const isEmpty = firstRow.every((cell) => String(cell).trim() === '');
@@ -360,6 +376,7 @@ function getHeadersForAction(action) {
       return [
         'Code',
         'Client Name',
+        'Contact Info',
         'Unit Brand',
         'Unit Specs',
         'Unit Price',
@@ -416,6 +433,7 @@ function buildRowForAction(action, values) {
       return [
         values.unitCode || '',
         values.clientName || '',
+        values.contactInfo || '',
         values.unitBrand || '',
         values.unitSpecs || '',
         values.unitPrice || '',

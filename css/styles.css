@@ -27,8 +27,9 @@
 html, body {
   margin: 0;
   min-height: 100vh;
-  height: 100vh;
-  overflow: hidden;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   background: var(--main-bg);
   color: var(--text);
@@ -40,11 +41,17 @@ button, input, select {
 
 .dashboard-shell {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .sidebar {
   width: 250px;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow: hidden;
   background: var(--sidebar-bg);
   color: var(--sidebar-text);
   padding: 24px 18px 28px;
@@ -137,9 +144,10 @@ button, input, select {
 
 .workspace {
   flex: 1;
+  margin-left: 250px;
   background: var(--main-bg);
   min-height: 0;
-  overflow: hidden;
+  min-width: 0;
 }
 
 .workspace-topbar {
@@ -252,8 +260,7 @@ button, input, select {
 
 .content {
   padding: 26px 30px 30px;
-  height: calc(100vh - 92px);
-  overflow: hidden;
+  min-height: calc(100vh - 92px);
 }
 
 .messages-content {
@@ -680,6 +687,88 @@ button, input, select {
 
 .trend-up {
   color: #1b6f4d;
+}
+
+.branch-code-chart-panel {
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+}
+
+.panel-subtitle {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.branch-code-chart-content {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-height: 190px;
+}
+
+.branch-code-pie {
+  width: 176px;
+  height: 176px;
+  flex: 0 0 176px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(18, 26, 22, 0.08);
+  position: relative;
+}
+
+.branch-code-pie::after {
+  content: '';
+  position: absolute;
+  inset: 39px;
+  border-radius: 50%;
+  background: var(--panel-bg);
+  box-shadow: 0 0 0 1px rgba(18, 26, 22, 0.06);
+}
+
+.branch-code-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 12px 28px;
+  flex: 1;
+}
+
+.branch-code-legend-row,
+.branch-code-legend-label {
+  display: flex;
+  align-items: center;
+}
+
+.branch-code-legend-row {
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.branch-code-legend-label {
+  min-width: 0;
+  gap: 8px;
+}
+
+.branch-code-legend-label > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.branch-code-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+}
+
+.branch-code-legend-row strong {
+  white-space: nowrap;
+}
+
+.branch-code-legend-row small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 .lower-grid {
@@ -1511,6 +1600,14 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .branch-code-chart-content {
+    align-items: flex-start;
+  }
+
+  .branch-code-legend {
+    grid-template-columns: 1fr;
+  }
+
   .auth-shell {
     grid-template-columns: 1fr;
   }
@@ -1527,6 +1624,15 @@ td {
 
   .sidebar {
     width: 100%;
+    position: sticky;
+    top: 0;
+    left: auto;
+    height: auto;
+    z-index: 10;
+  }
+
+  .workspace {
+    margin-left: 0;
   }
 
   .workspace-topbar,
@@ -1537,5 +1643,14 @@ td {
 
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .branch-code-chart-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .branch-code-pie {
+    align-self: center;
   }
 }

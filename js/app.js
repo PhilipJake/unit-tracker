@@ -39,6 +39,7 @@ async function loadUnits() {
     state.allUnits = rows;
 
     renderSummary(rows, registeredBranches);
+    renderBranchCodeChart(rows, registeredBranches);
     renderTable(rows);
     renderBranchPulse(rows);
     setSyncStatus('Live sync', true);
@@ -46,6 +47,7 @@ async function loadUnits() {
     console.error(error);
     setSyncStatus('Could not load live data', false);
     renderSummary([], []);
+    renderBranchCodeChart([], []);
     renderTable([]);
     UI.branchPulseList.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
   }

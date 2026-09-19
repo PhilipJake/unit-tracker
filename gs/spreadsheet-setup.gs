@@ -5,6 +5,7 @@ function initializeClientUnitTrackerSheets() {
   const unitsHeaders = [
     'Code',
     'Client Name',
+    'Contact Info',
     'Unit Brand',
     'Unit Specs',
     'Unit Price',

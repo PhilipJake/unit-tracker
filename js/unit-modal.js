@@ -16,6 +16,12 @@ const unitRegistryTableWrap = document.querySelector('.table-wrap');
 let activeEditCode = '';
 let pendingConfirmAction = null;
 let registryRowsCache = [];
+const contactInfoPrefix = '+63 ';
+
+function formatContactInfoValue(value) {
+  const digits = String(value || '').replace(/[^0-9]/g, '').replace(/^63/, '').slice(0, 10);
+  return `${contactInfoPrefix}${digits}`;
+}
 
 function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return alert(message);
@@ -74,6 +80,8 @@ function openUnitModal(mode = 'create', unit = null) {
     if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
     unitForm.reset();
+    const contactInfoField = unitForm.elements.namedItem('contactInfo');
+    if (contactInfoField) contactInfoField.value = contactInfoPrefix;
 
     const unitPriceField = unitForm.elements.namedItem('unitPrice');
     if (unitPriceField) {
@@ -137,6 +145,7 @@ function populateUnitForm(unit) {
     unitSpecs: unit.unitSpecs || unit.specs || '',
     unitBrand: unit.unitBrand || unit.brand || '',
     clientName: unit.clientName || '',
+    contactInfo: unit.contactInfo || '',
     warranty: unit.warranty || '',
     datePurchase: unit.dateReceived || unit.datePurchase || '',
     dateReturn: unit.dateReleased || unit.dateReturn || '',
@@ -154,6 +163,11 @@ function populateUnitForm(unit) {
       field.value = value;
     }
   });
+
+  const contactInfoField = unitForm.elements.namedItem('contactInfo');
+  if (contactInfoField) {
+    contactInfoField.value = formatContactInfoValue(unit.contactInfo || '');
+  }
 
   setCurrentLocationOptions(uploadedBranch, savedCurrentLocation);
 }
@@ -218,6 +232,7 @@ function normalizeSavedUnitPayload(form) {
     action: 'units',
     unitCode: String(raw.unitCode || '').trim(),
     clientName: String(raw.clientName || '').trim(),
+    contactInfo: String(raw.contactInfo || '').replace(/\s+/g, '').trim().replace(/^\+63$/, ''),
     unitBrand: String(raw.unitBrand || '').trim(),
     unitSpecs: String(raw.unitSpecs || '').trim(),
     unitPrice: String(raw.unitPrice || '').trim(),
@@ -343,6 +358,17 @@ function initUnitModal() {
 
   if (unitForm) {
     const inclusionOptions = unitForm.querySelectorAll('input[name="inclusionOption"]');
+    const contactInfoInput = unitForm.elements.namedItem('contactInfo');
+
+    if (contactInfoInput) {
+      contactInfoInput.addEventListener('input', () => {
+        contactInfoInput.value = formatContactInfoValue(contactInfoInput.value);
+      });
+
+      contactInfoInput.addEventListener('focus', () => {
+        if (!contactInfoInput.value) contactInfoInput.value = contactInfoPrefix;
+      });
+    }
 
     inclusionOptions.forEach((option) => {
       option.addEventListener('change', () => {
@@ -391,6 +417,7 @@ function initUnitModal() {
         'Unit Price',
         'Unit Brand',
         'Client Name',
+        'Contact Info',
         'Warranty',
         'Date of Purchase',
         'Date of Return',
@@ -407,6 +434,7 @@ function initUnitModal() {
         unit.unitPrice || '',
         unit.unitBrand || '',
         unit.clientName || '',
+        unit.contactInfo || '',
         unit.warranty || '',
         unit.dateReceived || unit.datePurchase || '',
         unit.dateReleased || unit.dateReturn || '',
@@ -513,7 +541,7 @@ async function loadRegistryUnits() {
     renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error(error);
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="14" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="15" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
   }
 }
 
@@ -551,7 +579,7 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="14" class="empty-state">No matching units found.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="15" class="empty-state">No matching units found.</td></tr>';
     return;
   }
 
@@ -564,6 +592,7 @@ function renderRegistryTable(rows) {
       const price = unit.unitPrice || '—';
       const brand = unit.unitBrand || unit.unitBrandName || unit.brand || '—';
       const client = unit.clientName || '—';
+      const contactInfo = unit.contactInfo || '—';
       const warranty = unit.warranty || '—';
       const datePurchase = formatDateDisplay(unit.dateReceived || unit.datePurchase || '');
       const dateReturn = formatDateDisplay(unit.dateReleased || unit.dateReturn || '');
@@ -581,6 +610,7 @@ function renderRegistryTable(rows) {
           <td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>
           <td>${escapeHtml(brand)}</td>
           <td>${escapeHtml(client)}</td>
+          <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
           <td><span class="center-stack">${renderStackedText(dateReturn)}</span></td>

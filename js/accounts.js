@@ -90,7 +90,7 @@ function isProtectedSuperAdminAccount(accountType, currentRole) {
 }
 
 function getDisplayedAccountType(accountType, currentRole) {
-  if (normalizeAccountRole(currentRole) === 'administrator' && normalizeAccountRole(accountType) === 'super admin') {
+  if (normalizeAccountRole(currentRole) === 'administrator', 'Main Head Admin', 'Office' && normalizeAccountRole(accountType) === 'super admin') {
     return 'Administrator';
   }
 

@@ -165,6 +165,7 @@ function normalizeRow(rawRow) {
 
   const unitCode = findValue(row, ['unit code', 'unitcode', 'code']);
   const clientName = findValue(row, ['client name', 'clientname', 'client']);
+  const contactInfo = findValue(row, ['contact info', 'contactinfo', 'contact number', 'phone', 'mobile']);
   const unitBrand = findValue(row, ['unit brand', 'unitbrand', 'brand']);
   const unitProblem = findValue(row, ['unit problem', 'unitproblem', 'problem']);
   const unitPrice = findValue(row, ['unit price', 'price']);
@@ -189,6 +190,7 @@ function normalizeRow(rawRow) {
     ...row,
     unitCode: unitCode || '',
     clientName: clientName || '',
+    contactInfo: contactInfo || '',
     unitBrand: unitBrand || '',
     unitProblem: unitProblem || '',
     unitPrice: unitPrice || '',

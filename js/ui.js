@@ -2,7 +2,10 @@ const UI = {
   summaryCards: document.getElementById('summaryCards'),
   unitTableBody: document.getElementById('unitTableBody'),
   branchPulseList: document.getElementById('branchPulseList'),
-  syncStatus: document.getElementById('syncStatus')
+  syncStatus: document.getElementById('syncStatus'),
+  branchCodeChartSection: document.getElementById('branchCodeChartSection'),
+  branchCodePie: document.getElementById('branchCodePie'),
+  branchCodeLegend: document.getElementById('branchCodeLegend')
 };
 
 function renderSummary(units, registeredBranches = []) {
@@ -72,6 +75,77 @@ function renderSummary(units, registeredBranches = []) {
 
 function normalizeBranchName(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getUnitBranchCode(unit, branchCodeByName) {
+  const branchName = unit.uploadedBranch || unit.branch || unit.currentLocation || '';
+  const mappedCode = branchCodeByName[normalizeBranchName(branchName)];
+  return String(mappedCode || unit.branchCode || branchName || 'Unassigned').trim() || 'Unassigned';
+}
+
+function renderBranchCodeChart(units, registeredBranches = []) {
+  const chartRoles = ['Super Admin', 'Administrator', 'Office', 'Main Head Admin', 'Technician'];
+  const currentRole = localStorage.getItem('unitflowRole');
+
+  if (!UI.branchCodeChartSection || !UI.branchCodePie || !UI.branchCodeLegend || !chartRoles.includes(currentRole)) return;
+
+  UI.branchCodeChartSection.hidden = false;
+
+  const branchCodeByName = registeredBranches.reduce((codes, branch) => {
+    const branchName = branch.branchName || branch.branchname || branch.name || branch.location || '';
+    const branchCode = branch.branchCode || branch.branchcode || branch.branchType || branch.branchtype || branch.code || '';
+    if (branchName && branchCode) {
+      codes[normalizeBranchName(branchName)] = String(branchCode).trim();
+    }
+    return codes;
+  }, {});
+
+  const branchCounts = units.reduce((counts, unit) => {
+    const branchCode = getUnitBranchCode(unit, branchCodeByName);
+    counts[branchCode] = (counts[branchCode] || 0) + 1;
+    return counts;
+  }, {});
+  const entries = Object.entries(branchCounts).sort(([, left], [, right]) => right - left);
+
+  if (!entries.length) {
+    UI.branchCodePie.style.background = '#e3e6e2';
+    UI.branchCodePie.setAttribute('aria-label', 'No registered units by branch code');
+    UI.branchCodeLegend.innerHTML = '<div class="empty-state">No registered units available.</div>';
+    return;
+  }
+
+  const colors = ['#1b6d4c', '#3f78b5', '#7956a8', '#279b9b', '#8a6a4a'];
+  const branchCodeColors = {
+    bnb: '#f7d75d',
+    ez: '#84cc16',
+    '1lr': '#ef4444'
+  };
+  const total = units.length;
+  let offset = 0;
+  const segments = entries.map(([branchCode, count], index) => {
+    const start = offset;
+    offset += (count / total) * 100;
+    const color = branchCodeColors[normalizeBranchName(branchCode)] || colors[index % colors.length];
+    return `${color} ${start}% ${offset}%`;
+  });
+
+  UI.branchCodePie.style.background = `conic-gradient(${segments.join(', ')})`;
+  UI.branchCodePie.setAttribute('aria-label', `${total} registered units across ${entries.length} branch codes`);
+  UI.branchCodeLegend.innerHTML = entries
+    .map(([branchCode, count], index) => {
+      const percentage = Math.round((count / total) * 100);
+      const color = branchCodeColors[normalizeBranchName(branchCode)] || colors[index % colors.length];
+      return `
+        <div class="branch-code-legend-row">
+          <span class="branch-code-legend-label">
+            <span class="branch-code-swatch" style="background: ${color};"></span>
+            <span>${escapeHtml(branchCode)}</span>
+          </span>
+          <strong>${count} <small>${percentage}%</small></strong>
+        </div>
+      `;
+    })
+    .join('');
 }
 
 function renderTable(units) {
