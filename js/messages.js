@@ -582,7 +582,7 @@ async function sendMessage(event) {
     await loadMessages();
   } catch (error) {
     console.error(error);
-    alert('Message could not be sent. Please confirm the Apps Script deployment.');
+    showAppPopup('Message could not be sent. Please confirm the Apps Script deployment.');
   }
 }
 
@@ -814,7 +814,7 @@ messageViewer.addEventListener('submit', async (event) => {
     await loadMessages();
   } catch (error) {
     console.error(error);
-    alert('Reply could not be sent. Please confirm the Apps Script deployment.');
+    showAppPopup('Reply could not be sent. Please confirm the Apps Script deployment.');
   }
 });
 messageViewer.addEventListener('change', (event) => {

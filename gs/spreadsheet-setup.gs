@@ -77,12 +77,18 @@ function ensureSheet(spreadsheet, sheetName, headers) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
 
-  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  const headerRange = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length));
   const firstRow = headerRange.getValues()[0];
   const isEmpty = firstRow.every((cell) => String(cell).trim() === '');
 
   if (isEmpty) {
-    headerRange.setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  } else {
+    headers.forEach((header, index) => {
+      if (String(firstRow[index] || '').trim() === '') {
+        sheet.getRange(1, index + 1).setValue(header);
+      }
+    });
   }
 
   sheet.setFrozenRows(1);

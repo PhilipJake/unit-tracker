@@ -2,7 +2,9 @@ const trashTableBody = document.getElementById('trashTableBody');
 const trashSearchInput = document.getElementById('trashSearchInput');
 const trashMessageModalBackdrop = document.getElementById('trashMessageModalBackdrop');
 const trashMessageModalBody = document.getElementById('trashMessageModalBody');
+const trashToast = document.getElementById('trashToast');
 let trashRows = [];
+let trashToastTimer = null;
 
 function escapeHtml(value) {
   return String(value || '')
@@ -24,12 +26,48 @@ function closeTrashMessage() {
   trashMessageModalBackdrop.setAttribute('aria-hidden', 'true');
 }
 
+function showTrashToast(message) {
+  if (!trashToast) return;
+  trashToast.textContent = message;
+  trashToast.classList.add('visible');
+  window.clearTimeout(trashToastTimer);
+  trashToastTimer = window.setTimeout(() => trashToast.classList.remove('visible'), 4000);
+}
+
 function formatTrashDate(value) {
   if (!value) return '—';
   const rawValue = String(value).trim();
   const googleDate = rawValue.match(/^Date\((\d+)\)$/);
   const date = googleDate ? new Date(Number(googleDate[1])) : new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }).format(date);
+}
+
+function formatTrashCountdown(value) {
+  if (!value) return '—';
+  const rawValue = String(value).trim();
+  const googleDate = rawValue.match(/^Date\((\d+)\)$/);
+  const date = googleDate ? new Date(Number(googleDate[1])) : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const remainingDays = Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (remainingDays <= 0) return 'Deleting soon';
+  return `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining`;
+}
+
+function branchClass(branch) {
+  const normalized = String(branch || '').toLowerCase();
+  if (normalized.includes('bnb')) return 'bnb';
+  if (normalized.includes('ez')) return 'ez';
+  if (normalized.includes('1lr')) return 'one-lr';
+  return 'bnb';
+}
+
+function renderTrashBranch(branch) {
+  const text = String(branch || '').trim();
+  if (!text) return '—';
+  const cleaned = text.replace(/\s*[\/+|,-]\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  const match = cleaned.match(/^([A-Za-z0-9]+)\s+(.+)$/);
+  if (!match) return `<span class="line">${escapeHtml(cleaned)}</span>`;
+  return `<span class="line">${escapeHtml(match[1])}</span><span class="line">${escapeHtml(match[2])}</span>`;
 }
 
 function renderTrashRows() {
@@ -50,9 +88,9 @@ function renderTrashRows() {
     <tr data-unit-code="${escapeHtml(row.unitCode)}">
       <td><strong>${escapeHtml(row.unitCode || '—')}</strong></td>
       <td>${escapeHtml(row.clientName || '—')}</td>
-      <td>${escapeHtml(row.branchLocation || row.uploadedBranch || row.currentLocation || '—')}</td>
+      <td><span class="branch-tag ${branchClass(row.branchLocation || row.uploadedBranch || row.currentLocation)}"><span class="center-stack">${renderTrashBranch(row.branchLocation || row.uploadedBranch || row.currentLocation)}</span></span></td>
       <td>${escapeHtml(formatTrashDate(row.deletedAt))}</td>
-      <td>${escapeHtml(formatTrashDate(row.expiresAt))}</td>
+      <td>${escapeHtml(formatTrashCountdown(row.expiresAt))}</td>
       <td class="table-actions">
         <button class="restore" type="button" ${canRestore ? '' : 'disabled'}>Restore</button>
         <button class="purge delete" type="button" ${canPurge ? '' : 'disabled'}><span>Delete</span><span>Permanently</span></button>
@@ -98,16 +136,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!button || !row) return;
     const unitCode = row.dataset.unitCode;
     const action = button.classList.contains('restore') ? 'restoreUnit' : 'purgeUnit';
-    const prompt = action === 'restoreUnit' ? `Restore unit ${unitCode}?` : `Permanently delete unit ${unitCode}? This cannot be undone.`;
-    if (!window.confirm(prompt)) return;
-    try {
-      await updateTrash(action, unitCode);
-      showTrashMessage(action === 'restoreUnit' ? 'Unit restored successfully.' : 'Unit permanently deleted.');
-      await loadTrash();
-    } catch (error) {
-      console.error(error);
-      showTrashMessage(error.message || 'The trash action failed.');
-    }
+    const confirmationMessage = action === 'restoreUnit' ? `Restore unit ${unitCode}?` : `Permanently delete unit ${unitCode}? This cannot be undone.`;
+    showAppPopup(confirmationMessage, async () => {
+      try {
+        await updateTrash(action, unitCode);
+        showTrashToast(action === 'restoreUnit' ? 'Unit restored successfully.' : 'Unit permanently deleted.');
+        await loadTrash();
+      } catch (error) {
+        console.error(error);
+        showTrashMessage(error.message || 'The trash action failed.');
+      }
+    });
   });
   loadTrash();
   setInterval(loadTrash, window.GS_CONFIG?.refreshMs || 15000);

@@ -67,6 +67,7 @@
       </section>
     </main>
 
+    <script src="../js/popup.js"></script>
     <script>
       const uploadedBranchField = document.getElementById('uploadedBranch');
       if (uploadedBranchField) {
@@ -99,10 +100,10 @@
             body: new URLSearchParams(payload).toString()
           });
 
-          alert('Unit registered successfully. The live dashboard will sync after the sheet refreshes.');
+          showAppPopup('Unit registered successfully. The live dashboard will sync after the sheet refreshes.');
           form.reset();
         } catch (error) {
-          alert('Registration failed. Please add your Apps Script web app URL in the form.');
+          showAppPopup('Registration failed. Please add your Apps Script web app URL in the form.');
         }
       });
     </script>

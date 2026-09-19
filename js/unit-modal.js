@@ -13,9 +13,11 @@ const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 const unitSearchInput = document.getElementById('unitSearchInput') || document.querySelector('.search-box input');
 const currentLocationSelect = document.getElementById('currentLocation');
 const unitRegistryTableWrap = document.querySelector('.table-wrap');
+const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
 let pendingConfirmAction = null;
 let registryRowsCache = [];
+let unitToastTimer = null;
 const contactInfoPrefix = '+63 ';
 
 function formatContactInfoValue(value) {
@@ -24,7 +26,7 @@ function formatContactInfoValue(value) {
 }
 
 function showPopupMessage(message, onConfirm = null) {
-  if (!messageModalBackdrop || !messageModalBody) return alert(message);
+  if (!messageModalBackdrop || !messageModalBody) return showAppPopup(message, onConfirm);
 
   pendingConfirmAction = onConfirm || null;
   messageModalBody.textContent = message;
@@ -44,6 +46,14 @@ function closePopupMessage() {
   }
   messageModalBackdrop.classList.remove('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'true');
+}
+
+function showUnitToast(message) {
+  if (!unitToast) return;
+  unitToast.textContent = message;
+  unitToast.classList.add('visible');
+  window.clearTimeout(unitToastTimer);
+  unitToastTimer = window.setTimeout(() => unitToast.classList.remove('visible'), 4000);
 }
 
 function openUnitModal(mode = 'create', unit = null) {
@@ -497,7 +507,7 @@ function initUnitModal() {
           return;
         }
 
-        showPopupMessage(`Delete unit ${unitCode}?`, async () => {
+        showAppPopup(`Delete unit ${unitCode}?`, async () => {
           try {
             const response = await fetch(appScriptUrl, {
               method: 'POST',
@@ -514,7 +524,7 @@ function initUnitModal() {
               throw new Error(message || `HTTP ${response.status}`);
             }
 
-            showPopupMessage('Unit deleted successfully.');
+            showUnitToast('Unit deleted successfully.');
             if (typeof loadRegistryUnits === 'function') {
               await loadRegistryUnits();
             }

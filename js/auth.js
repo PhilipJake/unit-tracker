@@ -78,14 +78,14 @@ if (loginForm) {
     const password = String(formData.get('password') || '').trim();
 
     if (!username || !password) {
-      alert('Please enter a username and password.');
+      showAppPopup('Please enter a username and password.');
       return;
     }
 
     const account = await authenticateAccount(username, password);
 
     if (!account) {
-      alert('Invalid username or password.');
+      showAppPopup('Invalid username or password.');
       return;
     }
 

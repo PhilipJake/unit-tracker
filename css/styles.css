@@ -1360,6 +1360,13 @@ td {
 .table-actions .delete {
   background: var(--red-soft);
   color: var(--red-text);
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.table-actions .delete:hover:not(:disabled) {
+  background: #ff2020;
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 .trash-table .table-actions .delete {

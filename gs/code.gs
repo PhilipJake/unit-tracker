@@ -301,7 +301,19 @@ function getUnitRecord(sheet, unitCode) {
 }
 
 function getTrashSheet(spreadsheet, unitHeaders) {
-  return ensureSheet(spreadsheet, 'Trash', getTrashHeaders(unitHeaders));
+  const sheet = ensureSheet(spreadsheet, 'Trash');
+  const trashHeaders = getTrashHeaders(unitHeaders);
+  const headerRange = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), trashHeaders.length));
+  const firstRow = headerRange.getValues()[0];
+  const isEmpty = firstRow.every((cell) => String(cell).trim() === '');
+
+  if (isEmpty) {
+    sheet.getRange(1, 1, 1, trashHeaders.length).setValues([trashHeaders]);
+  } else {
+    sheet.getRange(1, trashHeaders.length - 2, 1, 3).setValues([trashHeaders.slice(-3)]);
+  }
+
+  return sheet;
 }
 
 function serializeTrashDate(value) {
@@ -315,11 +327,18 @@ function serializeTrashDate(value) {
 
 function readTrashRows(spreadsheet) {
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
-  const trashSheet = getTrashSheet(spreadsheet, unitsSheet.getDataRange().getValues()[0] || []);
+  const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
+  const trashSheet = getTrashSheet(spreadsheet, unitHeaders);
   const values = trashSheet.getDataRange().getValues();
   const headers = values[0] || [];
-  const deletedAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
-  const expiresAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const expectedDeletedAtIndex = unitHeaders.length;
+  const expectedExpiresAtIndex = unitHeaders.length + 2;
+  const deletedAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at') >= 0
+    ? headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at')
+    : expectedDeletedAtIndex;
+  const expiresAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at') >= 0
+    ? headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at')
+    : expectedExpiresAtIndex;
   const codeIndex = getCodeColumnIndex(headers);
   const now = new Date();
   for (let rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
@@ -329,8 +348,10 @@ function readTrashRows(spreadsheet) {
   const current = trashSheet.getDataRange().getValues();
   const currentHeaders = current[0] || [];
   const currentCodeIndex = getCodeColumnIndex(currentHeaders);
-  const currentDeletedIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
-  const currentExpiresIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const currentDeletedHeaderIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const currentExpiresHeaderIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const currentDeletedIndex = currentDeletedHeaderIndex >= 0 ? currentDeletedHeaderIndex : expectedDeletedAtIndex;
+  const currentExpiresIndex = currentExpiresHeaderIndex >= 0 ? currentExpiresHeaderIndex : expectedExpiresAtIndex;
   const currentClientIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase().includes('client name'));
   const currentBranchIndex = currentHeaders.findIndex((header) => ['branch location', 'uploaded branch', 'current location'].includes(String(header).trim().toLowerCase()));
   const rows = current.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== '')).map((row) => ({ unitCode: row[currentCodeIndex] || '', clientName: currentClientIndex === -1 ? '' : row[currentClientIndex] || '', branchLocation: currentBranchIndex === -1 ? '' : row[currentBranchIndex] || '', deletedAt: currentDeletedIndex === -1 ? '' : serializeTrashDate(row[currentDeletedIndex]), expiresAt: currentExpiresIndex === -1 ? '' : serializeTrashDate(row[currentExpiresIndex]) }));
