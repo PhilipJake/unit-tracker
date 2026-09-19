@@ -240,6 +240,24 @@ function closeChangePasswordModal(backdrop) {
   backdrop.setAttribute('aria-hidden', 'true');
 }
 
+let passwordToastTimer = null;
+
+function showPasswordToast(message) {
+  let toast = document.getElementById('passwordToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'passwordToast';
+    toast.className = 'message-toast';
+    toast.setAttribute('role', 'status');
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.add('visible');
+  window.clearTimeout(passwordToastTimer);
+  passwordToastTimer = window.setTimeout(() => toast.classList.remove('visible'), 4000);
+}
+
 function openChangePasswordModal() {
   let backdrop = document.getElementById('changePasswordBackdrop');
   if (!backdrop) {
@@ -286,21 +304,21 @@ async function submitPasswordChange(event) {
   const submitButton = form.querySelector('button[type="submit"]');
 
   if (newPassword.length < 6) {
-    window.alert('Your new password must be at least 6 characters long.');
+    showPasswordToast('Your new password must be at least 6 characters long.');
     return;
   }
   if (newPassword === currentPassword) {
-    window.alert('Your new password must be different from your current password.');
+    showPasswordToast('Your new password must be different from your current password.');
     return;
   }
   if (newPassword !== confirmPassword) {
-    window.alert('The new passwords do not match.');
+    showPasswordToast('The new passwords do not match.');
     return;
   }
 
   const appScriptUrl = String((window.GS_CONFIG && window.GS_CONFIG.appScriptUrl) || '').trim();
   if (!appScriptUrl) {
-    window.alert('Password changes are not configured yet.');
+    showPasswordToast('Password changes are not configured yet.');
     return;
   }
 
@@ -322,9 +340,9 @@ async function submitPasswordChange(event) {
     }
     closeChangePasswordModal(document.getElementById('changePasswordBackdrop'));
     form.reset();
-    window.alert('Your password was changed successfully.');
+    showPasswordToast('Password Changed Successfully');
   } catch (error) {
-    window.alert(error.message || 'Your password could not be changed.');
+    showPasswordToast(error.message || 'Your password could not be changed.');
   } finally {
     submitButton.disabled = false;
   }

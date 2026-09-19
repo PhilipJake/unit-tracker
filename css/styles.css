@@ -1178,6 +1178,7 @@ td {
 }
 
 .auth-card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1252,6 +1253,16 @@ td {
 .auth-link a {
   color: var(--text);
   font-weight: 700;
+}
+
+.auth-developer {
+  position: absolute;
+  right: 30px;
+  bottom: 36px;
+  left: 30px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .page-toolbar {
