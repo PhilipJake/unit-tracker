@@ -103,6 +103,9 @@ function doPost(e) {
   if (action === 'messages') {
     values.attachments = uploadMessageAttachments(values.attachments || '[]');
   }
+  if (action === 'units' && !canEditTechnicianNotes(values.actorRole)) {
+    values.technicianNotes = '';
+  }
   const row = buildRowForAction(action, values);
 
   const firstRow = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
@@ -546,11 +549,14 @@ function updateUnitRow(spreadsheet, values) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Code column not found' })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  const rowToWrite = buildRowForAction('units', values);
-
   for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
     const currentCode = String(data[rowIndex][codeIndex] || '').trim();
     if (currentCode === targetCode) {
+      const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+      if (!canEditTechnicianNotes(values.actorRole) && technicianNotesIndex >= 0) {
+        values.technicianNotes = data[rowIndex][technicianNotesIndex] || '';
+      }
+      const rowToWrite = buildRowForAction('units', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
       targetRange.setValues([rowToWrite]);
       return ContentService.createTextOutput(JSON.stringify({ ok: true, action: 'updateUnit', updatedCode: targetCode })).setMimeType(ContentService.MimeType.JSON);
@@ -558,6 +564,10 @@ function updateUnitRow(spreadsheet, values) {
   }
 
   return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unit not found for update' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function canEditTechnicianNotes(role) {
+  return ['Technician', 'Administrator', 'Super Admin'].includes(String(role || '').trim());
 }
 
 function updateBranchRow(spreadsheet, values) {
@@ -835,7 +845,8 @@ function getHeadersForAction(action) {
         'Warranty',
         'Unit Problem',
         'Inclusion',
-        'Uploaded Branch'
+        'Uploaded Branch',
+        'Technician Notes'
       ];
   }
 }
@@ -896,7 +907,8 @@ function buildRowForAction(action, values) {
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',
-        values.uploadedBranch || values.branchLocation || ''
+        values.uploadedBranch || values.branchLocation || '',
+        values.technicianNotes || ''
       ];
   }
 }

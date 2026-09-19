@@ -72,7 +72,7 @@ async function loadBranches() {
       .join('');
   } catch (error) {
     console.error(error);
-    branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load branches from the spreadsheet. Please check the Branches sheet and Google Sheet ID.</td></tr>';
+    branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load branches from the spreadsheet. Please check the Branches sheet configuration.</td></tr>';
   }
 }
 

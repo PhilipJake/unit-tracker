@@ -12,6 +12,7 @@ const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 const unitSearchInput = document.getElementById('unitSearchInput') || document.querySelector('.search-box input');
 const currentLocationSelect = document.getElementById('currentLocation');
+const technicianNotesField = document.getElementById('technicianNotes');
 const unitRegistryTableWrap = document.querySelector('.table-wrap');
 const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
@@ -84,6 +85,7 @@ function openUnitModal(mode = 'create', unit = null) {
       branchField.setAttribute('readonly', 'readonly');
     }
     setCurrentLocationOptions(savedBranch, unit.currentLocation || savedBranch);
+    setTechnicianNotesAccess(unit.technicianNotes || '');
   } else {
     activeEditCode = '';
     unitForm.dataset.mode = 'create';
@@ -110,6 +112,7 @@ function openUnitModal(mode = 'create', unit = null) {
       branchField.setAttribute('readonly', 'readonly');
     }
     setCurrentLocationOptions(assignedBranch, assignedBranch);
+    setTechnicianNotesAccess('');
   }
 
   backdrop.classList.add('visible');
@@ -160,6 +163,7 @@ function populateUnitForm(unit) {
     datePurchase: unit.dateReceived || unit.datePurchase || '',
     dateReturn: unit.dateReleased || unit.dateReturn || '',
     unitProblem: unit.unitProblem || unit.problem || '',
+    technicianNotes: unit.technicianNotes || '',
     status: unit.status || '',
     branchLocation: unit.branchLocation || unit.currentLocation || unit.uploadedBranch || '',
     currentLocation: savedCurrentLocation === uploadedBranch ? '__branch_location__' : savedCurrentLocation,
@@ -180,6 +184,18 @@ function populateUnitForm(unit) {
   }
 
   setCurrentLocationOptions(uploadedBranch, savedCurrentLocation);
+}
+
+function setTechnicianNotesAccess(value) {
+  if (!technicianNotesField) return;
+
+  const role = localStorage.getItem('unitflowRole');
+  const canEdit = ['Technician', 'Administrator', 'Super Admin'].includes(role);
+  technicianNotesField.value = value;
+  technicianNotesField.readOnly = !canEdit;
+  technicianNotesField.setAttribute('aria-readonly', String(!canEdit));
+  technicianNotesField.style.background = canEdit ? '' : '#f4f6f8';
+  technicianNotesField.style.cursor = canEdit ? '' : 'not-allowed';
 }
 
 function setCurrentLocationOptions(branchLocation, selectedLocation = '') {
@@ -254,6 +270,8 @@ function normalizeSavedUnitPayload(form) {
     warranty: String(raw.warranty || '').trim(),
     unitProblem: String(raw.unitProblem || '').trim(),
     inclusion: String(raw.inclusion || '').trim(),
+    technicianNotes: String(raw.technicianNotes || '').trim(),
+    actorRole: role || '',
     uploadedBranch
   };
 }
@@ -269,7 +287,7 @@ async function saveUnitToSheet(event) {
   const assignedBranch = String(localStorage.getItem('unitflowBranch') || '').trim();
 
   if (!sheetId || sheetId === 'PASTE_YOUR_GOOGLE_SHEET_ID_HERE') {
-    showPopupMessage('Please update the Google Sheet ID in gs/config.js before saving.');
+    showPopupMessage('Please update the spreadsheet ID in gs/config.js before saving.');
     return;
   }
 
@@ -307,7 +325,7 @@ async function saveUnitToSheet(event) {
       throw new Error(message || `HTTP ${response.status}`);
     }
 
-    showPopupMessage(form.dataset.mode === 'edit' ? 'Unit updated successfully to Google Sheets.' : 'Unit saved successfully to Google Sheets.');
+    showPopupMessage(form.dataset.mode === 'edit' ? 'Unit updated successfully' : 'Unit saved successfully');
     form.reset();
     closeUnitModal();
 
@@ -317,7 +335,7 @@ async function saveUnitToSheet(event) {
     }
   } catch (error) {
     console.error('Save unit failed:', error);
-    showPopupMessage('Save failed. Please confirm the Apps Script web app URL and Google Sheet ID are correct.');
+    showPopupMessage('Save failed. Please confirm the Apps Script web app URL and spreadsheet ID are correct.');
   }
 }
 

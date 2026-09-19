@@ -17,7 +17,8 @@ function initializeClientUnitTrackerSheets() {
     'Warranty',
     'Unit Problem',
     'Inclusion',
-    'Uploaded Branch'
+    'Uploaded Branch',
+    'Technician Notes'
   ];
 
   const accountsHeaders = [

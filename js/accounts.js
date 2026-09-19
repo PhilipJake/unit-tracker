@@ -202,7 +202,7 @@ async function loadAccounts() {
       .join('');
   } catch (error) {
     console.error(error);
-    accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">Unable to load accounts from the spreadsheet. Please check the Accounts sheet and Google Sheet ID.</td></tr>';
+    accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">Unable to load accounts from the spreadsheet. Please check the Accounts sheet configuration.</td></tr>';
   }
 }
 

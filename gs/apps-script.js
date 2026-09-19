@@ -82,6 +82,9 @@ function doPost(e) {
   if (action === 'messages') {
     values.attachments = uploadMessageAttachments(values.attachments || '[]');
   }
+  if (action === 'units' && !canEditTechnicianNotes(values.actorRole)) {
+    values.technicianNotes = '';
+  }
   const row = buildRowForAction(action, values);
 
   const firstRow = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
@@ -522,6 +525,11 @@ function ensureSheet(spreadsheet, sheetName) {
     if (!hasContactInfo && clientNameIndex >= 0) {
       sheet.insertColumnAfter(clientNameIndex + 1);
     }
+    desiredHeaders.forEach((header, index) => {
+      if (String(existingHeaders[index] || '').trim() === '') {
+        sheet.getRange(1, index + 1).setValue(header);
+      }
+    });
   }
   const headerRange = sheet.getRange(1, 1, 1, desiredHeaders.length);
   const firstRow = headerRange.getValues()[0];
@@ -583,7 +591,8 @@ function getHeadersForAction(action) {
         'Warranty',
         'Unit Problem',
         'Inclusion',
-        'Uploaded Branch'
+        'Uploaded Branch',
+        'Technician Notes'
       ];
   }
 }
@@ -640,9 +649,14 @@ function buildRowForAction(action, values) {
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',
-        values.uploadedBranch || values.branchLocation || ''
+        values.uploadedBranch || values.branchLocation || '',
+        values.technicianNotes || ''
       ];
   }
+}
+
+function canEditTechnicianNotes(role) {
+  return ['Technician', 'Administrator', 'Super Admin'].includes(String(role || '').trim());
 }
 
 function getTabColor(sheetName) {

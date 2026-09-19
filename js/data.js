@@ -5,14 +5,14 @@ const DATA = {
     const resolvedGid = gid ?? config.gid ?? '0';
 
     if (!resolvedSheetId || resolvedSheetId === 'PASTE_YOUR_GOOGLE_SHEET_ID_HERE') {
-      throw new Error('Add your Google Sheet ID in gs/config.js before loading the app.');
+      throw new Error('Add your spreadsheet ID in gs/config.js before loading the app.');
     }
 
     const url = `https://docs.google.com/spreadsheets/d/${resolvedSheetId}/export?format=csv&gid=${resolvedGid}`;
     const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
-      throw new Error(`Google Sheet request failed with status ${response.status}.`);
+      throw new Error(`Spreadsheet request failed with status ${response.status}.`);
     }
 
     const csvText = await response.text();
@@ -176,6 +176,7 @@ function normalizeRow(rawRow) {
   const contactInfo = findValue(row, ['contact info', 'contactinfo', 'contact number', 'phone', 'mobile']);
   const unitBrand = findValue(row, ['unit brand', 'unitbrand', 'brand']);
   const unitProblem = findValue(row, ['unit problem', 'unitproblem', 'problem']);
+  const technicianNotes = findValue(row, ['technician notes', 'techniciannotes', 'technician note']);
   const unitPrice = findValue(row, ['unit price', 'price']);
   const specs = findValue(row, ['specs', 'unit specs', 'unitspecs', 'processor', 'storage size', 'storage']);
   const uploadedBranch = findValue(row, ['uploaded branch', 'uploadedbranch', 'branch']);
@@ -201,6 +202,7 @@ function normalizeRow(rawRow) {
     contactInfo: contactInfo || '',
     unitBrand: unitBrand || '',
     unitProblem: unitProblem || '',
+    technicianNotes: technicianNotes || '',
     unitPrice: unitPrice || '',
     specs: specs || '',
     uploadedBranch: uploadedBranch || '',

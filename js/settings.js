@@ -97,13 +97,13 @@ async function savePermissions() {
 
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
-    showSettingsStatus('Permissions saved to Google Sheets');
-    showSettingsMessage('Permissions saved successfully.', 'Permissions saved');
+    showSettingsStatus('Permissions saved');
+    showSettingsMessage('Permissions saved', 'Permissions saved');
   } catch (error) {
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
-    showSettingsStatus('Saved locally; Google Sheets was unavailable.', 'notice');
-    showSettingsMessage('Permissions were saved locally, but could not be saved to Google Sheets.', 'Save warning');
+    showSettingsStatus('The database was unavailable', 'notice');
+    showSettingsMessage('The database was unavailable', 'Save warning');
     console.error('Unable to save permissions to Google Sheets:', error);
   }
 }
@@ -128,7 +128,7 @@ async function loadPermissionsFromServer() {
     renderPermissions(result.permissions);
     renderPageAccess(result.pageAccess);
   } catch (error) {
-    showSettingsStatus('Using local permissions; Google Sheets was unavailable.', 'notice');
+    showSettingsStatus('The database was unavailable', 'notice');
     console.error('Unable to load permissions from Google Sheets:', error);
   }
 }
