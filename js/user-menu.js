@@ -89,6 +89,7 @@ function getPageAccess() {
       pageAccess[role] = { ...DEFAULT_PAGE_ACCESS[role], ...(saved[role] || {}) };
       return pageAccess;
     }, {});
+    access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
     return access;
   } catch (error) {
     return JSON.parse(JSON.stringify(DEFAULT_PAGE_ACCESS));

@@ -11,6 +11,7 @@ const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 const unitSearchInput = document.getElementById('unitSearchInput') || document.querySelector('.search-box input');
+const unitStatusFilter = document.getElementById('unitStatusFilter');
 const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
 const unitRegistryTableWrap = document.querySelector('.table-wrap');
@@ -413,6 +414,12 @@ function initUnitModal() {
     });
   }
 
+  if (unitStatusFilter) {
+    unitStatusFilter.addEventListener('change', () => {
+      renderRegistryTable(registryRowsCache);
+    });
+  }
+
   const exportButton = document.getElementById('exportUnitCsvBtn');
   if (exportButton) {
     exportButton.addEventListener('click', () => {
@@ -596,13 +603,15 @@ function renderRegistryTable(rows) {
   if (!unitRegistryTableBody) return;
 
   const searchTerm = normalizeSearchText(unitSearchInput ? unitSearchInput.value : '');
-  const filteredRows = !searchTerm
-    ? rows
-    : rows.filter((unit) => {
-        const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
-        const clientName = normalizeSearchText(unit.clientName || '');
-        return unitCode.includes(searchTerm) || clientName.includes(searchTerm);
-      });
+  const selectedStatus = normalizeSearchText(unitStatusFilter ? unitStatusFilter.value : 'all');
+  const filteredRows = rows.filter((unit) => {
+    const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
+    const clientName = normalizeSearchText(unit.clientName || '');
+    const status = normalizeSearchText(unit.status || '');
+    const matchesSearch = !searchTerm || unitCode.includes(searchTerm) || clientName.includes(searchTerm);
+    const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   if (unitRegistryTableWrap) {
     unitRegistryTableWrap.classList.toggle('is-scrollable', rows.length > 5);
@@ -732,11 +741,11 @@ function escapeHtml(value) {
 function statusClass(status) {
   const normalized = String(status || '').trim().toLowerCase();
 
-  if (normalized.includes('urgent')) return 'urgent';
-  if (normalized.includes('observation')) return 'observation';
-  if (normalized.includes('released')) return 'released';
-  if (normalized.includes('returned')) return 'returned';
-  if (normalized.includes('pending')) return 'pending-return';
+  if (normalized === 'released') return 'released';
+  if (normalized === 'for observation' || normalized === 'transferred to technical') return 'observation';
+  if (normalized === 'for replacement') return 'urgent';
+  if (normalized === 'for release') return 'pending-return';
+  if (normalized === 'in service') return 'in-stock';
 
   return 'in-stock';
 }

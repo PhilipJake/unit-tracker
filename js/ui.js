@@ -5,40 +5,34 @@ const UI = {
   syncStatus: document.getElementById('syncStatus'),
   branchCodeChartSection: document.getElementById('branchCodeChartSection'),
   branchCodePie: document.getElementById('branchCodePie'),
-  branchCodeLegend: document.getElementById('branchCodeLegend')
+  branchCodeLegend: document.getElementById('branchCodeLegend'),
+  branchCodeTotal: document.getElementById('branchCodeTotal'),
+  activityChart: document.getElementById('activityChart'),
+  activityChartSummary: document.getElementById('activityChartSummary')
 };
 
 function renderSummary(units, registeredBranches = []) {
   const total = units.length;
   const now = new Date();
-  const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
+  const attentionDays = 14;
+  const activeStatuses = new Set(['for observation', 'transferred to technical', 'for replacement', 'for release']);
 
   const activeTracking = units.filter((unit) => {
     const status = normalizeStatus(unit.status);
-    const returnedDate = unit.dateReleased || unit.dateReturn || unit.dateReceived;
-    if (!returnedDate) return false;
-
-    const parsedDate = new Date(returnedDate);
-    if (Number.isNaN(parsedDate.getTime())) return false;
-
-    const ageMs = now.getTime() - parsedDate.getTime();
-    const isReturnedWithinTwoWeeks = ageMs <= twoWeeksMs && (status.includes('returned') || status.includes('released'));
-    const isUnderObservation = status.includes('observation') || status.includes('for observation');
-    return isReturnedWithinTwoWeeks || isUnderObservation;
+    const currentLocation = normalizeStatus(unit.currentLocation || unit.branchLocation || unit.uploadedBranch);
+    return activeStatuses.has(status) || (status === 'in service' && currentLocation === 'warehouse');
   }).length;
 
   const needsAttention = units.filter((unit) => {
     const status = normalizeStatus(unit.status);
-    const returnedDate = unit.dateReleased || unit.dateReturn || unit.dateReceived;
-    if (!returnedDate) return false;
-
-    const parsedDate = new Date(returnedDate);
-    if (Number.isNaN(parsedDate.getTime())) return false;
-
-    const ageMs = now.getTime() - parsedDate.getTime();
-    const isOverdue = ageMs > twoWeeksMs;
-    const hasNotBeenReleased = !(status.includes('released') || status.includes('returned') || status.includes('pending'));
-    return isOverdue && hasNotBeenReleased;
+    if (status === 'released') return false;
+    const receivedDateKey = getActivityDateKey({ dateReceived: unit.dateReceived });
+    if (!receivedDateKey) return false;
+    const receivedAt = typeof dateKeyToUtcMidnight === 'function'
+      ? dateKeyToUtcMidnight(receivedDateKey)
+      : new Date(`${receivedDateKey}T00:00:00`).getTime();
+    const ageDays = Math.floor((Date.now() - receivedAt) / (24 * 60 * 60 * 1000));
+    return ageDays >= attentionDays;
   }).length;
 
   const branches = new Set(
@@ -50,8 +44,8 @@ function renderSummary(units, registeredBranches = []) {
 
   const cards = [
     { label: 'Total units', value: total, dark: true, icon: '◫', meta: 'From last month' },
-    { label: 'Active tracking', value: activeTracking, dark: false, icon: '◉', meta: 'Currently in service' },
-    { label: 'Needs attention', value: needsAttention, dark: false, icon: '!', meta: 'Due for an update' },
+    { label: 'Active tracking', value: activeTracking, dark: false, icon: '◉', meta: 'Open workflow units' },
+    { label: 'Needs attention', value: needsAttention, dark: false, icon: '!', meta: '14+ days without release' },
     { label: 'Branches', value: branches, dark: false, icon: '⌂', meta: 'Across your workspace' }
   ];
 
@@ -109,6 +103,7 @@ function renderBranchCodeChart(units, registeredBranches = []) {
 
   if (!entries.length) {
     UI.branchCodePie.style.background = '#e3e6e2';
+    UI.branchCodeTotal.textContent = '0';
     UI.branchCodePie.setAttribute('aria-label', 'No registered units by branch code');
     UI.branchCodeLegend.innerHTML = '<div class="empty-state">No registered units available.</div>';
     return;
@@ -121,6 +116,7 @@ function renderBranchCodeChart(units, registeredBranches = []) {
     '1lr': '#ef4444'
   };
   const total = units.length;
+  UI.branchCodeTotal.textContent = total;
   let offset = 0;
   const segments = entries.map(([branchCode, count], index) => {
     const start = offset;
@@ -146,6 +142,72 @@ function renderBranchCodeChart(units, registeredBranches = []) {
       `;
     })
     .join('');
+}
+
+function renderActivityChart(units) {
+  if (!UI.activityChart || !UI.activityChartSummary) return;
+
+  const today = new Date();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), index + 1, 12);
+    date.setHours(12, 0, 0, 0);
+    return typeof getManilaDateKey === 'function'
+      ? getManilaDateKey(date)
+      : date.toISOString().slice(0, 10);
+  });
+  const dayIndexes = new Map(days.map((day, index) => [day, index]));
+  const received = Array(days.length).fill(0);
+  const released = Array(days.length).fill(0);
+
+  units.forEach((unit) => {
+    const receivedIndex = dayIndexes.get(getActivityDateKey({ dateReceived: unit.dateReceived }));
+    const releasedIndex = dayIndexes.get(getActivityDateKey({ dateReleased: unit.dateReleased }));
+    const status = normalizeStatus(unit.status);
+    const isReleased = status === 'released';
+    if (receivedIndex !== undefined) received[receivedIndex] += 1;
+    if (releasedIndex !== undefined && isReleased) released[releasedIndex] += 1;
+  });
+  const maxValue = Math.max(...received, ...released, 1);
+  const chartWidth = 560;
+  const chartHeight = 190;
+  const padding = { top: 14, right: 12, bottom: 30, left: 28 };
+  const plotWidth = chartWidth - padding.left - padding.right;
+  const plotHeight = chartHeight - padding.top - padding.bottom;
+  const xIndexRatio = (index) => index / Math.max(days.length - 1, 1);
+  const point = (value, index) => `${padding.left + xIndexRatio(index) * plotWidth},${padding.top + plotHeight - (value / maxValue) * plotHeight}`;
+  const pointsFor = (values) => values.map(point).join(' ');
+  const gridLines = [0, 0.5, 1].map((ratio) => {
+    const y = padding.top + plotHeight - ratio * plotHeight;
+    return `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" />`;
+  }).join('');
+  const labelIndexes = [...new Set([0, 7, 14, 21, days.length - 1].filter((index) => index < days.length))];
+  const labels = labelIndexes.map((index) => {
+    const label = new Date(`${days[index]}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `<text x="${padding.left + xIndexRatio(index) * plotWidth}" y="${chartHeight - 7}" text-anchor="middle">${label}</text>`;
+  }).join('');
+  const circles = (values, className) => values.map((value, index) => `<circle class="${className}" cx="${point(value, index).split(',')[0]}" cy="${point(value, index).split(',')[1]}" r="3" />`).join('');
+
+  UI.activityChart.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="none" aria-hidden="true">
+      <g class="activity-grid">${gridLines}</g>
+      <polyline class="activity-line received" points="${pointsFor(received)}" />
+      <polyline class="activity-line released" points="${pointsFor(released)}" />
+      ${circles(received, 'activity-point received')}
+      ${circles(released, 'activity-point released')}
+      <g class="activity-labels">${labels}</g>
+    </svg>
+  `;
+
+  const receivedTotal = received.reduce((sum, value) => sum + value, 0);
+  const releasedTotal = released.reduce((sum, value) => sum + value, 0);
+  if (receivedTotal + releasedTotal === 0) {
+    UI.activityChart.innerHTML = '<div class="activity-chart-empty">No recorded activity for this month.</div>';
+  }
+  UI.activityChartSummary.innerHTML = `
+    <div><strong>${receivedTotal}</strong><span>received</span></div>
+    <div><strong>${releasedTotal}</strong><span>released</span></div>
+  `;
 }
 
 function renderTable(units) {
@@ -253,11 +315,11 @@ function normalizeStatus(value) {
 function statusClass(status) {
   const normalized = normalizeStatus(status);
 
-  if (normalized.includes('in stock')) return 'in-stock';
-  if (normalized.includes('assigned')) return 'assigned';
-  if (normalized.includes('released')) return 'released';
-  if (normalized.includes('returned')) return 'returned';
-  if (normalized.includes('pending')) return 'pending-return';
+  if (normalized === 'released') return 'released';
+  if (normalized === 'for observation' || normalized === 'transferred to technical') return 'observation';
+  if (normalized === 'for replacement') return 'urgent';
+  if (normalized === 'for release') return 'pending-return';
+  if (normalized === 'in service') return 'in-stock';
 
   return 'in-stock';
 }

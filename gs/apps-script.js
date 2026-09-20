@@ -186,7 +186,9 @@ function savePermissionSettings(spreadsheet, values) {
   const rows = defaults.map((defaultRow) => {
     const role = defaultRow[0];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
-    const roleAccess = pageAccess[role] || {};
+    const roleAccess = role === 'Super Admin'
+      ? { Overview: true, Messages: true, 'Unit registry': true, Branches: true, Accounts: true }
+      : (pageAccess[role] || {});
     return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts)];
   });
 

@@ -59,6 +59,10 @@ function doPost(e) {
     return purgeUnitRow(spreadsheet, values.unitCode || values.code || '');
   }
 
+  if (action === 'purgealltrash') {
+    return purgeAllTrashRows(spreadsheet);
+  }
+
   if (action === 'updateunit') {
     return updateUnitRow(spreadsheet, values);
   }
@@ -433,6 +437,37 @@ function serializeTrashDate(value) {
   return String(value || '');
 }
 
+function getManilaDateKey(date) {
+  return Utilities.formatDate(date, 'Asia/Manila', 'yyyy-MM-dd');
+}
+
+function getManilaMidnightAfterDays(date, days) {
+  const dateKey = getManilaDateKey(date);
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days, 0, 0, 0) - (8 * 60 * 60 * 1000));
+}
+
+function isValidTrashDate(value) {
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  if (typeof value === 'number') return !Number.isNaN(new Date(value).getTime());
+  const text = String(value || '').trim();
+  return Boolean(text) && !Number.isNaN(new Date(text).getTime());
+}
+
+function getTrashArchiveDateIndexes(row, fallbackDeletedIndex, fallbackExpiresIndex) {
+  const dateIndexes = row.reduce((indexes, value, index) => {
+    if (isValidTrashDate(value)) indexes.push(index);
+    return indexes;
+  }, []);
+  if (dateIndexes.length >= 2) {
+    return {
+      deletedAtIndex: dateIndexes[dateIndexes.length - 2],
+      expiresAtIndex: dateIndexes[dateIndexes.length - 1]
+    };
+  }
+  return { deletedAtIndex: fallbackDeletedIndex, expiresAtIndex: fallbackExpiresIndex };
+}
+
 function readTrashRows(spreadsheet) {
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
   const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
@@ -441,29 +476,32 @@ function readTrashRows(spreadsheet) {
   const headers = values[0] || [];
   const expectedDeletedAtIndex = unitHeaders.length;
   const expectedExpiresAtIndex = unitHeaders.length + 2;
-  const deletedAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at') >= 0
-    ? headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at')
-    : expectedDeletedAtIndex;
-  const expiresAtIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at') >= 0
-    ? headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at')
-    : expectedExpiresAtIndex;
-  const codeIndex = getCodeColumnIndex(headers);
   const now = new Date();
+  const todayManilaDateKey = getManilaDateKey(now);
   for (let rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
-    const expiresAt = new Date(values[rowIndex][expiresAtIndex]);
-    if (expiresAtIndex !== -1 && !Number.isNaN(expiresAt.getTime()) && expiresAt <= now) trashSheet.deleteRow(rowIndex + 1);
+    const archiveIndexes = getTrashArchiveDateIndexes(values[rowIndex], expectedDeletedAtIndex, expectedExpiresAtIndex);
+    const expiresAt = new Date(values[rowIndex][archiveIndexes.expiresAtIndex]);
+    if (!Number.isNaN(expiresAt.getTime()) && getManilaDateKey(expiresAt) <= todayManilaDateKey) trashSheet.deleteRow(rowIndex + 1);
   }
   const current = trashSheet.getDataRange().getValues();
-  const currentHeaders = current[0] || [];
-  const currentCodeIndex = getCodeColumnIndex(currentHeaders);
-  const currentDeletedHeaderIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
-  const currentExpiresHeaderIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
-  const currentDeletedIndex = currentDeletedHeaderIndex >= 0 ? currentDeletedHeaderIndex : expectedDeletedAtIndex;
-  const currentExpiresIndex = currentExpiresHeaderIndex >= 0 ? currentExpiresHeaderIndex : expectedExpiresAtIndex;
-  const currentClientIndex = currentHeaders.findIndex((header) => String(header).trim().toLowerCase().includes('client name'));
-  const currentBranchIndex = currentHeaders.findIndex((header) => ['branch location', 'uploaded branch', 'current location'].includes(String(header).trim().toLowerCase()));
-  const rows = current.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== '')).map((row) => ({ unitCode: row[currentCodeIndex] || '', clientName: currentClientIndex === -1 ? '' : row[currentClientIndex] || '', branchLocation: currentBranchIndex === -1 ? '' : row[currentBranchIndex] || '', deletedAt: currentDeletedIndex === -1 ? '' : serializeTrashDate(row[currentDeletedIndex]), expiresAt: currentExpiresIndex === -1 ? '' : serializeTrashDate(row[currentExpiresIndex]) }));
+  const unitClientIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase().includes('client name'));
+  const unitBranchIndex = unitHeaders.findIndex((header) => ['branch location', 'uploaded branch', 'current location'].includes(String(header).trim().toLowerCase()));
+  const rows = current.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== '')).map((row) => {
+    const archiveIndexes = getTrashArchiveDateIndexes(row, expectedDeletedAtIndex, expectedExpiresAtIndex);
+    return {
+      unitCode: unitCodeIndex(unitHeaders, row),
+      clientName: unitClientIndex === -1 ? '' : row[unitClientIndex] || '',
+      branchLocation: unitBranchIndex === -1 ? '' : row[unitBranchIndex] || '',
+      deletedAt: archiveIndexes.deletedAtIndex === -1 ? '' : serializeTrashDate(row[archiveIndexes.deletedAtIndex]),
+      expiresAt: archiveIndexes.expiresAtIndex === -1 ? '' : serializeTrashDate(row[archiveIndexes.expiresAtIndex])
+    };
+  });
   return jsonResponse({ ok: true, rows });
+}
+
+function unitCodeIndex(unitHeaders, row) {
+  const codeIndex = getCodeColumnIndex(unitHeaders);
+  return codeIndex === -1 ? '' : row[codeIndex] || '';
 }
 
 function deleteUnitRow(spreadsheet, unitCode, values) {
@@ -483,7 +521,7 @@ function deleteUnitRow(spreadsheet, unitCode, values) {
 
   const trashSheet = getTrashSheet(spreadsheet, record.headers);
   const deletedAt = new Date();
-  const expiresAt = new Date(deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = getManilaMidnightAfterDays(deletedAt, 30);
   trashSheet.appendRow(record.values.concat([deletedAt, values.actorName || values.actorRole || 'Unknown', expiresAt]));
   sheet.deleteRow(record.rowIndex);
   return jsonResponse({ ok: true, action: 'deleteUnit', deletedCode: unitCode });
@@ -508,6 +546,15 @@ function purgeUnitRow(spreadsheet, unitCode) {
   if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
   trashSheet.deleteRow(record.rowIndex);
   return jsonResponse({ ok: true, action: 'purgeUnit', purgedCode: unitCode });
+}
+
+function purgeAllTrashRows(spreadsheet) {
+  const trashSheet = spreadsheet.getSheetByName('Trash');
+  if (!trashSheet) return jsonResponse({ ok: true, action: 'purgeAllTrash', purgedCount: 0 });
+
+  const purgedCount = Math.max(0, trashSheet.getLastRow() - 1);
+  if (purgedCount) trashSheet.deleteRows(2, purgedCount);
+  return jsonResponse({ ok: true, action: 'purgeAllTrash', purgedCount });
 }
 
 function deleteBranchRow(spreadsheet, branchName) {

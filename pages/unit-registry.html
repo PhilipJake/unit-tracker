@@ -18,7 +18,7 @@
         <div class="nav-label">Workspace</div>
         <a class="nav-item" href="../index.html">
           <span class="nav-icon">▣</span>
-          Overview
+          Dashboard
         </a>
         <a class="nav-item messages-nav-item" href="messages.html" aria-label="Open Messages">
           <span class="nav-icon">✉</span>
@@ -75,6 +75,16 @@
           <div class="search-box">
             <input id="unitSearchInput" type="text" placeholder="Search units" aria-label="Search units" />
           </div>
+
+          <select id="unitStatusFilter" class="toolbar-select" aria-label="Filter units by status">
+            <option value="all">All statuses</option>
+            <option>For Observation</option>
+            <option>Transferred to Technical</option>
+            <option>For Replacement</option>
+            <option>In Service</option>
+            <option>For Release</option>
+            <option>Released</option>
+          </select>
 
           <div class="page-actions">
             <button class="action-btn" id="exportUnitCsvBtn" type="button">Export</button>
@@ -191,12 +201,12 @@
               <label for="status">Status</label>
               <select id="status" name="status" required>
                 <option value="">Select status</option>
-                <option>Released</option>
-                <option>For observation</option>
-                <option>Urgent</option>
-                <option>Battery swelling</option>
+                <option>For Observation</option>
+                <option>Transferred to Technical</option>
                 <option>For Replacement</option>
-                <option>None</option>
+                <option>In Service</option>
+                <option>For Release</option>
+                <option>Released</option>
               </select>
             </div>
 

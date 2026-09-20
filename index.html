@@ -98,13 +98,42 @@
         <section class="panel branch-code-chart-panel" id="branchCodeChartSection" hidden>
           <div class="panel-header">
             <div>
-              <h2>Registered units by branch code</h2>
-              <p class="panel-subtitle">Total units currently registered in the workspace</p>
+              <span class="panel-kicker">Workspace overview</span>
+              <h2>Unit distribution &amp; activity</h2>
+              <p class="panel-subtitle">A quick read on where units are registered and how work is moving</p>
             </div>
           </div>
-          <div class="branch-code-chart-content">
-            <div class="branch-code-pie" id="branchCodePie" role="img" aria-label="Registered units by branch code"></div>
-            <div class="branch-code-legend" id="branchCodeLegend"></div>
+          <div class="overview-charts">
+            <div class="branch-code-chart-content">
+              <div class="chart-heading">
+                <div>
+                  <h3>Registered units</h3>
+                  <p>By branch code</p>
+                </div>
+                <span class="chart-period">Current total</span>
+              </div>
+              <div class="branch-code-pie-wrap">
+                <div class="branch-code-pie" id="branchCodePie" role="img" aria-label="Registered units by branch code"></div>
+                <div class="branch-code-pie-total"><strong id="branchCodeTotal">0</strong><span>units</span></div>
+              </div>
+              <div class="branch-code-legend" id="branchCodeLegend"></div>
+            </div>
+
+            <div class="activity-chart-content">
+              <div class="chart-heading">
+                <div>
+                  <h3>Activity trend</h3>
+                  <p>Received dates and completed releases from the unit registry</p>
+                </div>
+                <span class="chart-period">Current month · recorded</span>
+              </div>
+              <div class="activity-chart-summary" id="activityChartSummary"></div>
+              <div class="activity-chart" id="activityChart" role="img" aria-label="Recorded unit activity trend for the current month"></div>
+              <div class="activity-chart-legend">
+                <span><i class="activity-dot received"></i>Received</span>
+                <span><i class="activity-dot released"></i>Released</span>
+              </div>
+            </div>
           </div>
         </section>
 

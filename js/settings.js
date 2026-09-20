@@ -28,9 +28,9 @@ function renderPermissions(permissions = getRolePermissions()) {
 function renderPageAccess(access = getPageAccess()) {
   pageAccessGrid.innerHTML = pageAccessRoles.map((role) => `
     <article class="page-access-card">
-      <div><strong>${role}</strong><span>${role === 'Super Admin' ? 'Can manage access' : ['Administrator'].includes(role) ? 'Can manage access' : 'Workspace role'}</span></div>
+      <div><strong>${role}</strong><span>${role === 'Super Admin' ? 'Locked' : ['Administrator'].includes(role) ? 'Can manage access' : 'Workspace role'}</span></div>
       <div class="page-access-options">
-        ${Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `<label class="permission-toggle"><input type="checkbox" data-page-role="${role}" data-page="${page}" ${access[role][page] ? 'checked' : ''}><span>${page}</span></label>`).join('')}
+        ${Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `<label class="permission-toggle"><input type="checkbox" data-page-role="${role}" data-page="${page}" ${access[role][page] ? 'checked' : ''} ${role === 'Super Admin' ? 'disabled' : ''}><span>${page}</span></label>`).join('')}
       </div>
     </article>
   `).join('');
@@ -73,6 +73,7 @@ function getFormPageAccess() {
   document.querySelectorAll('[data-page-role][data-page]').forEach((input) => {
     access[input.dataset.pageRole][input.dataset.page] = input.checked;
   });
+  access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
   return access;
 }
 
@@ -124,9 +125,10 @@ async function loadPermissionsFromServer() {
     if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) throw new Error(result.error || 'Permission load failed');
 
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
-    localStorage.setItem('unitflowPageAccess', JSON.stringify(result.pageAccess));
+    const pageAccess = { ...result.pageAccess, 'Super Admin': { ...DEFAULT_PAGE_ACCESS['Super Admin'] } };
+    localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     renderPermissions(result.permissions);
-    renderPageAccess(result.pageAccess);
+    renderPageAccess(pageAccess);
   } catch (error) {
     showSettingsStatus('The database was unavailable', 'notice');
     console.error('Unable to load permissions from Google Sheets:', error);

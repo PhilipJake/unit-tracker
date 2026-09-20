@@ -3,6 +3,7 @@ const trashSearchInput = document.getElementById('trashSearchInput');
 const trashMessageModalBackdrop = document.getElementById('trashMessageModalBackdrop');
 const trashMessageModalBody = document.getElementById('trashMessageModalBody');
 const trashToast = document.getElementById('trashToast');
+const purgeAllTrashBtn = document.getElementById('purgeAllTrashBtn');
 let trashRows = [];
 let trashToastTimer = null;
 
@@ -39,7 +40,7 @@ function formatTrashDate(value) {
   const rawValue = String(value).trim();
   const googleDate = rawValue.match(/^Date\((\d+)\)$/);
   const date = googleDate ? new Date(Number(googleDate[1])) : new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }).format(date);
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'Asia/Manila' }).format(date);
 }
 
 function formatTrashCountdown(value) {
@@ -48,7 +49,9 @@ function formatTrashCountdown(value) {
   const googleDate = rawValue.match(/^Date\((\d+)\)$/);
   const date = googleDate ? new Date(Number(googleDate[1])) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  const remainingDays = Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  const expirationDateKey = getManilaDateKey(date);
+  const todayDateKey = getManilaDateKey(new Date());
+  const remainingDays = Math.floor((dateKeyToUtcMidnight(expirationDateKey) - dateKeyToUtcMidnight(todayDateKey)) / (24 * 60 * 60 * 1000));
   if (remainingDays <= 0) return 'Deleting soon';
   return `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining`;
 }
@@ -112,6 +115,20 @@ async function updateTrash(action, unitCode) {
   if (!response.ok || (result && result.ok === false)) throw new Error((result && result.error) || `Request failed with status ${response.status}.`);
 }
 
+async function purgeAllTrash() {
+  const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
+  if (!appScriptUrl) throw new Error('Apps Script URL is not configured.');
+
+  const response = await fetch(appScriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams({ action: 'purgeAllTrash', actorRole: getCurrentRole(), actorName: getLoggedInUserName() }).toString()
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || (result && result.ok === false)) throw new Error((result && result.error) || `Request failed with status ${response.status}.`);
+  return result;
+}
+
 async function loadTrash() {
   const status = document.getElementById('trashSyncStatus');
   try {
@@ -130,6 +147,28 @@ document.addEventListener('DOMContentLoaded', () => {
   trashSearchInput.addEventListener('input', renderTrashRows);
   document.getElementById('closeTrashMessageBtn').addEventListener('click', closeTrashMessage);
   document.getElementById('okTrashMessageBtn').addEventListener('click', closeTrashMessage);
+  const canPurge = canManageAction('delete');
+  if (purgeAllTrashBtn) {
+    purgeAllTrashBtn.disabled = !canPurge;
+    purgeAllTrashBtn.addEventListener('click', () => {
+      if (!canPurge) return;
+      if (!trashRows.length) {
+        showTrashToast('There are no deleted units to remove.');
+        return;
+      }
+
+      showAppPopup(`Permanently delete all ${trashRows.length} deleted units? This cannot be undone.`, async () => {
+        try {
+          const result = await purgeAllTrash();
+          showTrashToast(`${result && result.purgedCount ? result.purgedCount : trashRows.length} units permanently deleted.`);
+          await loadTrash();
+        } catch (error) {
+          console.error(error);
+          showTrashMessage(error.message || 'Unable to permanently delete all units.');
+        }
+      });
+    });
+  }
   trashTableBody.addEventListener('click', async (event) => {
     const button = event.target.closest('button');
     const row = button && button.closest('tr');

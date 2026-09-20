@@ -83,7 +83,7 @@ Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUn
 
 ## Trash
 
-Run `initializeClientUnitTrackerSheets()` in Apps Script to create the `Trash` sheet. Deleting a unit moves its original row to Trash with `Deleted At`, `Deleted By`, and `Expires At` metadata. The Trash page can restore or permanently delete units; expired rows are removed when Trash is loaded. Redeploy the Apps Script web app after updating `gs/code.gs`.
+Run `initializeClientUnitTrackerSheets()` in Apps Script to create the `Trash` sheet. Deleting a unit moves its original row to Trash with `Deleted At`, `Deleted By`, and `Expires At` metadata. The Trash page can restore or permanently delete units; expired rows are removed when Trash is loaded.
 
 ## Sample data
 
