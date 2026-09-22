@@ -349,6 +349,59 @@ async function submitPasswordChange(event) {
   }
 }
 
+function initNavToggle() {
+  document.querySelectorAll('.sidebar').forEach((sidebar) => {
+    if (sidebar.querySelector('.nav-toggle')) {
+      return;
+    }
+
+    const nav = sidebar.querySelector('.nav');
+    if (!nav) {
+      return;
+    }
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'nav-toggle';
+    toggle.setAttribute('aria-label', 'Toggle navigation');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.innerHTML = '<span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>';
+
+    sidebar.insertBefore(toggle, nav);
+
+    const syncMenuState = () => {
+      if (window.innerWidth > 760) {
+        sidebar.classList.remove('nav-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const isOpen = sidebar.classList.toggle('nav-open');
+      toggle.setAttribute('aria-expanded', String(isOpen));
+    });
+
+    nav.querySelectorAll('.nav-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        if (window.innerWidth <= 760) {
+          sidebar.classList.remove('nav-open');
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+
+    window.addEventListener('resize', syncMenuState);
+    document.addEventListener('click', (event) => {
+      if (window.innerWidth <= 760 && sidebar.classList.contains('nav-open') && !sidebar.contains(event.target)) {
+        sidebar.classList.remove('nav-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+}
+
 function initUserMenu() {
   if (!localStorage.getItem('unitflowRole')) {
     window.location.href = resolveRoutePath('pages/login.html');
@@ -369,6 +422,7 @@ function initUserMenu() {
     userDropdown.insertBefore(changePasswordButton, logoutButton || null);
   }
 
+  initNavToggle();
   applyRoleRestrictions();
   updateMessageNavCount();
   const refreshMs = Number((window.GS_CONFIG && window.GS_CONFIG.refreshMs) || 15000);
