@@ -111,12 +111,13 @@
                   <th>Unit Problem</th>
                   <th>Status</th>
                   <th>Inclusion</th>
+                  <th>Technician Notes</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="unitRegistryTableBody">
                 <tr>
-                  <td colspan="15" class="empty-state">Loading live spreadsheet data…</td>
+                  <td colspan="16" class="empty-state">Loading live spreadsheet data…</td>
                 </tr>
               </tbody>
             </table>
@@ -227,6 +228,14 @@
               <textarea id="technicianNotes" name="technicianNotes" rows="3" placeholder="Add notes for this unit"></textarea>
             </div>
 
+            <div class="field-group urgent-field">
+              <label class="checkbox-label" for="isUrgent" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                <input id="isUrgent" name="isUrgent" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" />
+                Flag as URGENT
+              </label>
+              <small class="field-help">Once flagged, this cannot be unchecked while editing the unit.</small>
+            </div>
+
             <div class="field-group inclusions-field">
               <label>Inclusions</label>
               <div class="inclusion-checklist" style="display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 0.7rem 0.8rem; border: 1px solid #dfe3eb; border-radius: 10px; background: white;">
@@ -251,7 +260,11 @@
                 <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
                   <input type="checkbox" name="inclusionOption" value="SmartWatch" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> SmartWatch
                 </label>
+                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
+                  <input type="checkbox" id="otherInclusionOption" name="inclusionOption" value="Other" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Other
+                </label>
               </div>
+              <input id="otherInclusionText" name="otherInclusionText" type="text" placeholder="Specify other inclusion" hidden />
               <input type="hidden" id="inclusion" name="inclusion" value="" />
             </div>
           </div>

@@ -117,7 +117,8 @@ function parseCsv(csvText) {
 
     const row = {};
     headers.forEach((header, headerIndex) => {
-      row[header] = values[headerIndex] || '';
+      row[`__column_${headerIndex}`] = values[headerIndex] || '';
+      if (header) row[header] = values[headerIndex] || '';
     });
 
     const normalized = normalizeRow(row);
@@ -171,19 +172,29 @@ function normalizeRow(rawRow) {
     row[key] = String(value || '').trim();
   });
 
-  const unitCode = findValue(row, ['unit code', 'unitcode', 'code']);
-  const clientName = findValue(row, ['client name', 'clientname', 'client']);
-  const contactInfo = findValue(row, ['contact info', 'contactinfo', 'contact number', 'phone', 'mobile']);
-  const unitBrand = findValue(row, ['unit brand', 'unitbrand', 'brand']);
-  const unitProblem = findValue(row, ['unit problem', 'unitproblem', 'problem']);
-  const technicianNotes = findValue(row, ['technician notes', 'techniciannotes', 'technician note']);
-  const unitPrice = findValue(row, ['unit price', 'price']);
-  const specs = findValue(row, ['specs', 'unit specs', 'unitspecs', 'processor', 'storage size', 'storage']);
-  const uploadedBranch = findValue(row, ['uploaded branch', 'uploadedbranch', 'branch']);
-  const currentLocation = findValue(row, ['current location', 'currentlocation', 'location']);
-  const dateReceived = findValue(row, ['date received', 'datereceived', 'received date']);
-  const dateReleased = findValue(row, ['date released', 'datereleased', 'released date', 'return date', 'returndate', 'date return', 'datereturn']);
-  const status = findValue(row, ['status']);
+  const hasContactInfoHeader = Boolean(row['contact info'] || row.contactinfo);
+  const legacyValue = (index, keys) => !hasContactInfoHeader
+    ? row[`__column_${index}`] || ''
+    : findValue(row, keys);
+  const unitCode = legacyValue(0, ['unit code', 'unitcode', 'code']);
+  const clientName = legacyValue(1, ['client name', 'clientname', 'client']);
+  const contactInfo = legacyValue(2, ['contact info', 'contactinfo', 'contact number', 'phone', 'mobile']);
+  const unitBrand = legacyValue(3, ['unit brand', 'unitbrand', 'brand']);
+  const unitProblem = legacyValue(12, ['unit problem', 'unitproblem', 'problem']);
+  const inclusion = legacyValue(13, ['inclusion', 'inclusions']);
+  const technicianNotes = legacyValue(15, ['technician notes', 'techniciannotes', 'technician note']);
+  const isUrgent = legacyValue(16, ['urgent', 'is urgent', 'urgent flag']);
+  const unitPrice = legacyValue(5, ['unit price', 'price']);
+  const specs = legacyValue(4, ['specs', 'unit specs', 'unitspecs', 'processor', 'storage size', 'storage']);
+  const uploadedBranch = legacyValue(14, ['uploaded branch', 'uploadedbranch', 'branch']);
+  const currentLocation = legacyValue(8, ['current location', 'currentlocation', 'location']);
+  const normalizedCurrentLocation = currentLocation.toLowerCase() === 'bnb rosales'
+    ? 'Technical Hub'
+    : currentLocation;
+  const dateReceived = legacyValue(9, ['date received', 'datereceived', 'received date']);
+  const dateReleased = legacyValue(10, ['date released', 'datereleased', 'released date', 'return date', 'returndate', 'date return', 'datereturn']);
+  const warranty = legacyValue(11, ['warranty']);
+  const status = legacyValue(6, ['status']);
   const accountType = findValue(row, ['account type', 'accounttype', 'role', 'user type', 'usertype']);
   const username = findValue(row, ['username', 'user name', 'user', 'login']);
   const password = findValue(row, ['password', 'pass', 'pwd']);
@@ -202,13 +213,16 @@ function normalizeRow(rawRow) {
     contactInfo: contactInfo || '',
     unitBrand: unitBrand || '',
     unitProblem: unitProblem || '',
+    inclusion: inclusion || '',
     technicianNotes: technicianNotes || '',
+    isUrgent: isUrgent || '',
     unitPrice: unitPrice || '',
     specs: specs || '',
     uploadedBranch: uploadedBranch || '',
-    currentLocation: currentLocation || '',
+    currentLocation: normalizedCurrentLocation || '',
     dateReceived: dateReceived || '',
     dateReleased: dateReleased || '',
+    warranty: warranty || '',
     runningDays: runningDays || '',
     status: status || row.status || 'Unknown',
     accountType: accountType || '',

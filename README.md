@@ -24,7 +24,7 @@ This app reads data directly from a Google Sheet using the public CSV export URL
 1. Create a Google Sheet with a sheet name like `Units`.
 2. Add the exact columns below as the header row:
 
-   `Unit Code, Client Name, Unit Price, Specs, Uploaded Branch, Current Location, Date Received, Date Released, Status`
+   `Unit Code, Client Name, Contact Info, Unit Brand, Unit Specs, Unit Price, Status, Branch Location, Current Location, Date Received, Return Date, Warranty, Unit Problem, Inclusion, Uploaded Branch, Technician Notes, Urgent`
 
 3. Put your data under those headers.
 4. In the Google Sheet, make sure the sheet is shared publicly or available through the CSV export endpoint.

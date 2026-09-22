@@ -600,8 +600,12 @@ function updateUnitRow(spreadsheet, values) {
     const currentCode = String(data[rowIndex][codeIndex] || '').trim();
     if (currentCode === targetCode) {
       const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+      const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
       if (!canEditTechnicianNotes(values.actorRole) && technicianNotesIndex >= 0) {
         values.technicianNotes = data[rowIndex][technicianNotesIndex] || '';
+      }
+      if (urgentIndex >= 0 && ['true', '1', 'yes', 'urgent'].includes(String(data[rowIndex][urgentIndex] || '').trim().toLowerCase())) {
+        values.isUrgent = 'TRUE';
       }
       const rowToWrite = buildRowForAction('units', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
@@ -766,9 +770,8 @@ function ensureSheet(spreadsheet, sheetName) {
   if (sheetAction === 'units') {
     const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), desiredHeaders.length)).getValues()[0];
     const hasContactInfo = existingHeaders.some((header) => String(header).trim().toLowerCase() === 'contact info');
-    const clientNameIndex = existingHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'client name');
-    if (!hasContactInfo && clientNameIndex >= 0) {
-      sheet.insertColumnAfter(clientNameIndex + 1);
+    if (!hasContactInfo) {
+      sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
     }
   }
   let headerRange = sheet.getRange(1, 1, 1, desiredHeaders.length);
@@ -893,7 +896,8 @@ function getHeadersForAction(action) {
         'Unit Problem',
         'Inclusion',
         'Uploaded Branch',
-        'Technician Notes'
+        'Technician Notes',
+        'Urgent'
       ];
   }
 }
@@ -955,7 +959,8 @@ function buildRowForAction(action, values) {
         values.unitProblem || '',
         values.inclusion || '',
         values.uploadedBranch || values.branchLocation || '',
-        values.technicianNotes || ''
+        values.technicianNotes || '',
+        values.isUrgent || ''
       ];
   }
 }

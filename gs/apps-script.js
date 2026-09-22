@@ -58,6 +58,10 @@ function doPost(e) {
     return updateAccountRow(spreadsheet, values);
   }
 
+  if (action === 'updateunit') {
+    return updateUnitRow(spreadsheet, values);
+  }
+
   if (action === 'markmessageread') {
     return markMessageRead(spreadsheet, values.messageId || '');
   }
@@ -222,6 +226,36 @@ function markMessageRead(spreadsheet, messageId) {
   }
 
   return jsonResponse({ ok: false, error: 'Message not found' });
+}
+
+function updateUnitRow(spreadsheet, values) {
+  if (!isValidContactInfo(values.contactInfo || '')) {
+    return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
+  }
+
+  const sheet = ensureSheet(spreadsheet, 'Units');
+  const data = sheet.getDataRange().getValues();
+  const headerRow = data[0] || [];
+  const codeIndex = headerRow.findIndex((header) => ['code', 'unit code'].includes(String(header).trim().toLowerCase()));
+  const targetCode = String(values.originalUnitCode || values.unitCode || '').trim();
+
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (String(data[rowIndex][codeIndex] || '').trim() !== targetCode) continue;
+
+    const notesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+    const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
+    if (!canEditTechnicianNotes(values.actorRole) && notesIndex >= 0) {
+      values.technicianNotes = data[rowIndex][notesIndex] || '';
+    }
+    if (urgentIndex >= 0 && ['true', '1', 'yes', 'urgent'].includes(String(data[rowIndex][urgentIndex] || '').trim().toLowerCase())) {
+      values.isUrgent = 'TRUE';
+    }
+
+    sheet.getRange(rowIndex + 1, 1, 1, getHeadersForAction('units').length).setValues([buildRowForAction('units', values)]);
+    return jsonResponse({ ok: true, action: 'updateUnit', updatedCode: targetCode });
+  }
+
+  return jsonResponse({ ok: false, error: 'Unit not found for update' });
 }
 
 function jsonResponse(payload) {
@@ -523,9 +557,8 @@ function ensureSheet(spreadsheet, sheetName) {
   if (sheetAction === 'units') {
     const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), desiredHeaders.length)).getValues()[0];
     const hasContactInfo = existingHeaders.some((header) => String(header).trim().toLowerCase() === 'contact info');
-    const clientNameIndex = existingHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'client name');
-    if (!hasContactInfo && clientNameIndex >= 0) {
-      sheet.insertColumnAfter(clientNameIndex + 1);
+    if (!hasContactInfo) {
+      sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
     }
     desiredHeaders.forEach((header, index) => {
       if (String(existingHeaders[index] || '').trim() === '') {
@@ -594,7 +627,8 @@ function getHeadersForAction(action) {
         'Unit Problem',
         'Inclusion',
         'Uploaded Branch',
-        'Technician Notes'
+        'Technician Notes',
+        'Urgent'
       ];
   }
 }
@@ -652,7 +686,8 @@ function buildRowForAction(action, values) {
         values.unitProblem || '',
         values.inclusion || '',
         values.uploadedBranch || values.branchLocation || '',
-        values.technicianNotes || ''
+        values.technicianNotes || '',
+        values.isUrgent || ''
       ];
   }
 }

@@ -77,7 +77,7 @@
 
       const currentLocationSelect = document.getElementById('currentLocation');
       const assignedBranch = uploadedBranchField ? uploadedBranchField.value.trim() : '';
-      const locationOptions = [assignedBranch, 'BNB Rosales', 'Warehouse'].filter((value, index, values) => {
+      const locationOptions = [assignedBranch, 'Technical Hub', 'Warehouse'].filter((value, index, values) => {
         return value && values.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index;
       });
       if (currentLocationSelect) {

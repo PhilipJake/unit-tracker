@@ -14,6 +14,9 @@ const unitSearchInput = document.getElementById('unitSearchInput') || document.q
 const unitStatusFilter = document.getElementById('unitStatusFilter');
 const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
+const urgentField = document.getElementById('isUrgent');
+const otherInclusionOption = document.getElementById('otherInclusionOption');
+const otherInclusionText = document.getElementById('otherInclusionText');
 const unitRegistryTableWrap = document.querySelector('.table-wrap');
 const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
@@ -87,12 +90,14 @@ function openUnitModal(mode = 'create', unit = null) {
     }
     setCurrentLocationOptions(savedBranch, unit.currentLocation || savedBranch);
     setTechnicianNotesAccess(unit.technicianNotes || '');
+    setUrgentAccess(unit.isUrgent || unit.urgent || '');
   } else {
     activeEditCode = '';
     unitForm.dataset.mode = 'create';
     if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
     unitForm.reset();
+    syncOtherInclusionField();
     const contactInfoField = unitForm.elements.namedItem('contactInfo');
     if (contactInfoField) contactInfoField.value = contactInfoPrefix;
 
@@ -114,6 +119,7 @@ function openUnitModal(mode = 'create', unit = null) {
     }
     setCurrentLocationOptions(assignedBranch, assignedBranch);
     setTechnicianNotesAccess('');
+    setUrgentAccess('');
   }
 
   backdrop.classList.add('visible');
@@ -143,13 +149,21 @@ function populateUnitForm(unit) {
 
   const inclusionOptions = unitForm.querySelectorAll('input[name="inclusionOption"]');
   inclusionOptions.forEach((input) => {
-    input.checked = inclusionValues.includes(input.value);
+    input.checked = input.value === 'Other'
+      ? inclusionValues.some((value) => /^other(?::|$)/i.test(value))
+      : inclusionValues.includes(input.value);
   });
 
   const inclusionHidden = document.getElementById('inclusion');
   if (inclusionHidden) {
-    inclusionHidden.value = inclusionValues.join(', ');
+    inclusionHidden.value = inclusionValues
+      .filter((value) => !/^other(?::|$)/i.test(value))
+      .concat(inclusionValues.find((value) => /^other(?::|$)/i.test(value)) ? ['Other'] : [])
+      .join(', ');
   }
+  const otherValue = inclusionValues.find((value) => /^other(?::|$)/i.test(value));
+  if (otherInclusionText) otherInclusionText.value = otherValue ? otherValue.replace(/^other:\s*/i, '') : '';
+  syncOtherInclusionField();
 
   const uploadedBranch = unit.uploadedBranch || unit.branchLocation || '';
   const savedCurrentLocation = unit.currentLocation || unit.branchLocation || uploadedBranch || '';
@@ -199,10 +213,18 @@ function setTechnicianNotesAccess(value) {
   technicianNotesField.style.cursor = canEdit ? '' : 'not-allowed';
 }
 
+function setUrgentAccess(value) {
+  if (!urgentField) return;
+  const isUrgent = ['true', '1', 'yes', 'urgent'].includes(String(value).trim().toLowerCase());
+  urgentField.checked = isUrgent;
+  urgentField.disabled = unitForm.dataset.mode === 'edit' && isUrgent;
+  urgentField.setAttribute('aria-disabled', String(urgentField.disabled));
+}
+
 function setCurrentLocationOptions(branchLocation, selectedLocation = '') {
   if (!currentLocationSelect) return;
 
-  const locations = [branchLocation, 'BNB Rosales', 'Warehouse']
+  const locations = [branchLocation, 'Technical Hub', 'Warehouse']
     .map((value) => String(value || '').trim())
     .filter((value, index, values) => {
       return value && values.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index;
@@ -223,10 +245,24 @@ function syncInclusionField() {
     .map((input) => input.value.trim())
     .filter(Boolean);
 
+  if (otherInclusionOption && otherInclusionOption.checked) {
+    const specification = String(otherInclusionText ? otherInclusionText.value : '').trim();
+    const otherIndex = selectedValues.indexOf('Other');
+    if (otherIndex >= 0) selectedValues[otherIndex] = specification ? `Other: ${specification}` : 'Other';
+  }
   const hiddenInput = document.getElementById('inclusion');
   if (hiddenInput) {
     hiddenInput.value = selectedValues.join(', ');
   }
+
+}
+
+function syncOtherInclusionField() {
+  if (!otherInclusionOption || !otherInclusionText) return;
+  otherInclusionText.hidden = !otherInclusionOption.checked;
+  otherInclusionText.required = otherInclusionOption.checked;
+  if (!otherInclusionOption.checked) otherInclusionText.value = '';
+  syncInclusionField();
 }
 
 function normalizeSavedUnitPayload(form) {
@@ -272,6 +308,7 @@ function normalizeSavedUnitPayload(form) {
     unitProblem: String(raw.unitProblem || '').trim(),
     inclusion: String(raw.inclusion || '').trim(),
     technicianNotes: String(raw.technicianNotes || '').trim(),
+    isUrgent: urgentField && urgentField.checked ? 'TRUE' : '',
     actorRole: role || '',
     uploadedBranch
   };
@@ -401,9 +438,11 @@ function initUnitModal() {
 
     inclusionOptions.forEach((option) => {
       option.addEventListener('change', () => {
-        syncInclusionField();
+        if (option === otherInclusionOption) syncOtherInclusionField();
+        else syncInclusionField();
       });
     });
+    if (otherInclusionText) otherInclusionText.addEventListener('input', syncInclusionField);
 
     unitForm.addEventListener('submit', saveUnitToSheet);
   }
@@ -458,7 +497,8 @@ function initUnitModal() {
         'Running Days',
         'Unit Problem',
         'Status',
-        'Inclusion'
+        'Inclusion',
+        'Technician Notes'
       ];
 
       const rowsCsv = filteredRows.map((unit) => [
@@ -475,7 +515,8 @@ function initUnitModal() {
         unit.runningDays || '',
         unit.unitProblem || '',
         unit.status || '',
-        unit.inclusion || ''
+        unit.inclusion || '',
+        unit.technicianNotes || ''
       ]);
 
       const csvContent = [headers, ...rowsCsv]
@@ -578,7 +619,7 @@ async function loadRegistryUnits() {
     renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error(error);
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="15" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="16" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
   }
 }
 
@@ -618,7 +659,7 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="15" class="empty-state">No matching units found.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="16" class="empty-state">No matching units found.</td></tr>';
     return;
   }
 
@@ -660,6 +701,7 @@ function renderRegistryTable(rows) {
           <td>${escapeHtml(problem)}</td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
+          <td>${escapeHtml(unit.technicianNotes || '—')}</td>
           <td class="table-actions">
             <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
             <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
