@@ -62,6 +62,10 @@ function doPost(e) {
     return updateUnitRow(spreadsheet, values);
   }
 
+  if (action === 'releaseunit') {
+    return releaseUnitRow(spreadsheet, values);
+  }
+
   if (action === 'markmessageread') {
     return markMessageRead(spreadsheet, values.messageId || '');
   }
@@ -76,6 +80,7 @@ function doPost(e) {
   }
 
   const sheet = ensureSheet(spreadsheet, sheetName);
+  if (action === 'units' && typeof ensureUnitDateColumns === 'function') ensureUnitDateColumns(sheet);
   if (action === 'accounts' && isAdministratorCreatingSuperAdmin(values)) {
     return jsonResponse({ ok: false, error: 'Administrator cannot create a Super Admin account' });
   }
@@ -234,16 +239,26 @@ function updateUnitRow(spreadsheet, values) {
   }
 
   const sheet = ensureSheet(spreadsheet, 'Units');
+  if (typeof ensureUnitDateColumns === 'function') ensureUnitDateColumns(sheet);
   const data = sheet.getDataRange().getValues();
   const headerRow = data[0] || [];
   const codeIndex = headerRow.findIndex((header) => ['code', 'unit code'].includes(String(header).trim().toLowerCase()));
   const targetCode = String(values.originalUnitCode || values.unitCode || '').trim();
 
-  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+  const requestedRowIndex = Number(values.originalRowIndex);
+  const rowIndexes = Number.isInteger(requestedRowIndex) && requestedRowIndex >= 0 && requestedRowIndex < data.length - 1
+    ? [requestedRowIndex + 1]
+    : Array.from({ length: Math.max(0, data.length - 1) }, (_, index) => index + 1);
+
+  for (const rowIndex of rowIndexes) {
     if (String(data[rowIndex][codeIndex] || '').trim() !== targetCode) continue;
 
     const notesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+    const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
     const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
+    if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
+      values.unitPrice = data[rowIndex][unitPriceIndex] || '';
+    }
     if (!canEditTechnicianNotes(values.actorRole) && notesIndex >= 0) {
       values.technicianNotes = data[rowIndex][notesIndex] || '';
     }
@@ -256,6 +271,73 @@ function updateUnitRow(spreadsheet, values) {
   }
 
   return jsonResponse({ ok: false, error: 'Unit not found for update' });
+}
+
+function ensureUnitDateColumns(sheet) {
+  migrateUnitSheetSchema(sheet);
+}
+
+function migrateUnitSheetSchema(sheet) {
+  const desiredHeaders = getHeadersForAction('units');
+  const sourceWidth = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+  const sourceData = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), sourceWidth).getValues();
+  const sourceHeaders = sourceData[0] || [];
+  const aliases = {
+    'date purchased': ['date purchased', 'date received', 'date of purchase'],
+    'date of return': ['date of return', 'return date'],
+    'date released': ['date released'],
+    urgent: ['urgent', 'is urgent', 'urgent flag']
+  };
+  const normalizedHeaders = sourceHeaders.map((header) => String(header || '').trim().toLowerCase());
+  const indexesFor = (header) => {
+    const accepted = aliases[header.toLowerCase()] || [header.toLowerCase()];
+    return normalizedHeaders.reduce((indexes, value, index) => {
+      if (accepted.includes(value)) indexes.push(index);
+      return indexes;
+    }, []);
+  };
+  const canonicalData = [desiredHeaders];
+
+  sourceData.slice(1).forEach((sourceRow) => {
+    canonicalData.push(desiredHeaders.map((header) => {
+      const indexes = indexesFor(header);
+      if (header === 'Urgent') {
+        return indexes.some((index) => ['true', '1', 'yes', 'urgent'].includes(String(sourceRow[index] || '').trim().toLowerCase())) ? 'TRUE' : '';
+      }
+      const index = indexes[0];
+      return index === undefined ? '' : sourceRow[index] || '';
+    }));
+  });
+
+  const width = Math.max(sheet.getMaxColumns(), desiredHeaders.length);
+  if (width > desiredHeaders.length) {
+    sheet.getRange(1, desiredHeaders.length + 1, sheet.getMaxRows(), width - desiredHeaders.length).clearContent();
+  }
+  sheet.getRange(1, 1, canonicalData.length, desiredHeaders.length).setValues(canonicalData);
+}
+
+function releaseUnitRow(spreadsheet, values) {
+  const sheet = ensureSheet(spreadsheet, 'Units');
+  ensureUnitDateColumns(sheet);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const codeIndex = headers.findIndex((header) => ['code', 'unit code'].includes(String(header).trim().toLowerCase()));
+  const statusIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  const releasedIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'date released');
+  const targetCode = String(values.unitCode || values.code || '').trim();
+
+  if (codeIndex < 0 || statusIndex < 0 || releasedIndex < 0) return jsonResponse({ ok: false, error: 'Unit columns not found' });
+
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (String(data[rowIndex][codeIndex] || '').trim() !== targetCode) continue;
+
+    const releaseDate = String(values.dateReleased || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd')).trim();
+    sheet.getRange(rowIndex + 1, statusIndex + 1).setValue('Released');
+    sheet.getRange(rowIndex + 1, releasedIndex + 1).setValue(releaseDate);
+    return jsonResponse({ ok: true, action: 'releaseUnit', unitCode: targetCode, dateReleased: releaseDate });
+  }
+
+  return jsonResponse({ ok: false, error: 'Unit not found for release' });
 }
 
 function jsonResponse(payload) {
@@ -621,8 +703,9 @@ function getHeadersForAction(action) {
         'Status',
         'Branch Location',
         'Current Location',
-        'Date Received',
-        'Return Date',
+        'Date Purchased',
+        'Date of Return',
+        'Date Released',
         'Warranty',
         'Unit Problem',
         'Inclusion',
@@ -681,7 +764,8 @@ function buildRowForAction(action, values) {
         values.branchLocation || '',
         values.currentLocation || values.branchLocation || '',
         values.dateReceived || values.datePurchase || '',
-        values.dateReleased || values.dateReturn || values.returnDate || '',
+        values.dateReturn || values.returnDate || '',
+        values.dateReleased || '',
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',

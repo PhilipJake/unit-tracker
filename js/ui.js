@@ -8,7 +8,9 @@ const UI = {
   branchCodeLegend: document.getElementById('branchCodeLegend'),
   branchCodeTotal: document.getElementById('branchCodeTotal'),
   activityChart: document.getElementById('activityChart'),
-  activityChartSummary: document.getElementById('activityChartSummary')
+  activityChartSummary: document.getElementById('activityChartSummary'),
+  activityChartPeriod: document.getElementById('activityChartPeriod'),
+  activityChartLegend: document.getElementById('activityChartLegend')
 };
 
 function renderSummary(units, registeredBranches = []) {
@@ -26,7 +28,7 @@ function renderSummary(units, registeredBranches = []) {
   const needsAttention = units.filter((unit) => {
     const status = normalizeStatus(unit.status);
     if (status === 'released') return false;
-    const receivedDateKey = getActivityDateKey({ dateReceived: unit.dateReceived });
+    const receivedDateKey = getActivityDateKey({ dateReceived: unit.dateReturn || unit.dateReceived });
     if (!receivedDateKey) return false;
     const receivedAt = typeof dateKeyToUtcMidnight === 'function'
       ? dateKeyToUtcMidnight(receivedDateKey)
@@ -45,7 +47,7 @@ function renderSummary(units, registeredBranches = []) {
   const cards = [
     { label: 'Total units', value: total, dark: true, icon: '◫', meta: 'From last month' },
     { label: 'Active tracking', value: activeTracking, dark: false, icon: '◉', meta: 'Open workflow units' },
-    { label: 'Needs attention', value: needsAttention, dark: false, icon: '!', meta: '14+ days without release' },
+    { label: 'Needs attention', value: needsAttention, dark: false, icon: '!', meta: '14+ days without release or urgent' },
     { label: 'Branches', value: branches, dark: false, icon: '⌂', meta: 'Across your workspace' }
   ];
 
@@ -74,7 +76,7 @@ function normalizeBranchName(value) {
 function getUnitBranchCode(unit, branchCodeByName) {
   const branchName = unit.uploadedBranch || unit.branch || unit.currentLocation || '';
   const mappedCode = branchCodeByName[normalizeBranchName(branchName)];
-  return String(mappedCode || unit.branchCode || branchName || 'Unassigned').trim() || 'Unassigned';
+  return String(mappedCode || branchName || 'Unassigned').trim() || 'Unassigned';
 }
 
 function renderBranchCodeChart(units, registeredBranches = []) {
@@ -148,66 +150,128 @@ function renderActivityChart(units) {
   if (!UI.activityChart || !UI.activityChartSummary) return;
 
   const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, index) => {
-    const date = new Date(today.getFullYear(), today.getMonth(), index + 1, 12);
-    date.setHours(12, 0, 0, 0);
+  const activityDateKeys = units
+    .flatMap((unit) => {
+      const dates = [getActivityDateKey({ dateReceived: unit.dateReturn || unit.dateReceived })];
+      if (normalizeStatus(unit.status) === 'released') {
+        dates.push(getActivityDateKey({ dateReleased: unit.dateReleased }));
+      }
+      return dates;
+    })
+    .filter(Boolean)
+    .sort();
+  const chartDate = activityDateKeys.length
+    ? new Date(`${activityDateKeys[activityDateKeys.length - 1]}T12:00:00`)
+    : today;
+  const firstActivityDate = activityDateKeys.length
+    ? new Date(`${activityDateKeys[0]}T12:00:00`)
+    : chartDate;
+  const firstDay = new Date(firstActivityDate.getFullYear(), firstActivityDate.getMonth(), firstActivityDate.getDate(), 12);
+  const lastDay = new Date(chartDate.getFullYear(), chartDate.getMonth(), chartDate.getDate(), 12);
+  const dayCount = Math.max(1, Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1);
+  const days = Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(firstDay);
+    date.setDate(firstDay.getDate() + index);
     return typeof getManilaDateKey === 'function'
       ? getManilaDateKey(date)
       : date.toISOString().slice(0, 10);
   });
+  const dayLabels = days.map((day) => new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  if (UI.activityChartPeriod) {
+    UI.activityChartPeriod.textContent = `${firstDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }
   const dayIndexes = new Map(days.map((day, index) => [day, index]));
   const received = Array(days.length).fill(0);
   const released = Array(days.length).fill(0);
 
   units.forEach((unit) => {
-    const receivedIndex = dayIndexes.get(getActivityDateKey({ dateReceived: unit.dateReceived }));
-    const releasedIndex = dayIndexes.get(getActivityDateKey({ dateReleased: unit.dateReleased }));
-    const status = normalizeStatus(unit.status);
-    const isReleased = status === 'released';
-    if (receivedIndex !== undefined) received[receivedIndex] += 1;
-    if (releasedIndex !== undefined && isReleased) released[releasedIndex] += 1;
+    const receivedDate = getActivityDateKey({ dateReceived: unit.dateReturn || unit.dateReceived });
+    const releasedDate = getActivityDateKey({ dateReleased: unit.dateReleased });
+    const receivedIndex = dayIndexes.get(receivedDate);
+    const releasedIndex = dayIndexes.get(releasedDate);
+    const isReleased = normalizeStatus(unit.status) === 'released';
+    if (receivedDate && receivedIndex !== undefined) {
+      received[receivedIndex] += 1;
+    }
+    if (isReleased && releasedDate && releasedIndex !== undefined) {
+      released[releasedIndex] += 1;
+    }
   });
-  const maxValue = Math.max(...received, ...released, 1);
+  received.forEach((value, index) => {
+    if (index > 0) received[index] += received[index - 1];
+  });
+  released.forEach((value, index) => {
+    if (index > 0) released[index] += released[index - 1];
+  });
+  const maxValue = 10;
   const chartWidth = 560;
   const chartHeight = 190;
-  const padding = { top: 14, right: 12, bottom: 30, left: 28 };
+  const padding = { top: 14, right: 12, bottom: 30, left: 38 };
   const plotWidth = chartWidth - padding.left - padding.right;
   const plotHeight = chartHeight - padding.top - padding.bottom;
   const xIndexRatio = (index) => index / Math.max(days.length - 1, 1);
-  const point = (value, index) => `${padding.left + xIndexRatio(index) * plotWidth},${padding.top + plotHeight - (value / maxValue) * plotHeight}`;
-  const pointsFor = (values) => values.map(point).join(' ');
-  const gridLines = [0, 0.5, 1].map((ratio) => {
+  const point = (value, index) => ({
+    x: padding.left + xIndexRatio(index) * plotWidth,
+    y: padding.top + plotHeight - (Math.min(value, maxValue) / maxValue) * plotHeight
+  });
+  const gridLines = [0, 0.33, 0.66, 1].map((ratio) => {
     const y = padding.top + plotHeight - ratio * plotHeight;
     return `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" />`;
   }).join('');
-  const labelIndexes = [...new Set([0, 7, 14, 21, days.length - 1].filter((index) => index < days.length))];
-  const labels = labelIndexes.map((index) => {
-    const label = new Date(`${days[index]}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `<text x="${padding.left + xIndexRatio(index) * plotWidth}" y="${chartHeight - 7}" text-anchor="middle">${label}</text>`;
+  const scaleLabels = [0, 5, 10].map((value) => {
+    const y = padding.top + plotHeight - (value / maxValue) * plotHeight + 3;
+    return `<text x="${padding.left - 9}" y="${y}" text-anchor="end">${value}</text>`;
   }).join('');
-  const circles = (values, className) => values.map((value, index) => `<circle class="${className}" cx="${point(value, index).split(',')[0]}" cy="${point(value, index).split(',')[1]}" r="3" />`).join('');
+  const labelStep = Math.max(1, Math.ceil(days.length / 6));
+  const labelIndexes = [...new Set([0, ...Array.from({ length: 5 }, (_, index) => (index + 1) * labelStep).filter((index) => index < days.length), days.length - 1])];
+  const labels = labelIndexes.map((index) => `<text x="${padding.left + xIndexRatio(index) * plotWidth}" y="${chartHeight - 7}" text-anchor="middle">${dayLabels[index]}</text>`).join('');
+  const pathFor = (values) => values
+    .map((value, index) => ({ value, index }))
+    .filter(({ value }) => value > 0)
+    .map(({ value, index }, pointIndex, points) => {
+      const coordinates = point(value, index);
+      return `${pointIndex === 0 ? 'M' : 'L'} ${coordinates.x} ${coordinates.y}`;
+    })
+    .join(' ');
+  const circles = (values, color) => values.map((value, index) => {
+    if (value <= 0) return '';
+    const coordinates = point(value, index);
+    return `<circle class="activity-point" style="fill: ${color};" cx="${coordinates.x}" cy="${coordinates.y}" r="3.5" />`;
+  }).join('');
+  const receivedColor = '#3f78b5';
+  const releasedColor = '#d87932';
+  const activityLines = `
+    <path class="activity-line" style="stroke: ${receivedColor};" d="${pathFor(received)}" />
+    <path class="activity-line" style="stroke: ${releasedColor};" d="${pathFor(released)}" />
+    ${circles(received, receivedColor)}
+    ${circles(released, releasedColor)}
+  `;
 
   UI.activityChart.innerHTML = `
     <svg viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="none" aria-hidden="true">
       <g class="activity-grid">${gridLines}</g>
-      <polyline class="activity-line received" points="${pointsFor(received)}" />
-      <polyline class="activity-line released" points="${pointsFor(released)}" />
-      ${circles(received, 'activity-point received')}
-      ${circles(released, 'activity-point released')}
+      <line class="activity-axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${chartWidth - padding.right}" y2="${padding.top + plotHeight}" />
+      <g class="activity-scale-labels">${scaleLabels}</g>
+      ${activityLines}
       <g class="activity-labels">${labels}</g>
     </svg>
   `;
 
-  const receivedTotal = received.reduce((sum, value) => sum + value, 0);
-  const releasedTotal = released.reduce((sum, value) => sum + value, 0);
+  const receivedTotal = received[received.length - 1] || 0;
+  const releasedTotal = released[released.length - 1] || 0;
   if (receivedTotal + releasedTotal === 0) {
-    UI.activityChart.innerHTML = '<div class="activity-chart-empty">No recorded activity for this month.</div>';
+    UI.activityChart.innerHTML = '<div class="activity-chart-empty">No recorded activity.</div>';
   }
   UI.activityChartSummary.innerHTML = `
     <div><strong>${receivedTotal}</strong><span>received</span></div>
     <div><strong>${releasedTotal}</strong><span>released</span></div>
   `;
+  if (UI.activityChartLegend) {
+    UI.activityChartLegend.innerHTML = `
+      <span><i class="activity-dot" style="background: ${receivedColor};"></i>Received</span>
+      <span><i class="activity-dot" style="background: ${releasedColor};"></i>Released</span>
+    `;
+  }
 }
 
 function renderTable(units) {

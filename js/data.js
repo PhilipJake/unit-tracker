@@ -1,5 +1,5 @@
 const DATA = {
-  async fetchSheet({ sheetId, gid } = {}) {
+  async fetchSheet({ sheetId, gid, includeAllRows = false } = {}) {
     const config = window.GS_CONFIG || {};
     const resolvedSheetId = sheetId || config.sheetId;
     const resolvedGid = gid ?? config.gid ?? '0';
@@ -16,7 +16,7 @@ const DATA = {
     }
 
     const csvText = await response.text();
-    return parseCsv(csvText);
+    return parseCsv(csvText, includeAllRows);
   },
 
   async fetchUnits() {
@@ -32,7 +32,7 @@ const DATA = {
 
   async fetchBranches() {
     const config = window.GS_CONFIG || {};
-    return DATA.fetchSheet({ gid: config.branchesGid || config.gid || '0' });
+    return DATA.fetchSheet({ gid: config.branchesGid || config.gid || '0', includeAllRows: true });
   },
 
   async fetchMessages() {
@@ -97,7 +97,7 @@ function normalizeBranchToken(value) {
     .replace(/\s+/g, ' ');
 }
 
-function parseCsv(csvText) {
+function parseCsv(csvText, includeAllRows = false) {
   const lines = csvText
     .split(/\r?\n/)
     .filter((line) => line.trim() !== '');
@@ -122,7 +122,7 @@ function parseCsv(csvText) {
     });
 
     const normalized = normalizeRow(row);
-    if (normalized.unitCode || normalized.clientName || normalized.status) {
+    if (includeAllRows || normalized.unitCode || normalized.clientName || normalized.status) {
       rows.push(normalized);
     }
   }
@@ -191,8 +191,9 @@ function normalizeRow(rawRow) {
   const normalizedCurrentLocation = currentLocation.toLowerCase() === 'bnb rosales'
     ? 'Technical Hub'
     : currentLocation;
-  const dateReceived = legacyValue(9, ['date received', 'datereceived', 'received date']);
-  const dateReleased = legacyValue(10, ['date released', 'datereleased', 'released date', 'return date', 'returndate', 'date return', 'datereturn']);
+  const dateReceived = legacyValue(9, ['date purchased', 'datepurchase', 'date of purchase', 'date received', 'datereceived', 'received date']);
+  const dateReturn = legacyValue(10, ['date of return', 'date return', 'datereturn', 'return date', 'returndate']);
+  const dateReleased = findValue(row, ['date released', 'datereleased']);
   const warranty = legacyValue(11, ['warranty']);
   const status = legacyValue(6, ['status']);
   const accountType = findValue(row, ['account type', 'accounttype', 'role', 'user type', 'usertype']);
@@ -204,7 +205,8 @@ function normalizeRow(rawRow) {
   const branchName = findValue(row, ['branch name', 'branchname', 'name']);
   const branchCode = findValue(row, ['branch code', 'branchcode', 'branch type', 'branchtype', 'code']);
   const manager = findValue(row, ['manager', 'head admin', 'headadmin', 'branch manager', 'branchmanager']);
-  const runningDays = computeRunningDays(dateReleased || dateReceived);
+  const isReleased = String(status || '').trim().toLowerCase() === 'released';
+  const runningDays = computeRunningDays(dateReturn || dateReceived, isReleased ? dateReleased : '');
 
   return {
     ...row,
@@ -221,6 +223,7 @@ function normalizeRow(rawRow) {
     uploadedBranch: uploadedBranch || '',
     currentLocation: normalizedCurrentLocation || '',
     dateReceived: dateReceived || '',
+    dateReturn: dateReturn || '',
     dateReleased: dateReleased || '',
     warranty: warranty || '',
     runningDays: runningDays || '',
@@ -237,16 +240,18 @@ function normalizeRow(rawRow) {
   };
 }
 
-function computeRunningDays(dateValue) {
+function computeRunningDays(dateValue, endDateValue = '') {
   if (!dateValue) return '';
 
   const targetDateKey = getManilaDateKey(dateValue);
   if (!targetDateKey) return '';
 
-  const nowDateKey = getManilaDateKey(new Date());
-  const nowAtMidnight = dateKeyToUtcMidnight(nowDateKey);
+  const endDateKey = endDateValue ? getManilaDateKey(endDateValue) : getManilaDateKey(new Date());
+  if (!endDateKey) return '';
+
+  const endAtMidnight = dateKeyToUtcMidnight(endDateKey);
   const targetAtMidnight = dateKeyToUtcMidnight(targetDateKey);
-  const diffDays = Math.max(0, Math.floor((nowAtMidnight - targetAtMidnight) / (1000 * 60 * 60 * 24)));
+  const diffDays = Math.max(0, Math.floor((endAtMidnight - targetAtMidnight) / (1000 * 60 * 60 * 24)));
 
   return String(diffDays);
 }

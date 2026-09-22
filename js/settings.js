@@ -19,7 +19,7 @@ function renderPermissions(permissions = getRolePermissions()) {
     <article class="permissions-role-card">
       <div class="permissions-role-heading"><strong>${role}</strong><span>${role === 'Super Admin' ? 'Locked' : role === 'Administrator' ? 'Can manage access' : 'Workspace role'}</span></div>
       <div class="permissions-action-grid">
-        ${['view', 'create', 'edit', 'delete', 'export'].map((action) => `<label class="permission-toggle"><span class="permission-action-name">${action}</span><input type="checkbox" data-role="${role}" data-action="${action}" ${permissions[role][action] ? 'checked' : ''} ${role === 'Super Admin' ? 'disabled' : ''}><span>${permissions[role][action] ? 'Allowed' : 'Off'}</span></label>`).join('')}
+        ${['view', 'create', 'edit', 'delete', 'export', 'release'].map((action) => `<label class="permission-toggle"><span class="permission-action-name">${action === 'release' ? 'Released' : action}</span><input type="checkbox" data-role="${role}" data-action="${action}" ${permissions[role][action] ? 'checked' : ''} ${role === 'Super Admin' ? 'disabled' : ''}><span>${permissions[role][action] ? 'Allowed' : 'Off'}</span></label>`).join('')}
       </div>
     </article>
   `).join('');

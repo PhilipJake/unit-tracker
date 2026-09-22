@@ -12,8 +12,9 @@ function initializeClientUnitTrackerSheets() {
     'Status',
     'Branch Location',
     'Current Location',
-    'Date Received',
-    'Return Date',
+    'Date Purchased',
+    'Date of Return',
+    'Date Released',
     'Warranty',
     'Unit Problem',
     'Inclusion',
@@ -43,6 +44,7 @@ function initializeClientUnitTrackerSheets() {
   const trashHeaders = unitsHeaders.concat(['Deleted At', 'Deleted By', 'Expires At']);
 
   const unitsSheet = ensureSheet(spreadsheet, 'Units', unitsHeaders);
+  migrateUnitSheetSchema(unitsSheet);
   const accountsSheet = ensureSheet(spreadsheet, 'Accounts', accountsHeaders);
   const branchesSheet = ensureSheet(spreadsheet, 'Branches', branchesHeaders);
   const trashSheet = ensureSheet(spreadsheet, 'Trash', trashHeaders);
@@ -68,6 +70,24 @@ function initializeClientUnitTrackerSheets() {
   };
 }
 
+function renameUnitDateHeaders(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const replacements = {
+    'date received': 'Date Purchased',
+    'return date': 'Date of Return',
+    'date released': 'Date Released'
+  };
+
+  if (!headers.some((header) => String(header || '').trim().toLowerCase() === 'date released')) {
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue('Date Released');
+  }
+
+  headers.forEach((header, index) => {
+    const replacement = replacements[String(header || '').trim().toLowerCase()];
+    if (replacement) sheet.getRange(1, index + 1).setValue(replacement);
+  });
+}
+
 function createClientUnitTrackerSheets() {
   return initializeClientUnitTrackerSheets();
 }
@@ -79,14 +99,18 @@ function ensureSheet(spreadsheet, sheetName, headers) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
 
-  const headerRange = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length));
+  const resolvedHeaders = headers || (typeof getHeadersForAction === 'function'
+    ? getHeadersForAction(String(sheetName || '').trim().toLowerCase())
+    : []);
+
+  const headerRange = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), resolvedHeaders.length));
   const firstRow = headerRange.getValues()[0];
   const isEmpty = firstRow.every((cell) => String(cell).trim() === '');
 
   if (isEmpty) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, resolvedHeaders.length).setValues([resolvedHeaders]);
   } else {
-    headers.forEach((header, index) => {
+    resolvedHeaders.forEach((header, index) => {
       if (String(firstRow[index] || '').trim() === '') {
         sheet.getRange(1, index + 1).setValue(header);
       }

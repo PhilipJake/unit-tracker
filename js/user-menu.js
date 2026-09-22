@@ -37,12 +37,12 @@ function getCurrentPagePath() {
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
-  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true },
-  Administrator: { view: true, create: true, edit: true, delete: true, export: true },
-  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true },
-  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false },
-  Office: { view: true, create: false, edit: false, delete: false, export: true },
-  Technician: { view: true, create: true, edit: true, delete: false, export: false }
+  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true, release: true },
+  Administrator: { view: true, create: true, edit: true, delete: true, export: true, release: true },
+  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true, release: false },
+  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false, release: false },
+  Office: { view: true, create: false, edit: false, delete: false, export: true, release: false },
+  Technician: { view: true, create: true, edit: true, delete: false, export: false, release: false }
 };
 
 const PAGE_ACCESS_OPTIONS = {

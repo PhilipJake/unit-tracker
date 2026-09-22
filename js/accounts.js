@@ -159,14 +159,17 @@ function formatAccountCreatedDate(value) {
 async function loadAccounts() {
   try {
     const rows = await DATA.fetchAccounts();
+    const currentRole = localStorage.getItem('unitflowRole');
+    const visibleRows = normalizeAccountRole(currentRole) === 'main head admin'
+      ? rows.filter((row) => !['super admin', 'administrator'].includes(normalizeAccountRole(row.accountType || row.role || row.userType || '')))
+      : rows;
 
-    if (!rows.length) {
+    if (!visibleRows.length) {
       accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No accounts found in the Accounts sheet.</td></tr>';
       return;
     }
 
-    const currentRole = localStorage.getItem('unitflowRole');
-    accountsTableBody.innerHTML = rows
+    accountsTableBody.innerHTML = visibleRows
       .map((row) => {
         const username = row.username || row.userName || row.accountUsername || '';
         const fullName = row.fullName || row.name || row.full_name || '';

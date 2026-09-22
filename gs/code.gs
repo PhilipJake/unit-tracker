@@ -67,6 +67,10 @@ function doPost(e) {
     return updateUnitRow(spreadsheet, values);
   }
 
+  if (action === 'releaseunit') {
+    return releaseUnitRow(spreadsheet, values);
+  }
+
   if (action === 'deletebranch') {
     return deleteBranchRow(spreadsheet, values.branchName || values.name || '');
   }
@@ -97,6 +101,7 @@ function doPost(e) {
   }
 
   const sheet = ensureSheet(spreadsheet, sheetName);
+  if (action === 'units') ensureUnitDateColumns(sheet);
   if (action === 'accounts' && isAdministratorCreatingSuperAdmin(values)) {
     return jsonResponse({ ok: false, error: 'Administrator cannot create a Super Admin account' });
   }
@@ -135,17 +140,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts'];
 }
 
 function getDefaultPermissionRows() {
   return [
-    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true],
-    ['Administrator', true, true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, false, true, true, true, false, true, true],
-    ['Main Head Admin', true, true, true, false, true, true, true, true, false, true, true],
-    ['Branch Head Admin', true, true, true, false, false, true, true, true, false, false, false],
-    ['Technician', true, true, true, false, false, true, true, true, false, false, false]
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, false, false, true, true, true, false, true, true],
+    ['Main Head Admin', true, true, true, false, true, false, true, true, true, false, true, true],
+    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false],
+    ['Technician', true, true, true, false, false, false, true, true, true, false, false, false]
   ];
 }
 
@@ -154,9 +159,15 @@ function ensurePermissionSheet(spreadsheet) {
   if (!sheet) sheet = spreadsheet.insertSheet('Permissions');
 
   const headers = getPermissionHeaders();
+  const currentWidth = Math.max(sheet.getLastColumn(), headers.length - 1);
+  const currentHeaders = sheet.getRange(1, 1, 1, currentWidth).getValues()[0];
+  if (!currentHeaders.some((cell) => String(cell).trim().toLowerCase() === 'release')) {
+    sheet.insertColumnAfter(6);
+    sheet.getRange(1, 7).setValue('Release');
+  }
   const headerRange = sheet.getRange(1, 1, 1, headers.length);
-  const currentHeaders = headerRange.getValues()[0];
-  if (currentHeaders.every((cell) => String(cell).trim() === '')) {
+  const refreshedHeaders = headerRange.getValues()[0];
+  if (refreshedHeaders.every((cell) => String(cell).trim() === '')) {
     headerRange.setValues([headers]);
   }
 
@@ -182,13 +193,13 @@ function readPermissionSettings(spreadsheet) {
 
   rows.forEach((row) => {
     const role = String(row[0]).trim();
-    permissions[role] = { view: toPermissionBoolean(row[1]), create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]) };
-    pageAccess[role] = { Overview: toPermissionBoolean(row[6]), Messages: toPermissionBoolean(row[7]), 'Unit registry': toPermissionBoolean(row[8]), Trash: toPermissionBoolean(row[9]), Branches: toPermissionBoolean(row[10]), Accounts: toPermissionBoolean(row[11]) };
+    permissions[role] = { view: toPermissionBoolean(row[1]), create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]) };
+    pageAccess[role] = { Overview: toPermissionBoolean(row[7]), Messages: toPermissionBoolean(row[8]), 'Unit registry': toPermissionBoolean(row[9]), Trash: toPermissionBoolean(row[10]), Branches: toPermissionBoolean(row[11]), Accounts: toPermissionBoolean(row[12]) };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
-  permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5] };
+  permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6] };
   pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
   return jsonResponse({ ok: true, permissions, pageAccess });
 }
@@ -212,7 +223,7 @@ function savePermissionSettings(spreadsheet, values) {
     const role = defaultRow[0];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = pageAccess[role] || {};
-    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts)];
+    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? defaultRow[6] : Boolean(rolePermissions.release), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -587,6 +598,7 @@ function updateUnitRow(spreadsheet, values) {
   }
 
   const sheet = ensureSheet(spreadsheet, 'Units');
+  ensureUnitDateColumns(sheet);
   const data = sheet.getDataRange().getValues();
   const headerRow = data[0] || [];
   const codeIndex = getCodeColumnIndex(headerRow);
@@ -596,11 +608,20 @@ function updateUnitRow(spreadsheet, values) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Code column not found' })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+  const requestedRowIndex = Number(values.originalRowIndex);
+  const rowIndexes = Number.isInteger(requestedRowIndex) && requestedRowIndex >= 0 && requestedRowIndex < data.length - 1
+    ? [requestedRowIndex + 1]
+    : Array.from({ length: Math.max(0, data.length - 1) }, (_, index) => index + 1);
+
+  for (const rowIndex of rowIndexes) {
     const currentCode = String(data[rowIndex][codeIndex] || '').trim();
     if (currentCode === targetCode) {
       const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+      const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
       const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
+      if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
+        values.unitPrice = data[rowIndex][unitPriceIndex] || '';
+      }
       if (!canEditTechnicianNotes(values.actorRole) && technicianNotesIndex >= 0) {
         values.technicianNotes = data[rowIndex][technicianNotesIndex] || '';
       }
@@ -890,8 +911,9 @@ function getHeadersForAction(action) {
         'Status',
         'Branch Location',
         'Current Location',
-        'Date Received',
-        'Return Date',
+        'Date Purchased',
+        'Date of Return',
+        'Date Released',
         'Warranty',
         'Unit Problem',
         'Inclusion',
@@ -954,7 +976,8 @@ function buildRowForAction(action, values) {
         values.branchLocation || '',
         values.currentLocation || values.branchLocation || '',
         values.dateReceived || values.datePurchase || '',
-        values.dateReleased || values.dateReturn || values.returnDate || '',
+        values.dateReturn || values.returnDate || '',
+        values.dateReleased || '',
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',
@@ -963,6 +986,77 @@ function buildRowForAction(action, values) {
         values.isUrgent || ''
       ];
   }
+}
+
+function ensureUnitDateColumns(sheet) {
+  migrateUnitSheetSchema(sheet);
+}
+
+function migrateUnitSheetSchema(sheet) {
+  const desiredHeaders = getHeadersForAction('units');
+  const sourceWidth = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+  const sourceData = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), sourceWidth).getValues();
+  const sourceHeaders = sourceData[0] || [];
+  const aliases = {
+    'date purchased': ['date purchased', 'date received', 'date of purchase'],
+    'date of return': ['date of return', 'return date'],
+    'date released': ['date released'],
+    urgent: ['urgent', 'is urgent', 'urgent flag']
+  };
+  const normalizedHeaders = sourceHeaders.map((header) => String(header || '').trim().toLowerCase());
+  const indexesFor = (header) => {
+    const accepted = aliases[header.toLowerCase()] || [header.toLowerCase()];
+    return normalizedHeaders.reduce((indexes, value, index) => {
+      if (accepted.includes(value)) indexes.push(index);
+      return indexes;
+    }, []);
+  };
+  const canonicalData = [desiredHeaders];
+
+  sourceData.slice(1).forEach((sourceRow) => {
+    canonicalData.push(desiredHeaders.map((header) => {
+      const indexes = indexesFor(header);
+      if (header === 'Urgent') {
+        return indexes.some((index) => ['true', '1', 'yes', 'urgent'].includes(String(sourceRow[index] || '').trim().toLowerCase())) ? 'TRUE' : '';
+      }
+      const index = indexes[0];
+      return index === undefined ? '' : sourceRow[index] || '';
+    }));
+  });
+
+  const width = Math.max(sheet.getMaxColumns(), desiredHeaders.length);
+  if (width > desiredHeaders.length) {
+    sheet.getRange(1, desiredHeaders.length + 1, sheet.getMaxRows(), width - desiredHeaders.length).clearContent();
+  }
+  sheet.getRange(1, 1, canonicalData.length, desiredHeaders.length).setValues(canonicalData);
+}
+
+function releaseUnitRow(spreadsheet, values) {
+  const sheet = ensureSheet(spreadsheet, 'Units');
+  ensureUnitDateColumns(sheet);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const codeIndex = headers.findIndex((header) => ['code', 'unit code'].includes(String(header).trim().toLowerCase()));
+  const statusIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  let releasedIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'date released');
+
+  if (codeIndex < 0 || statusIndex < 0) return jsonResponse({ ok: false, error: 'Unit columns not found' });
+  if (releasedIndex < 0) {
+    releasedIndex = headers.length;
+    sheet.getRange(1, releasedIndex + 1).setValue('Date Released');
+  }
+
+  const targetCode = String(values.unitCode || values.code || '').trim();
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (String(data[rowIndex][codeIndex] || '').trim() !== targetCode) continue;
+
+    const releaseDate = String(values.dateReleased || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd')).trim();
+    sheet.getRange(rowIndex + 1, statusIndex + 1).setValue('Released');
+    sheet.getRange(rowIndex + 1, releasedIndex + 1).setValue(releaseDate);
+    return jsonResponse({ ok: true, action: 'releaseUnit', unitCode: targetCode, dateReleased: releaseDate });
+  }
+
+  return jsonResponse({ ok: false, error: 'Unit not found for release' });
 }
 
 function getTabColor(sheetName) {

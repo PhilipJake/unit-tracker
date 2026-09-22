@@ -15,11 +15,13 @@ const unitStatusFilter = document.getElementById('unitStatusFilter');
 const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
 const urgentField = document.getElementById('isUrgent');
+const dateReleasedField = document.getElementById('dateReleased');
 const otherInclusionOption = document.getElementById('otherInclusionOption');
 const otherInclusionText = document.getElementById('otherInclusionText');
 const unitRegistryTableWrap = document.querySelector('.table-wrap');
 const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
+let activeEditRowIndex = null;
 let pendingConfirmAction = null;
 let registryRowsCache = [];
 let unitToastTimer = null;
@@ -131,6 +133,7 @@ function closeUnitModal() {
   backdrop.classList.remove('visible');
   backdrop.setAttribute('aria-hidden', 'true');
   activeEditCode = '';
+  activeEditRowIndex = null;
   if (unitForm) {
     unitForm.dataset.mode = 'create';
     unitForm.reset();
@@ -176,7 +179,8 @@ function populateUnitForm(unit) {
     contactInfo: unit.contactInfo || '',
     warranty: unit.warranty || '',
     datePurchase: unit.dateReceived || unit.datePurchase || '',
-    dateReturn: unit.dateReleased || unit.dateReturn || '',
+    dateReturn: unit.dateReturn || '',
+    dateReleased: unit.dateReleased || '',
     unitProblem: unit.unitProblem || unit.problem || '',
     technicianNotes: unit.technicianNotes || '',
     status: unit.status || '',
@@ -289,7 +293,8 @@ function normalizeSavedUnitPayload(form) {
     ? uploadedBranch
     : currentLocationValue || uploadedBranch;
   const dateReceived = String(raw.datePurchase || raw.dateReceived || '').trim();
-  const dateReleased = String(raw.dateReturn || raw.dateReleased || '').trim();
+  const dateReturn = String(raw.dateReturn || '').trim();
+  const dateReleased = String(raw.dateReleased || '').trim();
 
   return {
     action: 'units',
@@ -303,6 +308,7 @@ function normalizeSavedUnitPayload(form) {
     branchLocation,
     currentLocation,
     dateReceived,
+    dateReturn,
     dateReleased,
     warranty: String(raw.warranty || '').trim(),
     unitProblem: String(raw.unitProblem || '').trim(),
@@ -344,7 +350,8 @@ async function saveUnitToSheet(event) {
   const body = new URLSearchParams({
     ...payload,
     action: requestAction,
-    originalUnitCode: activeEditCode || payload.unitCode || ''
+    originalUnitCode: activeEditCode || payload.unitCode || '',
+    originalRowIndex: activeEditRowIndex === null ? '' : String(activeEditRowIndex)
   }).toString();
 
   try {
@@ -356,10 +363,16 @@ async function saveUnitToSheet(event) {
       body
     });
 
-    const result = await response.json().catch(() => null);
+    const responseText = await response.text();
+    let result = null;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      result = null;
+    }
 
     if (!response.ok || (result && result.ok === false)) {
-      const message = result && result.error ? result.error : await response.text().catch(() => '');
+      const message = result && result.error ? result.error : responseText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       throw new Error(message || `HTTP ${response.status}`);
     }
 
@@ -373,7 +386,7 @@ async function saveUnitToSheet(event) {
     }
   } catch (error) {
     console.error('Save unit failed:', error);
-    showPopupMessage('Save failed. Please confirm the Apps Script web app URL and spreadsheet ID are correct.');
+    showPopupMessage(`Save failed: ${error.message || 'Unknown Apps Script error'}`);
   }
 }
 
@@ -454,6 +467,7 @@ function initUnitModal() {
   }
 
   if (unitStatusFilter) {
+    unitStatusFilter.value = 'all';
     unitStatusFilter.addEventListener('change', () => {
       renderRegistryTable(registryRowsCache);
     });
@@ -492,8 +506,9 @@ function initUnitModal() {
         'Client Name',
         'Contact Info',
         'Warranty',
-        'Date of Purchase',
+        'Date Purchased',
         'Date of Return',
+        'Date Released',
         'Running Days',
         'Unit Problem',
         'Status',
@@ -511,7 +526,8 @@ function initUnitModal() {
         unit.contactInfo || '',
         unit.warranty || '',
         unit.dateReceived || unit.datePurchase || '',
-        unit.dateReleased || unit.dateReturn || '',
+        unit.dateReturn || '',
+        unit.dateReleased || '',
         unit.runningDays || '',
         unit.unitProblem || '',
         unit.status || '',
@@ -558,12 +574,44 @@ function initUnitModal() {
 
       if (button.classList.contains('edit')) {
         const rows = await DATA.fetchUnits();
-        const unit = rows.find((item) => String(item.unitCode || '').trim() === unitCode) || rows.find((item) => String(item.code || '').trim() === unitCode) || rows.find((item) => String(item.unitCode || item.code || '').trim().toLowerCase() === unitCode.toLowerCase());
+        const selectedRowIndex = Number(row.dataset.rowIndex);
+        const unit = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0
+          ? rows[selectedRowIndex]
+          : rows.find((item) => String(item.unitCode || '').trim() === unitCode) || rows.find((item) => String(item.code || '').trim() === unitCode) || rows.find((item) => String(item.unitCode || item.code || '').trim().toLowerCase() === unitCode.toLowerCase());
         if (unit) {
+          activeEditRowIndex = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0 ? selectedRowIndex : null;
           openUnitModal('edit', unit);
         } else {
           showPopupMessage('Unit not found in the live spreadsheet.');
         }
+      }
+
+      if (button.classList.contains('release')) {
+        if (!canManageAction('release', currentRole)) return;
+        const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
+        if (!appScriptUrl) {
+          showPopupMessage('Please configure the Apps Script URL before releasing a unit.');
+          return;
+        }
+
+        showPopupMessage(`Mark unit ${unitCode} as Released?`, async () => {
+          try {
+            const response = await fetch(appScriptUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+              body: new URLSearchParams({ action: 'releaseUnit', unitCode, actorRole: currentRole || '', actorName: getLoggedInUserName() }).toString()
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || (result && result.ok === false)) {
+              throw new Error(result && result.error ? result.error : `HTTP ${response.status}`);
+            }
+            showUnitToast('Unit released successfully.');
+            await loadRegistryUnits();
+          } catch (error) {
+            console.error('Release unit failed:', error);
+            showPopupMessage('Release failed. Please confirm the Apps Script URL is correct.');
+          }
+        });
       }
 
       if (button.classList.contains('delete')) {
@@ -619,7 +667,7 @@ async function loadRegistryUnits() {
     renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error(error);
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="16" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="17" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
   }
 }
 
@@ -645,7 +693,7 @@ function renderRegistryTable(rows) {
 
   const searchTerm = normalizeSearchText(unitSearchInput ? unitSearchInput.value : '');
   const selectedStatus = normalizeSearchText(unitStatusFilter ? unitStatusFilter.value : 'all');
-  const filteredRows = rows.filter((unit) => {
+  const filteredRows = rows.map((unit, rowIndex) => ({ unit, rowIndex })).filter(({ unit }) => {
     const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
     const clientName = normalizeSearchText(unit.clientName || '');
     const status = normalizeSearchText(unit.status || '');
@@ -659,14 +707,14 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="16" class="empty-state">No matching units found.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="17" class="empty-state">No matching units found.</td></tr>';
     return;
   }
 
   const currentRole = localStorage.getItem('unitflowRole');
 
   unitRegistryTableBody.innerHTML = filteredRows
-    .map((unit) => {
+    .map(({ unit, rowIndex }) => {
       const code = unit.unitCode || '—';
       const specs = unit.specs || '—';
       const price = unit.unitPrice || '—';
@@ -675,18 +723,21 @@ function renderRegistryTable(rows) {
       const contactInfo = unit.contactInfo || '—';
       const warranty = unit.warranty || '—';
       const datePurchase = formatDateDisplay(unit.dateReceived || unit.datePurchase || '');
-      const dateReturn = formatDateDisplay(unit.dateReleased || unit.dateReturn || '');
-      const runningDays = computeRunningDays(unit.dateReleased || unit.dateReturn || unit.dateReceived) || '—';
+      const dateReturn = formatDateDisplay(unit.dateReturn || '');
+      const dateReleased = formatDateDisplay(unit.dateReleased || '');
       const problem = unit.unitProblem || unit.problem || '—';
       const status = unit.status || 'Unknown';
+      const isReleased = normalizeSearchText(status) === 'released';
+      const runningDays = computeRunningDays(unit.dateReturn || unit.dateReceived, isReleased ? unit.dateReleased : '') || '—';
       const branch = unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '—';
       const inclusion = unit.inclusion || '—';
       const isOfficeRole = currentRole === 'Office';
       const canEdit = canManageAction('edit', currentRole);
       const canDelete = canManageAction('delete', currentRole);
+      const canRelease = canManageAction('release', currentRole) && normalizeSearchText(status) !== 'released';
 
       return `
-        <tr data-unit-code="${escapeHtml(code)}">
+        <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
           <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
           <td>${escapeHtml(specs)}</td>
@@ -697,6 +748,7 @@ function renderRegistryTable(rows) {
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
           <td><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
+          <td><span class="center-stack">${renderStackedText(dateReleased)}</span></td>
           <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
           <td>${escapeHtml(problem)}</td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
@@ -704,6 +756,7 @@ function renderRegistryTable(rows) {
           <td>${escapeHtml(unit.technicianNotes || '—')}</td>
           <td class="table-actions">
             <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+            ${canRelease ? '<button class="release" type="button">Released</button>' : ''}
             <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
           </td>
         </tr>

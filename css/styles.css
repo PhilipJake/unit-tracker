@@ -806,11 +806,13 @@ button, input, select {
 .activity-chart { width: 100%; height: 190px; }
 .activity-chart-empty { display: grid; height: 100%; place-items: center; color: var(--muted); font-size: 0.8rem; font-weight: 700; }
 .activity-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.activity-grid line { stroke: #dbe3dc; stroke-width: 1; stroke-dasharray: 3 4; }
-.activity-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.activity-grid line { stroke: #dbe3dc; stroke-width: 1; stroke-dasharray: 2 5; }
+.activity-axis { stroke: #b8c6bb; stroke-width: 1.2; }
+.activity-scale-labels { fill: var(--muted); font-size: 9px; font-weight: 700; }
+.activity-line { fill: none; stroke-width: 2.75; stroke-linecap: round; stroke-linejoin: round; }
 .activity-line.received { stroke: #1b6d4c; }
 .activity-line.released { stroke: #d88a4a; }
-.activity-point { stroke: #f5f8f3; stroke-width: 2; }
+.activity-point { stroke: #f5f8f3; stroke-width: 2.2; }
 .activity-point.received { fill: #1b6d4c; }
 .activity-point.released { fill: #d88a4a; }
 .activity-labels { fill: var(--muted); font-size: 10px; font-weight: 600; }
@@ -1132,6 +1134,14 @@ td {
 .badge.observation {
   background: var(--blue-soft);
   color: var(--blue-text);
+}
+
+.unit-registry-table .badge.observation {
+  width: 88px;
+  min-width: 88px;
+  padding-inline: 6px;
+  white-space: normal;
+  line-height: 1.15;
 }
 
 .branch-tag {
@@ -1639,6 +1649,18 @@ td {
 .table-actions .edit {
   background: var(--blue-soft);
   color: var(--blue-text);
+}
+
+.table-actions .release {
+  background: #ecf8d8;
+  color: #507314;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.table-actions .release:hover:not(:disabled) {
+  background: #b7ed4a;
+  color: #243600;
+  transform: translateY(-1px);
 }
 
 .table-actions .delete {
@@ -2226,6 +2248,12 @@ td {
 
   .auth-card-inner {
     width: 100%;
+  }
+
+  .auth-developer {
+    position: static;
+    margin-top: 12px;
+    line-height: 1.4;
   }
 
   .auth-card-header h2 {

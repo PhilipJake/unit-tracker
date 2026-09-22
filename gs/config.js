@@ -1,13 +1,16 @@
 window.GS_CONFIG = {
   sheetId: '1tmUvhVy490c2j6io2czia9cOenVZ-NkyncDEgudmuLA',
   gid: '1480856422',
+  trashGid: '1388809929',
+  permissionsGid: '1075766782',
+  messagesGid: '1885130683',
   accountsGid: '1062318246',
   branchesGid: '2092505862',
   refreshMs: 15000,
   sheetName: 'Units',
   accountsSheetName: 'Accounts',
   branchesSheetName: 'Branches',
-  appScriptUrl: 'https://script.google.com/macros/s/AKfycbw-QIlWaPd0RaHrS2F57l_CtYrxSvXmhg07_LLWorn7lA28ulX7vW1h922RnoN_fLBkAg/exec'
+  appScriptUrl: 'https://script.google.com/macros/s/AKfycbxZHKe6xMZv5n_HfiQ-yB_CHype4M_8XIO7MEhMdsQWqrYQkUqy9QGq1iVtoE0YR58ujA/exec'
 };
 
 window.GS_CONFIG.sheetUrl = `https://docs.google.com/spreadsheets/d/${window.GS_CONFIG.sheetId}/export?format=csv&gid=${window.GS_CONFIG.gid}`;
