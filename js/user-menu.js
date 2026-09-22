@@ -8,7 +8,7 @@ const ACCESS_RULES = {
     isReadOnly: false
   },
   'Main Head Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html'],
     isReadOnly: false
   },
   'Office': {
@@ -39,9 +39,9 @@ function getCurrentPagePath() {
 const DEFAULT_ROLE_PERMISSIONS = {
   'Super Admin': { view: true, create: true, edit: true, delete: true, export: true },
   Administrator: { view: true, create: true, edit: true, delete: true, export: true },
-  'Main Head Admin': { view: true, create: true, edit: true, delete: false, export: true },
+  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true },
   'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false },
-  Office: { view: true, create: false, edit: false, delete: false, export: false },
+  Office: { view: true, create: false, edit: false, delete: false, export: true },
   Technician: { view: true, create: true, edit: true, delete: false, export: false }
 };
 
