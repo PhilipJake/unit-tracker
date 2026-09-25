@@ -784,19 +784,19 @@ function renderRegistryTable(rows) {
         <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
           <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
           <td class="unit-client-cell">${escapeHtml(client)}</td>
-          <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
+          <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
+          <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
+          <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
+          <td class="unit-brand-cell">${escapeHtml(brand)}</td>
           <td>${escapeHtml(specs)}</td>
           <td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>
-          <td class="unit-brand-cell">${escapeHtml(brand)}</td>
-          <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
           <td><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
           <td><span class="center-stack">${renderStackedText(dateReleased)}</span></td>
           <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
           <td>${escapeHtml(problem)}</td>
-          <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
           <td class="technician-notes-cell">${escapeHtml(unit.technicianNotes || '—')}</td>
           <td class="table-actions"><div class="unit-registry-actions">

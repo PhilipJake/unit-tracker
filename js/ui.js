@@ -163,16 +163,8 @@ function renderActivityChart(units) {
   const chartDate = activityDateKeys.length
     ? new Date(`${activityDateKeys[activityDateKeys.length - 1]}T12:00:00`)
     : today;
-  const firstActivityDate = activityDateKeys.length
-    ? new Date(`${activityDateKeys[0]}T12:00:00`)
-    : chartDate;
   const lastDay = new Date(chartDate.getFullYear(), chartDate.getMonth(), chartDate.getDate(), 12);
-  const firstDay = new Date(firstActivityDate.getFullYear(), firstActivityDate.getMonth(), firstActivityDate.getDate(), 12);
-  const maxChartDays = 366;
-  if (Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1 > maxChartDays) {
-    firstDay.setTime(lastDay.getTime());
-    firstDay.setDate(firstDay.getDate() - (maxChartDays - 1));
-  }
+  const firstDay = new Date(lastDay.getFullYear(), 0, 1, 12);
   const dayCount = Math.max(1, Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1);
   const days = Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(firstDay);
@@ -208,7 +200,13 @@ function renderActivityChart(units) {
   released.forEach((value, index) => {
     if (index > 0) released[index] += released[index - 1];
   });
-  const maxValue = 10;
+  const maxObservedValue = Math.max(...received, ...released, 1);
+  const rawTickStep = maxObservedValue <= 4 ? 1 : maxObservedValue / 4;
+  const tickMagnitude = 10 ** Math.floor(Math.log10(rawTickStep));
+  const normalizedTickStep = rawTickStep / tickMagnitude;
+  const tickStep = (normalizedTickStep <= 1 ? 1 : normalizedTickStep <= 2 ? 2 : normalizedTickStep <= 5 ? 5 : 10) * tickMagnitude;
+  const maxValue = Math.ceil(maxObservedValue / tickStep) * tickStep;
+  const scaleValues = Array.from({ length: Math.round(maxValue / tickStep) + 1 }, (_, index) => index * tickStep);
   const chartWidth = 560;
   const chartHeight = 190;
   const padding = { top: 14, right: 12, bottom: 30, left: 38 };
@@ -219,11 +217,11 @@ function renderActivityChart(units) {
     x: padding.left + xIndexRatio(index) * plotWidth,
     y: padding.top + plotHeight - (Math.min(value, maxValue) / maxValue) * plotHeight
   });
-  const gridLines = [0, 0.33, 0.66, 1].map((ratio) => {
-    const y = padding.top + plotHeight - ratio * plotHeight;
+  const gridLines = scaleValues.map((value) => {
+    const y = padding.top + plotHeight - (value / maxValue) * plotHeight;
     return `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" />`;
   }).join('');
-  const scaleLabels = [0, 5, 10].map((value) => {
+  const scaleLabels = scaleValues.map((value) => {
     const y = padding.top + plotHeight - (value / maxValue) * plotHeight + 3;
     return `<text x="${padding.left - 9}" y="${y}" text-anchor="end">${value}</text>`;
   }).join('');
@@ -239,7 +237,7 @@ function renderActivityChart(units) {
     })
     .join(' ');
   const circles = (values, color) => values.map((value, index) => {
-    if (value <= 0) return '';
+    if (value <= 0 || value === (values[index - 1] || 0)) return '';
     const coordinates = point(value, index);
     return `<circle class="activity-point" style="fill: ${color};" cx="${coordinates.x}" cy="${coordinates.y}" r="3.5" />`;
   }).join('');
