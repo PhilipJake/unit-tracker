@@ -74,6 +74,7 @@
         <div class="page-toolbar">
           <div class="search-box">
             <input id="unitSearchInput" type="text" placeholder="Search units" aria-label="Search units" />
+            <button class="search-clear-btn" id="clearUnitSearchBtn" type="button" aria-label="Clear search" title="Clear search" hidden>&times;</button>
           </div>
 
           <select id="unitStatusFilter" class="toolbar-select" aria-label="Filter units by status">
@@ -84,6 +85,10 @@
             <option>In Service</option>
             <option>For Release</option>
             <option>Released</option>
+          </select>
+
+          <select id="unitBranchFilter" class="toolbar-select" aria-label="Filter units by branch">
+            <option value="all">All branches</option>
           </select>
 
           <div class="page-actions">

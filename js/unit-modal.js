@@ -11,7 +11,9 @@ const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 const unitSearchInput = document.getElementById('unitSearchInput') || document.querySelector('.search-box input');
+const clearUnitSearchButton = document.getElementById('clearUnitSearchBtn');
 const unitStatusFilter = document.getElementById('unitStatusFilter');
+const unitBranchFilter = document.getElementById('unitBranchFilter');
 const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
 const urgentField = document.getElementById('isUrgent');
@@ -461,13 +463,29 @@ function initUnitModal() {
 
   if (unitSearchInput) {
     unitSearchInput.addEventListener('input', () => {
+      syncUnitSearchClearButton();
       renderRegistryTable(registryRowsCache);
+    });
+  }
+
+  if (clearUnitSearchButton && unitSearchInput) {
+    clearUnitSearchButton.addEventListener('click', () => {
+      unitSearchInput.value = '';
+      syncUnitSearchClearButton();
+      renderRegistryTable(registryRowsCache);
+      unitSearchInput.focus();
     });
   }
 
   if (unitStatusFilter) {
     unitStatusFilter.value = 'all';
     unitStatusFilter.addEventListener('change', () => {
+      renderRegistryTable(registryRowsCache);
+    });
+  }
+
+  if (unitBranchFilter) {
+    unitBranchFilter.addEventListener('change', () => {
       renderRegistryTable(registryRowsCache);
     });
   }
@@ -687,18 +705,45 @@ function normalizeSearchText(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function syncUnitSearchClearButton() {
+  if (!clearUnitSearchButton || !unitSearchInput) return;
+  clearUnitSearchButton.hidden = !unitSearchInput.value;
+}
+
+function syncUnitBranchFilterOptions(rows) {
+  if (!unitBranchFilter) return;
+
+  const selectedBranch = unitBranchFilter.value;
+  const branchesByKey = new Map();
+  rows.forEach((unit) => {
+    const branch = String(unit.uploadedBranch || unit.branchLocation || '').trim();
+    const key = normalizeSearchText(branch);
+    if (key && key !== '—' && !branchesByKey.has(key)) branchesByKey.set(key, branch);
+  });
+
+  const branches = [...branchesByKey.values()].sort((first, second) => first.localeCompare(second));
+  unitBranchFilter.replaceChildren(new Option('All branches', 'all'));
+  branches.forEach((branch) => unitBranchFilter.add(new Option(branch, branch)));
+  unitBranchFilter.value = branches.some((branch) => branch === selectedBranch) ? selectedBranch : 'all';
+}
+
 function renderRegistryTable(rows) {
   if (!unitRegistryTableBody) return;
 
+  syncUnitSearchClearButton();
+  syncUnitBranchFilterOptions(rows);
   const searchTerm = normalizeSearchText(unitSearchInput ? unitSearchInput.value : '');
   const selectedStatus = normalizeSearchText(unitStatusFilter ? unitStatusFilter.value : 'all');
+  const selectedBranch = normalizeSearchText(unitBranchFilter ? unitBranchFilter.value : 'all');
   const filteredRows = rows.map((unit, rowIndex) => ({ unit, rowIndex })).filter(({ unit }) => {
     const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
     const clientName = normalizeSearchText(unit.clientName || '');
     const status = normalizeSearchText(unit.status || '');
+    const branch = normalizeSearchText(unit.uploadedBranch || unit.branchLocation || '');
     const matchesSearch = !searchTerm || unitCode.includes(searchTerm) || clientName.includes(searchTerm);
     const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
-    return matchesSearch && matchesStatus;
+    const matchesBranch = selectedBranch === 'all' || branch === selectedBranch;
+    return matchesSearch && matchesStatus && matchesBranch;
   });
 
   if (unitRegistryTableWrap) {
@@ -753,12 +798,12 @@ function renderRegistryTable(rows) {
           <td>${escapeHtml(problem)}</td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
-          <td>${escapeHtml(unit.technicianNotes || '—')}</td>
-          <td class="table-actions">
+          <td class="technician-notes-cell">${escapeHtml(unit.technicianNotes || '—')}</td>
+          <td class="table-actions"><div class="unit-registry-actions">
             <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
             ${canRelease ? '<button class="release" type="button">Released</button>' : ''}
             <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
-          </td>
+          </div></td>
         </tr>
       `;
     })

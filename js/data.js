@@ -98,19 +98,17 @@ function normalizeBranchToken(value) {
 }
 
 function parseCsv(csvText, includeAllRows = false) {
-  const lines = csvText
-    .split(/\r?\n/)
-    .filter((line) => line.trim() !== '');
+  const records = parseCsvRecords(csvText).filter((record) => record.some((value) => value.trim() !== ''));
 
-  if (!lines.length) {
+  if (!records.length) {
     return [];
   }
 
-  const headers = parseCsvRow(lines[0]).map((header) => normalizeHeader(header));
+  const headers = records[0].map((header) => normalizeHeader(header));
   const rows = [];
 
-  for (let index = 1; index < lines.length; index += 1) {
-    const values = parseCsvRow(lines[index]);
+  for (let index = 1; index < records.length; index += 1) {
+    const values = records[index];
     if (values.length === 0 || values.every((value) => !String(value).trim())) {
       continue;
     }
@@ -130,31 +128,42 @@ function parseCsv(csvText, includeAllRows = false) {
   return rows;
 }
 
-function parseCsvRow(line) {
-  const result = [];
+function parseCsvRecords(csvText) {
+  const records = [];
+  let record = [];
   let current = '';
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
+  for (let index = 0; index < csvText.length; index += 1) {
+    const char = csvText[index];
 
     if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+      if (inQuotes && csvText[index + 1] === '"') {
         current += '"';
-        i += 1;
+        index += 1;
       } else {
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
+      record.push(current.trim());
+      current = '';
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && csvText[index + 1] === '\n') index += 1;
+      record.push(current.trim());
+      records.push(record);
+      record = [];
       current = '';
     } else {
       current += char;
     }
   }
 
-  result.push(current.trim());
-  return result;
+  if (current !== '' || record.length) {
+    record.push(current.trim());
+    records.push(record);
+  }
+
+  return records;
 }
 
 function normalizeHeader(header) {
