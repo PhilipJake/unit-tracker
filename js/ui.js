@@ -166,8 +166,13 @@ function renderActivityChart(units) {
   const firstActivityDate = activityDateKeys.length
     ? new Date(`${activityDateKeys[0]}T12:00:00`)
     : chartDate;
-  const firstDay = new Date(firstActivityDate.getFullYear(), firstActivityDate.getMonth(), firstActivityDate.getDate(), 12);
   const lastDay = new Date(chartDate.getFullYear(), chartDate.getMonth(), chartDate.getDate(), 12);
+  const firstDay = new Date(firstActivityDate.getFullYear(), firstActivityDate.getMonth(), firstActivityDate.getDate(), 12);
+  const maxChartDays = 366;
+  if (Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1 > maxChartDays) {
+    firstDay.setTime(lastDay.getTime());
+    firstDay.setDate(firstDay.getDate() - (maxChartDays - 1));
+  }
   const dayCount = Math.max(1, Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1);
   const days = Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(firstDay);

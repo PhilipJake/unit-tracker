@@ -6,6 +6,7 @@ const state = {
     branch: 'all'
   }
 };
+let unitsLoadInProgress = false;
 
 function setOverviewHeader() {
   const dateElement = document.getElementById('overviewDate');
@@ -30,6 +31,9 @@ function setOverviewHeader() {
 }
 
 async function loadUnits() {
+  if (unitsLoadInProgress) return;
+  unitsLoadInProgress = true;
+
   try {
     setSyncStatus('Syncing…');
     const [rows, registeredBranches] = await Promise.all([
@@ -52,6 +56,8 @@ async function loadUnits() {
     renderActivityChart([]);
     renderTable([]);
     UI.branchPulseList.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
+  } finally {
+    unitsLoadInProgress = false;
   }
 }
 

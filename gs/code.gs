@@ -995,8 +995,14 @@ function ensureUnitDateColumns(sheet) {
 function migrateUnitSheetSchema(sheet) {
   const desiredHeaders = getHeadersForAction('units');
   const sourceWidth = Math.max(sheet.getLastColumn(), desiredHeaders.length);
+  const sourceHeaders = sheet.getRange(1, 1, 1, sourceWidth).getValues()[0] || [];
+  const hasCanonicalHeaders = desiredHeaders.every((header, index) => {
+    return String(sourceHeaders[index] || '').trim().toLowerCase() === String(header).trim().toLowerCase();
+  });
+  if (hasCanonicalHeaders) {
+    return;
+  }
   const sourceData = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), sourceWidth).getValues();
-  const sourceHeaders = sourceData[0] || [];
   const aliases = {
     'date purchased': ['date purchased', 'date received', 'date of purchase'],
     'date of return': ['date of return', 'return date'],

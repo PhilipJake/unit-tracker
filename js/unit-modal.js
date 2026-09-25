@@ -382,7 +382,6 @@ async function saveUnitToSheet(event) {
 
     if (typeof loadRegistryUnits === 'function') {
       await loadRegistryUnits();
-      await DATA.fetchUnits();
     }
   } catch (error) {
     console.error('Save unit failed:', error);
@@ -667,7 +666,7 @@ async function loadRegistryUnits() {
     renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error(error);
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="17" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="18" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
   }
 }
 
@@ -707,7 +706,7 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="17" class="empty-state">No matching units found.</td></tr>';
+    unitRegistryTableBody.innerHTML = '<tr><td colspan="18" class="empty-state">No matching units found.</td></tr>';
     return;
   }
 
@@ -739,11 +738,12 @@ function renderRegistryTable(rows) {
       return `
         <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
           <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
+          <td class="unit-client-cell">${escapeHtml(client)}</td>
+          <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
           <td>${escapeHtml(specs)}</td>
           <td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>
           <td class="unit-brand-cell">${escapeHtml(brand)}</td>
-          <td class="unit-client-cell">${escapeHtml(client)}</td>
           <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>

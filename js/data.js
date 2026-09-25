@@ -172,7 +172,8 @@ function normalizeRow(rawRow) {
     row[key] = String(value || '').trim();
   });
 
-  const hasContactInfoHeader = Boolean(row['contact info'] || row.contactinfo);
+  const hasContactInfoHeader = Object.prototype.hasOwnProperty.call(row, 'contact info')
+    || Object.prototype.hasOwnProperty.call(row, 'contactinfo');
   const legacyValue = (index, keys) => !hasContactInfoHeader
     ? row[`__column_${index}`] || ''
     : findValue(row, keys);
@@ -186,7 +187,8 @@ function normalizeRow(rawRow) {
   const isUrgent = legacyValue(16, ['urgent', 'is urgent', 'urgent flag']);
   const unitPrice = legacyValue(5, ['unit price', 'price']);
   const specs = legacyValue(4, ['specs', 'unit specs', 'unitspecs', 'processor', 'storage size', 'storage']);
-  const uploadedBranch = legacyValue(14, ['uploaded branch', 'uploadedbranch', 'branch']);
+  const branchLocation = findValue(row, ['branch location', 'branchlocation', 'branch']);
+  const uploadedBranch = findValue(row, ['uploaded branch', 'uploadedbranch']) || branchLocation;
   const currentLocation = legacyValue(8, ['current location', 'currentlocation', 'location']);
   const normalizedCurrentLocation = currentLocation.toLowerCase() === 'bnb rosales'
     ? 'Technical Hub'
@@ -220,6 +222,7 @@ function normalizeRow(rawRow) {
     isUrgent: isUrgent || '',
     unitPrice: unitPrice || '',
     specs: specs || '',
+    branchLocation: branchLocation || '',
     uploadedBranch: uploadedBranch || '',
     currentLocation: normalizedCurrentLocation || '',
     dateReceived: dateReceived || '',
