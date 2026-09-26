@@ -194,7 +194,10 @@ function applyRoleRestrictions() {
 }
 
 function initUnitsMenu() {
-  const savedState = localStorage.getItem('unitflowUnitsMenuCollapsed') === 'true';
+  const currentPath = window.location.pathname;
+  const isUnitsPage = currentPath.endsWith('units.html');
+  const savedState = localStorage.getItem('unitflowUnitsMenuCollapsed');
+  const defaultCollapsed = savedState === null ? true : savedState === 'true';
 
   document.querySelectorAll('[data-unit-menu]').forEach((menu) => {
     const submenu = menu.querySelector('.nav-submenu');
@@ -210,7 +213,19 @@ function initUnitsMenu() {
       toggle.textContent = '';
     };
 
-    setCollapsed(savedState);
+    const currentView = new URLSearchParams(window.location.search).get('view');
+    const links = menu.querySelectorAll('.nav-item');
+    links.forEach((link) => {
+      const linkUrl = new URL(link.href, window.location.href);
+      const isActive = isUnitsPage
+        ? linkUrl.pathname.endsWith('units.html') && linkUrl.search === `?view=${currentView || 'monitoring'}`
+        : linkUrl.pathname === window.location.pathname;
+      link.classList.toggle('active', isActive);
+      if (isActive) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+
+    setCollapsed(isUnitsPage ? false : defaultCollapsed);
     toggle.addEventListener('click', () => {
       const collapsed = !menu.classList.contains('is-collapsed');
       setCollapsed(collapsed);
