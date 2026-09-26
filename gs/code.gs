@@ -109,6 +109,9 @@ function doPost(e) {
   if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
     return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
   }
+  if (action === 'units' && String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
+  }
   if (action === 'messages') {
     values.attachments = uploadMessageAttachments(values.attachments || '[]');
   }
@@ -595,6 +598,9 @@ function deleteBranchRow(spreadsheet, branchName) {
 function updateUnitRow(spreadsheet, values) {
   if (!isValidContactInfo(values.contactInfo || '')) {
     return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
+  }
+  if (String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
   }
 
   const sheet = ensureSheet(spreadsheet, 'Units');

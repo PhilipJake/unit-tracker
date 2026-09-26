@@ -1,26 +1,26 @@
 const ACCESS_RULES = {
   'Super Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   Administrator: {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html', 'pages/settings.html'],
     isReadOnly: false
   },
   'Main Head Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html', 'pages/trash.html', 'pages/branches.html', 'pages/accounts.html'],
     isReadOnly: false
   },
   'Office': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html', 'pages/branches.html', 'pages/accounts.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html', 'pages/branches.html', 'pages/accounts.html'],
     isReadOnly: true
   },
   'Branch Head Admin': {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html'],
     isReadOnly: false
   },
   Technician: {
-    pages: ['../index.html', 'pages/messages.html', 'pages/unit-registry.html'],
+    pages: ['../index.html', 'pages/messages.html', 'pages/units.html'],
     isReadOnly: false
   }
 };
@@ -33,7 +33,7 @@ function getCurrentRole() {
 function getCurrentPagePath() {
   const currentPath = window.location.pathname;
   const normalized = currentPath.split('/').pop();
-  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('unit-registry.html') ? 'pages/unit-registry.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
+  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('units.html') ? 'pages/units.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
@@ -48,7 +48,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
 const PAGE_ACCESS_OPTIONS = {
   Overview: '../index.html',
   Messages: 'pages/messages.html',
-  'Unit registry': 'pages/unit-registry.html',
+  'Unit registry': 'pages/units.html',
   Trash: 'pages/trash.html',
   Branches: 'pages/branches.html',
   Accounts: 'pages/accounts.html'
@@ -152,7 +152,7 @@ function applyRoleRestrictions() {
 
   const viewAllUnitsLink = document.getElementById('viewAllUnitsLink');
   if (viewAllUnitsLink) {
-    viewAllUnitsLink.href = resolveRoutePath('pages/unit-registry.html');
+    viewAllUnitsLink.href = resolveRoutePath('pages/units.html?view=monitoring');
   }
 
   if (!allowedPages.some((page) => currentPagePath.endsWith(page.replace(/^\.\//, '').replace(/^\.\.\//, '')))) {
@@ -191,6 +191,32 @@ function applyRoleRestrictions() {
   if (exportButton) {
     exportButton.style.display = canManageAction('export', role) ? '' : 'none';
   }
+}
+
+function initUnitsMenu() {
+  const savedState = localStorage.getItem('unitflowUnitsMenuCollapsed') === 'true';
+
+  document.querySelectorAll('[data-unit-menu]').forEach((menu) => {
+    const submenu = menu.querySelector('.nav-submenu');
+    const toggle = menu.querySelector('[data-unit-menu-toggle]');
+    if (!submenu || !toggle) return;
+
+    const setCollapsed = (collapsed) => {
+      menu.classList.toggle('is-collapsed', collapsed);
+      submenu.hidden = collapsed;
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      toggle.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Collapse'} Units menu`);
+      toggle.title = `${collapsed ? 'Expand' : 'Collapse'} Units menu`;
+      toggle.textContent = '';
+    };
+
+    setCollapsed(savedState);
+    toggle.addEventListener('click', () => {
+      const collapsed = !menu.classList.contains('is-collapsed');
+      setCollapsed(collapsed);
+      localStorage.setItem('unitflowUnitsMenuCollapsed', String(collapsed));
+    });
+  });
 }
 
 async function updateMessageNavCount() {
@@ -456,4 +482,13 @@ function initUserMenu() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', initUserMenu);
+function bootUserMenu() {
+  initUserMenu();
+  initUnitsMenu();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootUserMenu);
+} else {
+  bootUserMenu();
+}

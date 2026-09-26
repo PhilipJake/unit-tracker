@@ -25,14 +25,23 @@
           Messages
           <span class="nav-count" data-message-nav-count hidden></span>
         </a>
-        <a class="nav-item" href="unit-registry.html">
-          <span class="nav-icon">▤</span>
-          Unit registry
-        </a>
-        <a class="nav-item" href="trash.html">
-          <span class="nav-icon">⌫</span>
-          Trash
-        </a>
+        <div class="nav-group" data-unit-menu>
+          <div class="nav-group-header">
+            <a class="nav-item" href="units.html?view=monitoring">
+              <span class="nav-icon">▤</span>
+              Units
+            </a>
+            <button class="nav-collapse-btn" type="button" data-unit-menu-toggle aria-expanded="true" aria-label="Collapse Units menu" title="Collapse Units menu"></button>
+          </div>
+          <div class="nav-submenu" aria-label="Unit views">
+          <a class="nav-item nav-subitem" href="units.html?view=for-release">For Release</a>
+          <a class="nav-item nav-subitem" href="units.html?view=released">Released</a>
+          <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
+          <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
+          <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
+          <a class="nav-item nav-subitem" href="trash.html">Trash</a>
+          </div>
+        </div>
         <a class="nav-item active" href="branches.html">
           <span class="nav-icon">⎇</span>
           Branches
