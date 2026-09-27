@@ -37,12 +37,12 @@ function getCurrentPagePath() {
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
-  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true, release: true },
-  Administrator: { view: true, create: true, edit: true, delete: true, export: true, release: true },
-  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true, release: false },
-  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false, release: false },
-  Office: { view: true, create: false, edit: false, delete: false, export: true, release: false },
-  Technician: { view: true, create: true, edit: true, delete: false, export: false, release: false }
+  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true },
+  Administrator: { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true },
+  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true, release: false, warehouse: true, pullOut: true, forReplacement: true },
+  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false, release: false, warehouse: true, pullOut: true, forReplacement: true },
+  Office: { view: true, create: false, edit: false, delete: false, export: true, release: false, warehouse: false, pullOut: false, forReplacement: false },
+  Technician: { view: true, create: true, edit: true, delete: false, export: false, release: true, warehouse: true, pullOut: true, forReplacement: true }
 };
 
 const PAGE_ACCESS_OPTIONS = {
@@ -78,8 +78,39 @@ function getRolePermissions() {
 }
 
 function canManageAction(action, role = getCurrentRole()) {
-  const permissions = getRolePermissions();
+  if (action === 'view') return true;
+  const permissions = getEffectiveRolePermissions(role);
   return Boolean(permissions[role] && permissions[role][action]);
+}
+
+function canAccessUnitView(view, role = getCurrentRole()) {
+  const permissionByView = {
+    'for-release': 'release',
+    released: 'release',
+    warehouse: 'warehouse',
+    'pull-out': 'pullOut',
+    replaced: 'forReplacement'
+  };
+  const permission = permissionByView[view];
+  return !permission || canManageAction(permission, role);
+}
+
+function getUserPermissionOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem('unitflowUserPermissionOverrides') || '{}');
+  } catch (error) {
+    return {};
+  }
+}
+
+function getEffectiveRolePermissions(role = getCurrentRole()) {
+  const permissions = getRolePermissions();
+  const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
+  const override = getUserPermissionOverrides()[username];
+  if (role !== 'Super Admin' && override && override.enabled && override.permissions) {
+    permissions[role] = { ...permissions[role], ...override.permissions };
+  }
+  return permissions;
 }
 
 function getPageAccess() {
@@ -96,6 +127,16 @@ function getPageAccess() {
   }
 }
 
+function getEffectivePageAccess(role = getCurrentRole()) {
+  const access = getPageAccess();
+  const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
+  const override = getUserPermissionOverrides()[username];
+  if (role !== 'Super Admin' && override && override.enabled && override.pageAccess) {
+    access[role] = { ...access[role], ...override.pageAccess };
+  }
+  return access;
+}
+
 function isPermissionManager(role = getCurrentRole()) {
   return ['Super Admin', 'Administrator'].includes(role);
 }
@@ -107,7 +148,7 @@ function isAllowedPage(targetHref, allowedPages) {
 }
 
 function getAllowedPagesForRole(role) {
-  const pageAccess = getPageAccess()[role] || DEFAULT_PAGE_ACCESS.Technician;
+  const pageAccess = getEffectivePageAccess(role)[role] || DEFAULT_PAGE_ACCESS.Technician;
   const pages = Object.entries(PAGE_ACCESS_OPTIONS)
     .filter(([page]) => pageAccess[page])
     .map(([, path]) => path);
@@ -135,6 +176,7 @@ function applyRoleRestrictions() {
   const role = getCurrentRole();
   const allowedPages = getAllowedPagesForRole(role);
   const currentPagePath = getCurrentPagePath();
+  const currentView = new URLSearchParams(window.location.search).get('view') || 'monitoring';
 
   const manageBranchLink = document.getElementById('manageBranchLink');
   if (manageBranchLink) {
@@ -161,9 +203,16 @@ function applyRoleRestrictions() {
     return;
   }
 
+  if (window.location.pathname.endsWith('units.html') && !canAccessUnitView(currentView, role)) {
+    window.location.href = resolveRoutePath('pages/units.html?view=monitoring');
+    return;
+  }
+
   document.querySelectorAll('.nav-item').forEach((item) => {
     const href = item.getAttribute('href') || '';
-    const isAllowed = isAllowedPage(href, allowedPages);
+    const linkUrl = new URL(href, window.location.href);
+    const isAllowed = isAllowedPage(href, allowedPages)
+      && (!linkUrl.pathname.endsWith('/units.html') || canAccessUnitView(linkUrl.searchParams.get('view') || 'monitoring', role));
 
     item.classList.toggle('disabled', !isAllowed);
     item.setAttribute('aria-disabled', String(!isAllowed));

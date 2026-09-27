@@ -154,6 +154,22 @@ if (loginForm) {
     localStorage.setItem('unitflowFullName', account.fullName || username);
     localStorage.setItem('unitflowBranch', account.branch || '');
 
+    const config = window.GS_CONFIG || {};
+    if (config.appScriptUrl) {
+      try {
+        const response = await fetch(`${config.appScriptUrl}?action=permissions`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) {
+          throw new Error(result.error || 'Permission load failed');
+        }
+        localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
+        localStorage.setItem('unitflowPageAccess', JSON.stringify(result.pageAccess));
+        localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(result.userPermissions || {}));
+      } catch (error) {
+        console.warn('Unable to load saved permissions during login:', error);
+      }
+    }
+
     window.location.href = resolveAppPath('index.html');
   });
 }

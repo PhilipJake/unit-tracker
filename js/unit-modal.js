@@ -759,7 +759,15 @@ function initUnitModal() {
       if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
       if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
       if (button.classList.contains('for-release') || button.classList.contains('for-replacement') || button.classList.contains('replaced') || button.classList.contains('warehouse') || button.classList.contains('pull-out') || button.classList.contains('return-tracking')) {
-        if (!canManageAction('edit', currentRole)) return;
+        const canEditWorkflow = canManageAction('edit', currentRole);
+        if ((button.classList.contains('warehouse') || button.classList.contains('return-tracking'))
+          && (!canEditWorkflow || !canManageAction('warehouse', currentRole))) return;
+        if (button.classList.contains('pull-out')
+          && (!canEditWorkflow || !canManageAction('pullOut', currentRole))) return;
+        if (button.classList.contains('for-release')
+          && (!canEditWorkflow || !canManageAction('release', currentRole))) return;
+        if ((button.classList.contains('for-replacement') || button.classList.contains('replaced'))
+          && (!canEditWorkflow || !canManageAction('forReplacement', currentRole))) return;
 
         const rows = await DATA.fetchUnits();
         const selectedRowIndex = Number(row.dataset.rowIndex);
@@ -1050,23 +1058,26 @@ function renderRegistryTable(rows) {
       const canDelete = canManageAction('delete', currentRole);
       const canRelease = canManageAction('release', currentRole);
       const canEditActions = canManageAction('edit', currentRole);
+      const canWarehouse = canManageAction('warehouse', currentRole);
+      const canPullOut = canManageAction('pullOut', currentRole);
+      const canForReplacement = canManageAction('forReplacement', currentRole);
       const currentLocation = normalizeSearchText(unit.currentLocation || branch);
       const actionCell = isReleasedView
         ? ''
         : `<td class="table-actions"><div class="unit-registry-actions">${requestedView === 'for-release' || isReplacedView || requestedView === 'pull-out'
-          ? `<div class="unit-action-row"><button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Release permission is disabled or unit is already released"'}>Released</button></div>`
+          ? `<div class="unit-action-row"><button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Released permission is disabled or unit is already released"'}>Released</button></div>`
           : isWarehouseView
-            ? currentLocation === 'warehouse' ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>Return to Tracking</button></div>` : ''
+            ? currentLocation === 'warehouse' ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>` : ''
           : `<div class="unit-action-row">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
               <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
             </div>
             <div class="unit-action-row">
-              <button class="for-release" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>For Release</button>
-              <button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Release permission is disabled or unit is already released"'}>Released</button>
+              <button class="for-release" type="button" ${canEditActions && canRelease ? '' : 'disabled title="Released permission is disabled"'}>For Release</button>
+              <button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Released permission is disabled or unit is already released"'}>Released</button>
             </div>
-            <div class="unit-action-row"><button class="for-replacement" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>For Replacement</button></div>
-            <div class="unit-action-row"><button class="warehouse" type="button" ${canEditActions && currentLocation !== 'warehouse' ? '' : 'disabled title="Edit permission is disabled or unit is already in the warehouse"'}>Warehouse</button><button class="pull-out" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>Pull Out</button></div>`}</div></td>`;
+            <div class="unit-action-row"><button class="for-replacement" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>For Replacement</button></div>
+            <div class="unit-action-row"><button class="warehouse" type="button" ${canEditActions && canWarehouse && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already in the warehouse"'}>Warehouse</button><button class="pull-out" type="button" ${canEditActions && canPullOut ? '' : 'disabled title="Pullout permission is disabled"'}>Pull Out</button></div>`}</div></td>`;
 
       return `
         <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">

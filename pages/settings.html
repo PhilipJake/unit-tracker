@@ -77,9 +77,30 @@
           <div class="page-access-grid" id="pageAccessGrid"></div>
         </section>
 
+        <section class="panel member-permissions-panel">
+          <div class="panel-header">
+            <div><h2>Member Overrides</h2><p class="panel-subtitle">Customize access for one account without changing its role defaults.</p></div>
+          </div>
+          <div class="member-permission-controls">
+            <label class="member-select-label" for="memberAccountSelect">Account
+              <select id="memberAccountSelect"><option value="">Loading accounts…</option></select>
+            </label>
+            <label class="member-override-control" for="memberOverrideEnabled">
+              <input id="memberOverrideEnabled" type="checkbox" disabled>
+              <span><strong>Customize permissions</strong><small>Turn off to inherit this account's role settings.</small></span>
+            </label>
+          </div>
+          <div id="memberPermissionEditor" class="member-permission-editor" hidden>
+            <h3>Page access</h3>
+            <div class="page-access-grid" id="memberPageAccessGrid"></div>
+            <h3>Actions</h3>
+            <div class="permissions-role-list" id="memberActionPermissions"></div>
+          </div>
+        </section>
+
         <section class="panel permissions-panel">
           <div class="panel-header">
-            <div><h2>Permissions</h2><p class="panel-subtitle">Control create, edit, delete, and export actions.</p></div>
+            <div><h2>Permissions</h2><p class="panel-subtitle">Released access controls For Release and Released together; other toggles control their matching actions.</p></div>
             <div class="permission-legend"><span class="permission-dot allowed"></span>Allowed <span class="permission-dot restricted"></span>Restricted</div>
           </div>
           <div class="permissions-role-list" id="permissionsTableBody"></div>

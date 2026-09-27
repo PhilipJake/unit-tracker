@@ -143,17 +143,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement'];
 }
 
 function getDefaultPermissionRows() {
   return [
-    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, false, false, true, true, true, false, true, true],
-    ['Main Head Admin', true, true, true, false, true, false, true, true, true, false, true, true],
-    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false],
-    ['Technician', true, true, true, false, false, false, true, true, true, false, false, false]
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false],
+    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true],
+    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true],
+    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true]
   ];
 }
 
@@ -172,15 +172,54 @@ function ensurePermissionSheet(spreadsheet) {
   const refreshedHeaders = headerRange.getValues()[0];
   if (refreshedHeaders.every((cell) => String(cell).trim() === '')) {
     headerRange.setValues([headers]);
+  } else {
+    headers.slice(13).forEach((header) => {
+      const width = Math.max(sheet.getLastColumn(), headers.length - 3);
+      const existingHeaders = sheet.getRange(1, 1, 1, width).getValues()[0];
+      if (!existingHeaders.some((cell) => String(cell).trim().toLowerCase() === header.toLowerCase())) {
+        sheet.getRange(1, width + 1).setValue(header);
+      }
+    });
   }
 
   if (sheet.getLastRow() <= 1) {
     sheet.getRange(2, 1, getDefaultPermissionRows().length, headers.length).setValues(getDefaultPermissionRows());
   }
+  migrateTechnicianReleaseDefault(sheet);
+  migrateUnitActionPermissionDefaults(sheet);
 
   sheet.setFrozenRows(1);
   sheet.setTabColor('#7fe2a7');
   return sheet;
+}
+
+function migrateUnitActionPermissionDefaults(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  const defaultsByRole = getDefaultPermissionRows().reduce((defaults, row) => {
+    defaults[row[0]] = row;
+    return defaults;
+  }, {});
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, getPermissionHeaders().length).getValues();
+  rows.forEach((row, rowIndex) => {
+    const roleDefaults = defaultsByRole[String(row[0] || '').trim()];
+    if (!roleDefaults) return;
+    sheet.getRange(rowIndex + 2, 2).setValue(true);
+    [14, 15, 16].forEach((column) => {
+      if (String(row[column - 1] == null ? '' : row[column - 1]).trim() === '') {
+        sheet.getRange(rowIndex + 2, column).setValue(roleDefaults[column - 1]);
+      }
+    });
+  });
+}
+
+function migrateTechnicianReleaseDefault(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, getPermissionHeaders().length).getValues();
+  const oldTechnicianDefaults = ['Technician', true, true, true, false, false, false, true, true, true, false, false, false];
+  const rowIndex = rows.findIndex((row) => oldTechnicianDefaults.every((value, index) => (
+    index === 0 ? String(row[index] || '').trim() === value : toPermissionBoolean(row[index]) === value
+  )));
+  if (rowIndex !== -1) sheet.getRange(rowIndex + 2, 7).setValue(true);
 }
 
 function toPermissionBoolean(value) {
@@ -196,15 +235,37 @@ function readPermissionSettings(spreadsheet) {
 
   rows.forEach((row) => {
     const role = String(row[0]).trim();
-    permissions[role] = { view: toPermissionBoolean(row[1]), create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]) };
+    permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[13]), pullOut: toPermissionBoolean(row[14]), forReplacement: toPermissionBoolean(row[15]) };
     pageAccess[role] = { Overview: toPermissionBoolean(row[7]), Messages: toPermissionBoolean(row[8]), 'Unit registry': toPermissionBoolean(row[9]), Trash: toPermissionBoolean(row[10]), Branches: toPermissionBoolean(row[11]), Accounts: toPermissionBoolean(row[12]) };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
-  permissions['Super Admin'] = { view: superAdminDefaults[1], create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6] };
+  permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15] };
   pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
-  return jsonResponse({ ok: true, permissions, pageAccess });
+  return jsonResponse({ ok: true, permissions, pageAccess, userPermissions: readUserPermissionOverrides(spreadsheet) });
+}
+
+function readUserPermissionOverrides(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName('User Permissions');
+  if (!sheet || sheet.getLastRow() < 2) return {};
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+  return rows.reduce((overrides, row) => {
+    const username = String(row[0] || '').trim().toLowerCase();
+    const role = String(row[1] || '').trim();
+    if (!username || role === 'Super Admin') return overrides;
+    try {
+      overrides[username] = {
+        enabled: true,
+        role,
+        permissions: JSON.parse(String(row[2] || '{}')),
+        pageAccess: JSON.parse(String(row[3] || '{}'))
+      };
+    } catch (error) {
+      console.warn('Skipping invalid user permission override for ' + username);
+    }
+    return overrides;
+  }, {});
 }
 
 function savePermissionSettings(spreadsheet, values) {
@@ -214,9 +275,11 @@ function savePermissionSettings(spreadsheet, values) {
 
   let permissions;
   let pageAccess;
+  let userPermissions;
   try {
     permissions = JSON.parse(String(values.permissions || '{}'));
     pageAccess = JSON.parse(String(values.pageAccess || '{}'));
+    userPermissions = JSON.parse(String(values.userPermissions || '{}'));
   } catch (error) {
     return jsonResponse({ ok: false, error: 'Invalid permission data' });
   }
@@ -226,13 +289,26 @@ function savePermissionSettings(spreadsheet, values) {
     const role = defaultRow[0];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = pageAccess[role] || {};
-    return [role, role === 'Super Admin' ? defaultRow[1] : Boolean(rolePermissions.view), role === 'Super Admin' ? defaultRow[2] : Boolean(rolePermissions.create), role === 'Super Admin' ? defaultRow[3] : Boolean(rolePermissions.edit), role === 'Super Admin' ? defaultRow[4] : Boolean(rolePermissions.delete), role === 'Super Admin' ? defaultRow[5] : Boolean(rolePermissions.export), role === 'Super Admin' ? defaultRow[6] : Boolean(rolePermissions.release), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts)];
+    const isSuperAdmin = role === 'Super Admin';
+    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
   sheet.clearContents();
   sheet.getRange(1, 1, 1, getPermissionHeaders().length).setValues([getPermissionHeaders()]);
   sheet.getRange(2, 1, rows.length, getPermissionHeaders().length).setValues(rows);
+  const userSheet = spreadsheet.getSheetByName('User Permissions') || spreadsheet.insertSheet('User Permissions');
+  const userRows = Object.keys(userPermissions).reduce((result, username) => {
+    const override = userPermissions[username] || {};
+    const role = String(override.role || '').trim();
+    if (!username.trim() || !override.enabled || !role || role === 'Super Admin') return result;
+    result.push([username.trim().toLowerCase(), role, JSON.stringify(override.permissions || {}), JSON.stringify(override.pageAccess || {})]);
+    return result;
+  }, []);
+  userSheet.clearContents();
+  userSheet.getRange(1, 1, 1, 4).setValues([['Username', 'Role', 'Permissions', 'Page Access']]);
+  if (userRows.length) userSheet.getRange(2, 1, userRows.length, 4).setValues(userRows);
+  userSheet.setFrozenRows(1);
   return jsonResponse({ ok: true, action: 'savePermissions' });
 }
 

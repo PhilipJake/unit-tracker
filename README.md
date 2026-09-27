@@ -81,6 +81,10 @@ The login page's `Contact admin` form sends an in-app message to every active ac
 
 Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUnitTracker Attachments`. The Messages sheet stores the attachment names and Drive links. The browser limits each send to 20 MB total attachment data, and the Apps Script deployment must be authorized to use Google Drive.
 
+## Access control
+
+Super Admins and Administrators can configure page and action permissions by role in Settings. View is always allowed and locked; release, warehouse, pullout, and replacement permissions control their matching unit views and workflows. The Member Overrides section can set custom permissions for an individual account; accounts without an override inherit their role's current settings. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
+
 ## Trash
 
 Run `initializeClientUnitTrackerSheets()` in Apps Script to create the `Trash` sheet. Deleting a unit moves its original row to Trash with `Deleted At`, `Deleted By`, and `Expires At` metadata. The Trash page can restore or permanently delete units; expired rows are removed when Trash is loaded.
