@@ -738,7 +738,7 @@ function initUserMenu() {
   const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
   const cachedDarkMode = username ? localStorage.getItem(getDarkModeStorageKey(username)) : null;
   applyDarkMode(cachedDarkMode === null
-    ? localStorage.getItem('unitflowDarkMode') === 'true'
+    ? (!username && localStorage.getItem('unitflowDarkMode') === 'true')
     : cachedDarkMode === 'true', false);
   if (username) loadDarkModePreference(username);
   if (!localStorage.getItem('unitflowRole')) {
