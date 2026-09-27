@@ -1030,6 +1030,7 @@ function renderRegistryTable(rows) {
       const price = unit.unitPrice || '—';
       const brand = unit.unitBrand || unit.unitBrandName || unit.brand || '—';
       const client = unit.clientName || '—';
+      const isUnitUrgent = ['true', '1', 'yes', 'urgent'].includes(String(unit.isUrgent || unit.urgent || '').trim().toLowerCase());
       const contactInfo = unit.contactInfo || '—';
       const warranty = unit.warranty || '—';
       const datePurchase = formatDateDisplay(unit.dateReceived || unit.datePurchase || '');
@@ -1071,7 +1072,7 @@ function renderRegistryTable(rows) {
         <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
           ${actionCell}
           <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
-          <td class="unit-client-cell">${escapeHtml(client)}</td>
+          <td class="unit-client-cell">${escapeHtml(client)}${isUnitUrgent ? '<span class="urgent-indicator" aria-label="Urgent unit">URGENT</span>' : ''}</td>
           <td>${escapeHtml(contactInfo)}</td>
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
           <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>

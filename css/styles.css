@@ -2016,6 +2016,22 @@ td {
   text-align: center;
 }
 
+.urgent-indicator {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin: 4px auto 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #f04438;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .settings-content .header-row {
   align-items: flex-end;
 }
