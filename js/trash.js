@@ -1,11 +1,13 @@
-const trashTableBody = document.getElementById('trashTableBody');
-const trashSearchInput = document.getElementById('trashSearchInput');
-const trashMessageModalBackdrop = document.getElementById('trashMessageModalBackdrop');
-const trashMessageModalBody = document.getElementById('trashMessageModalBody');
-const trashToast = document.getElementById('trashToast');
-const purgeAllTrashBtn = document.getElementById('purgeAllTrashBtn');
+(function () {
+let trashTableBody = null;
+let trashSearchInput = null;
+let trashMessageModalBackdrop = null;
+let trashMessageModalBody = null;
+let trashToast = null;
+let purgeAllTrashBtn = null;
 let trashRows = [];
 let trashToastTimer = null;
+let trashRefreshTimer = null;
 
 function escapeHtml(value) {
   return String(value || '')
@@ -143,7 +145,21 @@ async function loadTrash() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initTrashPage() {
+  const currentTableBody = document.getElementById('trashTableBody');
+  if (!currentTableBody) return;
+  if (trashTableBody === currentTableBody) {
+    loadTrash();
+    return;
+  }
+
+  trashTableBody = currentTableBody;
+  trashSearchInput = document.getElementById('trashSearchInput');
+  trashMessageModalBackdrop = document.getElementById('trashMessageModalBackdrop');
+  trashMessageModalBody = document.getElementById('trashMessageModalBody');
+  trashToast = document.getElementById('trashToast');
+  purgeAllTrashBtn = document.getElementById('purgeAllTrashBtn');
+
   trashSearchInput.addEventListener('input', renderTrashRows);
   document.getElementById('closeTrashMessageBtn').addEventListener('click', closeTrashMessage);
   document.getElementById('okTrashMessageBtn').addEventListener('click', closeTrashMessage);
@@ -188,5 +204,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   loadTrash();
-  setInterval(loadTrash, window.GS_CONFIG?.refreshMs || 15000);
-});
+  if (window.location.pathname.endsWith('/trash.html') && !trashRefreshTimer) {
+    trashRefreshTimer = window.setInterval(loadTrash, window.GS_CONFIG?.refreshMs || 15000);
+  }
+}
+
+function disposeTrashPage() {
+  if (!trashRefreshTimer) return;
+  window.clearInterval(trashRefreshTimer);
+  trashRefreshTimer = null;
+}
+
+window.UnitflowTrashView = { init: initTrashPage, dispose: disposeTrashPage };
+
+if (window.location.pathname.endsWith('/trash.html')) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTrashPage, { once: true });
+  } else {
+    initTrashPage();
+  }
+}
+})();

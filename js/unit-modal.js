@@ -28,6 +28,9 @@ let activeEditRowIndex = null;
 let pendingConfirmAction = null;
 let registryRowsCache = [];
 let registryRowsLoaded = false;
+let unitsMainView = null;
+let trashMainView = null;
+let trashSupportNodes = [];
 let unitToastTimer = null;
 const contactInfoPrefix = '+63 ';
 const canSetForDiagnose = ['Super Admin', 'Administrator', 'Technician'];
@@ -455,6 +458,37 @@ async function saveUnitToSheet(event) {
   }
 }
 
+function showTrashView() {
+  if (!unitsMainView) unitsMainView = document.querySelector('.workspace > main.content');
+  if (!trashMainView) {
+    const template = document.getElementById('trashViewTemplate');
+    if (!template) return;
+    const fragment = template.content.cloneNode(true);
+    trashMainView = fragment.querySelector('main.content');
+    trashSupportNodes = [...fragment.querySelectorAll('[data-trash-view-support]')];
+  }
+
+  if (unitsMainView && unitsMainView.isConnected) unitsMainView.replaceWith(trashMainView);
+  trashSupportNodes.forEach((node) => {
+    if (!node.isConnected) document.body.append(node);
+  });
+  const breadcrumb = document.querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.innerHTML = 'Workspace <span>/</span> Trash';
+  document.title = 'Trash | Unitflow';
+  window.UnitflowTrashView?.init();
+}
+
+function showUnitsView() {
+  if (trashMainView && trashMainView.isConnected && unitsMainView) trashMainView.replaceWith(unitsMainView);
+  trashSupportNodes.forEach((node) => node.remove());
+  window.UnitflowTrashView?.dispose();
+  const breadcrumb = document.querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.innerHTML = 'Workspace <span>/</span> Units';
+  document.title = 'Units';
+  if (registryRowsLoaded) renderRegistryTable(registryRowsCache);
+  else loadRegistryUnits();
+}
+
 function syncRegistryViewLinks() {
   const currentUrl = new URL(window.location.href);
   const currentView = currentUrl.searchParams.get('view') || 'monitoring';
@@ -483,7 +517,8 @@ function initRegistryViewNavigation() {
 
   const renderCurrentView = () => {
     syncRegistryViewLinks();
-    if (registryRowsLoaded) renderRegistryTable(registryRowsCache);
+    if (new URLSearchParams(window.location.search).get('view') === 'trash') showTrashView();
+    else showUnitsView();
   };
 
   viewLinks.forEach((link) => {
@@ -492,15 +527,18 @@ function initRegistryViewNavigation() {
       if (!targetUrl.pathname.endsWith('units.html') || targetUrl.pathname !== window.location.pathname || !targetUrl.searchParams.has('view')) return;
 
       event.preventDefault();
-      if (targetUrl.pathname !== window.location.pathname || targetUrl.search !== window.location.search) {
-        window.history.pushState({}, '', `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+      if (targetUrl.search === window.location.search) {
+        syncRegistryViewLinks();
+        return;
       }
+      window.history.pushState({}, '', `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
       renderCurrentView();
     });
   });
 
   window.addEventListener('popstate', renderCurrentView);
   syncRegistryViewLinks();
+  if (new URLSearchParams(window.location.search).get('view') === 'trash') showTrashView();
 }
 
 function initUnitModal() {
@@ -835,7 +873,7 @@ function initUnitModal() {
     });
   }
 
-  if (typeof loadRegistryUnits === 'function') {
+  if (typeof loadRegistryUnits === 'function' && new URLSearchParams(window.location.search).get('view') !== 'trash') {
     loadRegistryUnits();
   }
 

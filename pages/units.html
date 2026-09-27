@@ -39,7 +39,7 @@
           <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
           <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
           <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
-          <a class="nav-item nav-subitem" href="trash.html">Trash</a>
+          <a class="nav-item nav-subitem" href="units.html?view=trash">Trash</a>
           </div>
         </div>
         <a class="nav-item" href="branches.html">
@@ -297,10 +297,47 @@
 
     <div class="message-toast" id="unitToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+    <template id="trashViewTemplate">
+      <main class="content">
+        <div class="header-row">
+          <div class="heading-block">
+            <div class="eyebrow">Recovery workspace</div>
+            <h1>Trash</h1>
+            <p>Deleted units stay here for 30 days before permanent removal.</p>
+          </div>
+        </div>
+
+        <div class="page-toolbar">
+          <div class="search-box"><input id="trashSearchInput" type="search" placeholder="Search deleted units" aria-label="Search deleted units" /></div>
+          <div class="page-actions">
+            <button class="action-btn danger" id="purgeAllTrashBtn" type="button">Delete all permanently</button>
+          </div>
+        </div>
+
+        <section class="panel table-panel">
+          <div class="table-wrap">
+            <table class="unit-registry-table trash-table">
+              <thead><tr><th>Code</th><th>Client Name</th><th>Branch</th><th>Deleted At</th><th>Expires At</th><th>Actions</th></tr></thead>
+              <tbody id="trashTableBody"><tr><td colspan="6" class="empty-state">Loading deleted units…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+      <div class="modal-backdrop" id="trashMessageModalBackdrop" aria-hidden="true" data-trash-view-support>
+        <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="trashMessageModalTitle">
+          <div class="modal-header"><h3 id="trashMessageModalTitle">Notice</h3><button class="modal-close" id="closeTrashMessageBtn" type="button" aria-label="Close message">×</button></div>
+          <div class="modal-body" id="trashMessageModalBody"></div>
+          <div class="modal-actions"><button type="button" class="action-btn primary" id="okTrashMessageBtn">OK</button></div>
+        </div>
+      </div>
+      <div class="message-toast" id="trashToast" role="status" aria-live="polite" aria-atomic="true" data-trash-view-support></div>
+    </template>
+
     <script src="../gs/config.js"></script>
     <script src="../js/data.js"></script>
     <script src="../js/user-menu.js"></script>
     <script src="../js/popup.js"></script>
     <script src="../js/unit-modal.js"></script>
+    <script src="../js/trash.js"></script>
   </body>
 </html>
