@@ -19,6 +19,9 @@ const selectedRoleTitle = document.getElementById('selectedRoleTitle');
 const selectedRoleDescription = document.getElementById('selectedRoleDescription');
 const selectedRoleLock = document.getElementById('selectedRoleLock');
 const deleteRoleButton = document.getElementById('deleteRoleButton');
+const roleColorPicker = document.getElementById('roleColorPicker');
+const roleColorCurrent = document.getElementById('roleColorCurrent');
+const roleColorPalette = document.getElementById('roleColorPalette');
 const memberCount = document.getElementById('memberCount');
 const permissionsTabButton = document.getElementById('permissionsTabButton');
 const membersTabButton = document.getElementById('membersTabButton');
@@ -42,8 +45,10 @@ const savePermissionsBtn = document.getElementById('savePermissionsBtn');
 const resetPermissionsBtn = document.getElementById('resetPermissionsBtn');
 const settingsMessageModalBackdrop = document.getElementById('settingsMessageModalBackdrop');
 const settingsMessageModalBody = document.getElementById('settingsMessageModalBody');
+const settingsToast = document.getElementById('settingsToast');
 const closeSettingsMessageModalBtn = document.getElementById('closeSettingsMessageModalBtn');
 const okSettingsMessageModalBtn = document.getElementById('okSettingsMessageModalBtn');
+const cancelSettingsMessageModalBtn = document.getElementById('cancelSettingsMessageModalBtn');
 const settingsViewTitle = document.getElementById('settingsViewTitle');
 const settingsViewDescription = document.getElementById('settingsViewDescription');
 const rolesManagerPanel = document.getElementById('rolesManagerPanel');
@@ -56,6 +61,9 @@ const selectedBranchTypeTitle = document.getElementById('selectedBranchTypeTitle
 const selectedBranchTypeDescription = document.getElementById('selectedBranchTypeDescription');
 const branchTypeShortcut = document.getElementById('branchTypeShortcut');
 const branchTypeFullName = document.getElementById('branchTypeFullName');
+const branchTypeColor = document.getElementById('branchTypeColor');
+const branchTypeColorCurrent = document.getElementById('branchTypeColorCurrent');
+const branchTypeColorPalette = document.getElementById('branchTypeColorPalette');
 const branchTypePreview = document.getElementById('branchTypePreview');
 const addBranchTypeButton = document.getElementById('addBranchTypeButton');
 const branchTypeCreateForm = document.getElementById('branchTypeCreateForm');
@@ -69,12 +77,15 @@ let managedAccounts = [];
 let roleAssignments = [];
 let userPermissionOverrides = {};
 let rolePermissionsState = getRolePermissions();
+let roleColorsState = getRoleColors();
 let pageAccessState = getPageAccess();
 let selectedRole = getCurrentRole();
 let selectedSettingsTab = 'permissions';
 let branchTypeDefinitions = getBranchTypeDefinitions();
 let selectedBranchType = branchTypeDefinitions[0]?.code || '';
 let branchTypeDefinitionsChanged = false;
+let pendingSettingsConfirmation = null;
+let settingsToastTimer = null;
 
 function setSettingsView(view) {
   const showBranchTypes = view === 'branchTypes';
@@ -90,11 +101,53 @@ function setSettingsView(view) {
     : 'Manage workspace permissions by role or member.';
 }
 
+function renderColorSwatches(palette, selectedColor) {
+  palette.innerHTML = ROLE_COLOR_SWATCHES.map((color) => `
+    <button class="color-palette-swatch" type="button" data-color="${color}" aria-label="${color}" aria-pressed="${color === selectedColor}" style="--swatch-color: ${color}"></button>
+  `).join('');
+}
+
+function renderRoleColorControl() {
+  const color = normalizeHexColor(roleColorsState[selectedRole]);
+  roleColorPicker.value = color;
+  roleColorCurrent.style.backgroundColor = color;
+  roleColorCurrent.setAttribute('aria-label', `Current role color ${color}`);
+  renderColorSwatches(roleColorPalette, color);
+}
+
+function selectRoleColor(color) {
+  roleColorsState[selectedRole] = normalizeHexColor(color);
+  renderRoleColorControl();
+  renderRoleSelector();
+}
+
+function renderBranchTypeColorControl(definition) {
+  const color = normalizeHexColor(definition && definition.color);
+  branchTypeColor.value = color;
+  branchTypeColor.disabled = !definition;
+  branchTypeColorCurrent.style.backgroundColor = color;
+  branchTypeColorCurrent.setAttribute('aria-label', `Current branch type color ${color}`);
+  renderColorSwatches(branchTypeColorPalette, color);
+}
+
+function selectBranchTypeColor(color) {
+  const definition = branchTypeDefinitions.find((type) => type.code === selectedBranchType);
+  if (!definition) return;
+  definition.color = normalizeHexColor(color);
+  branchTypeDefinitionsChanged = true;
+  renderBranchTypeColorControl(definition);
+  branchTypeSelector.querySelectorAll('[data-branch-type-select]').forEach((button) => {
+    if (button.dataset.branchTypeSelect === selectedBranchType) {
+      button.querySelector('.role-selector-dot').style.backgroundColor = definition.color;
+    }
+  });
+}
+
 function renderBranchTypeSelector() {
   branchTypeCount.textContent = String(branchTypeDefinitions.length);
   branchTypeSelector.innerHTML = branchTypeDefinitions.map((type) => `
     <button class="role-selector-item ${type.code === selectedBranchType ? 'active' : ''}" type="button" data-branch-type-select="${type.code}" aria-pressed="${type.code === selectedBranchType}">
-      <span class="role-selector-dot" aria-hidden="true"></span><span>${type.code}</span>
+      <span class="role-selector-dot" aria-hidden="true" style="background-color: ${normalizeHexColor(type.color)}"></span><span>${type.code}</span>
     </button>
   `).join('');
   renderSelectedBranchType();
@@ -111,6 +164,7 @@ function renderSelectedBranchType() {
   branchTypeShortcut.disabled = !definition;
   branchTypeFullName.value = definition ? definition.fullName : '';
   branchTypeFullName.disabled = !definition;
+  renderBranchTypeColorControl(definition);
   deleteBranchTypeButton.hidden = !definition;
   saveBranchTypeButton.disabled = !definition;
   branchTypePreview.textContent = definition
@@ -148,7 +202,7 @@ function createBranchType(code) {
     branchTypeCreateError.textContent = 'A branch type with that shortcut already exists.';
     return;
   }
-  branchTypeDefinitions.push({ code: normalizedCode, fullName: '' });
+  branchTypeDefinitions.push({ code: normalizedCode, fullName: '', color: DEFAULT_CUSTOM_ROLE_COLOR });
   branchTypeDefinitionsChanged = true;
   selectedBranchType = normalizedCode;
   closeBranchTypeCreateForm();
@@ -182,9 +236,11 @@ function captureSelectedBranchType() {
     return false;
   }
   const fullName = String(branchTypeFullName.value || '').trim();
-  if (definition.code !== code || definition.fullName !== fullName) branchTypeDefinitionsChanged = true;
+  const color = normalizeHexColor(branchTypeColor.value);
+  if (definition.code !== code || definition.fullName !== fullName || definition.color !== color) branchTypeDefinitionsChanged = true;
   definition.code = code;
   definition.fullName = fullName;
+  definition.color = color;
   selectedBranchType = code;
   return true;
 }
@@ -195,10 +251,12 @@ async function saveSelectedBranchType() {
     const synced = await saveBranchTypeDefinitions(branchTypeDefinitions);
     branchTypeSaveStatus.textContent = synced ? 'Branch type saved.' : 'Saved in this browser. Configure Apps Script to share it.';
     branchTypeSaveStatus.dataset.state = synced ? 'success' : 'notice';
+    showSettingsToast(synced ? 'Changes Saved Successfully' : 'Changes saved in this browser only');
     renderBranchTypeSelector();
   } catch (error) {
     branchTypeSaveStatus.textContent = 'Saved in this browser; Google Sheets could not be updated.';
     branchTypeSaveStatus.dataset.state = 'notice';
+    showSettingsToast('Changes saved locally; database unavailable');
     renderBranchTypeSelector();
     console.error('Unable to save branch types to Google Sheets:', error);
   }
@@ -219,13 +277,17 @@ function deleteSelectedBranchType() {
     showSettingsMessage(`${selectedBranchType} is assigned to one or more branches. Reassign those branches before deleting this type.`, 'Branch type is in use');
     return;
   }
-  if (!window.confirm(`Delete the ${selectedBranchType} branch type? Save changes to apply this deletion.`)) return;
-  branchTypeDefinitions = branchTypeDefinitions.filter((type) => type.code !== selectedBranchType);
-  branchTypeDefinitionsChanged = true;
-  selectedBranchType = branchTypeDefinitions[0]?.code || '';
-  renderBranchTypeSelector();
-  branchTypeSaveStatus.textContent = 'Type deleted. Save changes to apply.';
-  branchTypeSaveStatus.dataset.state = 'notice';
+  showSettingsConfirmation(
+    `Delete the ${selectedBranchType} branch type?`,
+    'Delete branch type',
+    async () => {
+      branchTypeDefinitions = branchTypeDefinitions.filter((type) => type.code !== selectedBranchType);
+      branchTypeDefinitionsChanged = true;
+      selectedBranchType = branchTypeDefinitions[0]?.code || '';
+      renderBranchTypeSelector();
+      await saveSelectedBranchType();
+    }
+  );
 }
 
 let managedBranches = [];
@@ -272,7 +334,7 @@ function renderRoleSelector() {
   roleCount.textContent = String(roleHierarchy.length);
   roleSelector.innerHTML = roleHierarchy.map((role) => `
     <button class="role-selector-item ${role === selectedRole ? 'active' : ''}" type="button" data-role-select="${role}" aria-pressed="${role === selectedRole}">
-      <span class="role-selector-dot" aria-hidden="true"></span><span>${role}</span>
+      <span class="role-selector-dot" aria-hidden="true" style="background-color: ${normalizeHexColor(roleColorsState[role])}"></span><span>${role}</span>
       ${role === 'Super Admin' ? '<span class="role-selector-lock" aria-label="Protected role">Locked</span>' : ''}
     </button>
   `).join('');
@@ -299,18 +361,23 @@ function deleteSelectedRole() {
     showSettingsMessage(`Reassign all ${assignedAccounts.length} account${assignedAccounts.length === 1 ? '' : 's'} using ${selectedRole} before deleting this role.`, 'Role is in use');
     return;
   }
-  if (!window.confirm(`Delete the ${selectedRole} role? Save changes to apply this deletion.`)) return;
-
-  delete rolePermissionsState[selectedRole];
-  delete pageAccessState[selectedRole];
-  Object.keys(userPermissionOverrides).forEach((username) => {
-    if (userPermissionOverrides[username].role === selectedRole) delete userPermissionOverrides[username];
-  });
-  selectedRole = 'Administrator';
-  syncRoleHierarchy();
-  renderRoleSelector();
-  renderSelectedRole();
-  showSettingsStatus('Role deleted. Save changes to apply.', 'notice');
+  showSettingsConfirmation(
+    `Delete the ${selectedRole} role?`,
+    'Delete role',
+    async () => {
+      delete rolePermissionsState[selectedRole];
+      delete pageAccessState[selectedRole];
+      delete roleColorsState[selectedRole];
+      Object.keys(userPermissionOverrides).forEach((username) => {
+        if (userPermissionOverrides[username].role === selectedRole) delete userPermissionOverrides[username];
+      });
+      selectedRole = 'Administrator';
+      syncRoleHierarchy();
+      renderRoleSelector();
+      renderSelectedRole();
+      await savePermissions();
+    }
+  );
 }
 
 function createRole(name) {
@@ -325,6 +392,7 @@ function createRole(name) {
   }
 
   rolePermissionsState[normalizedName] = createCustomRolePermissions();
+  roleColorsState[normalizedName] = DEFAULT_CUSTOM_ROLE_COLOR;
   pageAccessState[normalizedName] = createCustomRolePageAccess();
   selectedRole = normalizedName;
   syncRoleHierarchy();
@@ -338,6 +406,7 @@ function createRole(name) {
 function renderSelectedRole() {
   const locked = selectedRole === 'Super Admin';
   selectedRoleTitle.textContent = selectedRole;
+  renderRoleColorControl();
   selectedRoleDescription.textContent = locked
     ? 'This protected role always has full workspace access.'
     : `Configure page access and unit actions for ${selectedRole}.`;
@@ -521,19 +590,51 @@ function showSettingsStatus(message, state = 'success') {
   }, 2600);
 }
 
+function showSettingsToast(message) {
+  if (!settingsToast) return;
+  settingsToast.textContent = message;
+  settingsToast.classList.add('visible');
+  window.clearTimeout(settingsToastTimer);
+  settingsToastTimer = window.setTimeout(() => settingsToast.classList.remove('visible'), 4000);
+}
+
 function showSettingsMessage(message, title = 'Notice') {
+  const titleElement = document.getElementById('settingsMessageModalTitle');
+  if (!settingsMessageModalBackdrop || !settingsMessageModalBody) return;
+  pendingSettingsConfirmation = null;
+  if (titleElement) titleElement.textContent = title;
+  settingsMessageModalBody.textContent = message;
+  cancelSettingsMessageModalBtn.hidden = true;
+  okSettingsMessageModalBtn.textContent = 'OK';
+  settingsMessageModalBackdrop.classList.add('visible');
+  settingsMessageModalBackdrop.setAttribute('aria-hidden', 'false');
+}
+
+function showSettingsConfirmation(message, title, onConfirm) {
   const titleElement = document.getElementById('settingsMessageModalTitle');
   if (!settingsMessageModalBackdrop || !settingsMessageModalBody) return;
   if (titleElement) titleElement.textContent = title;
   settingsMessageModalBody.textContent = message;
+  pendingSettingsConfirmation = onConfirm;
+  cancelSettingsMessageModalBtn.hidden = false;
+  okSettingsMessageModalBtn.textContent = 'Delete';
   settingsMessageModalBackdrop.classList.add('visible');
   settingsMessageModalBackdrop.setAttribute('aria-hidden', 'false');
 }
 
 function closeSettingsMessage() {
   if (!settingsMessageModalBackdrop) return;
+  pendingSettingsConfirmation = null;
+  cancelSettingsMessageModalBtn.hidden = true;
+  okSettingsMessageModalBtn.textContent = 'OK';
   settingsMessageModalBackdrop.classList.remove('visible');
   settingsMessageModalBackdrop.setAttribute('aria-hidden', 'true');
+}
+
+function confirmSettingsMessage() {
+  const confirmAction = pendingSettingsConfirmation;
+  closeSettingsMessage();
+  if (confirmAction) confirmAction();
 }
 
 function getFormPermissions() {
@@ -551,6 +652,8 @@ async function savePermissions() {
   captureMemberOverrides();
   const permissions = getFormPermissions();
   const pageAccess = getFormPageAccess();
+  const roleColors = normalizeRoleColors(roleColorsState);
+  roleColorsState = roleColors;
   const config = window.GS_CONFIG || {};
 
   try {
@@ -562,6 +665,7 @@ async function savePermissions() {
         actorRole: getCurrentRole(),
         permissions: JSON.stringify(permissions),
         pageAccess: JSON.stringify(pageAccess),
+        roleColors: JSON.stringify(roleColors),
         userPermissions: JSON.stringify(userPermissionOverrides)
       }).toString()
     });
@@ -570,15 +674,17 @@ async function savePermissions() {
 
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
+    setRoleColors(roleColors);
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));
     showSettingsStatus('Permissions saved');
-    showSettingsMessage('Permissions saved', 'Permissions saved');
+    showSettingsToast('Changes Saved Successfully');
   } catch (error) {
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(permissions));
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
+    setRoleColors(roleColors);
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));
     showSettingsStatus('The database was unavailable', 'notice');
-    showSettingsMessage('The database was unavailable', 'Save warning');
+    showSettingsToast('Changes saved locally; database unavailable');
     console.error('Unable to save permissions to Google Sheets:', error);
   }
 }
@@ -612,6 +718,7 @@ async function loadPermissionsFromServer() {
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
     const pageAccess = { ...result.pageAccess, 'Super Admin': { ...DEFAULT_PAGE_ACCESS['Super Admin'] } };
     userPermissionOverrides = result.userPermissions || {};
+    roleColorsState = setRoleColors(result.roleColors || roleColorsState);
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));
     rolePermissionsState = getRolePermissions();
@@ -645,7 +752,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   savePermissionsBtn.addEventListener('click', savePermissions);
   resetPermissionsBtn.addEventListener('click', resetPermissions);
   closeSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
-  okSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
+  okSettingsMessageModalBtn.addEventListener('click', confirmSettingsMessage);
+  cancelSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
   settingsMessageModalBackdrop.addEventListener('click', (event) => {
     if (event.target === settingsMessageModalBackdrop) closeSettingsMessage();
   });
@@ -671,6 +779,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     event.preventDefault();
     createRole(newRoleName.value);
   });
+  roleColorPicker.addEventListener('input', () => {
+    selectRoleColor(roleColorPicker.value);
+  });
+  roleColorPalette.addEventListener('click', (event) => {
+    const swatch = event.target.closest('[data-color]');
+    if (swatch) selectRoleColor(swatch.dataset.color);
+  });
   branchTypeSelector.addEventListener('click', (event) => {
     if (!captureSelectedBranchType()) return;
     const button = event.target.closest('[data-branch-type-select]');
@@ -689,6 +804,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   branchTypeShortcut.addEventListener('input', updateBranchTypePreview);
   branchTypeFullName.addEventListener('input', updateBranchTypePreview);
+  branchTypeColor.addEventListener('input', () => {
+    selectBranchTypeColor(branchTypeColor.value);
+  });
+  branchTypeColorPalette.addEventListener('click', (event) => {
+    const swatch = event.target.closest('[data-color]');
+    if (swatch) selectBranchTypeColor(swatch.dataset.color);
+  });
   saveBranchTypeButton.addEventListener('click', saveSelectedBranchType);
   deleteBranchTypeButton.addEventListener('click', deleteSelectedBranchType);
   permissionsTableBody.addEventListener('change', (event) => {

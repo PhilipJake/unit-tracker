@@ -29,6 +29,11 @@ function getBranchTypeLabel(type) {
   return definition && definition.fullName ? `${type} — ${definition.fullName}` : type;
 }
 
+function getBranchTypeColor(type) {
+  const definition = getBranchTypeDefinitions().find((item) => item.code.toUpperCase() === String(type).toUpperCase());
+  return normalizeHexColor(definition && definition.color);
+}
+
 function renderBranchTypeOptions() {
   if (!branchTypeSelect) return;
   const selectedType = branchTypeSelect.value;
@@ -156,7 +161,7 @@ function renderBranchesDirectory() {
     }).join('');
     return `
       <section class="account-role-group branch-type-group" aria-label="${escapeHtml(type)} branches">
-        <header><span>${escapeHtml(getBranchTypeLabel(type))}</span><span>${groupBranches.length}</span></header>
+        <header><span class="branch-type-label"><i aria-hidden="true" style="background-color: ${getBranchTypeColor(type)}"></i>${escapeHtml(getBranchTypeLabel(type))}</span><span>${groupBranches.length}</span></header>
         <div>${rows}</div>
       </section>
     `;

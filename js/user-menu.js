@@ -30,11 +30,52 @@ function getCurrentRole() {
   return role && role.trim() ? role.trim() : 'Technician';
 }
 
-const DEFAULT_BRANCH_TYPE_DEFINITIONS = [
-  { code: 'BNB', fullName: 'Bytes and Bots Gadget Center' },
-  { code: 'EZ', fullName: '' },
-  { code: '1LR', fullName: '' }
+const DEFAULT_ROLE_COLORS = {
+  'Super Admin': '#21A675',
+  Administrator: '#3388CC',
+  'Main Head Admin': '#E3A83D',
+  'Branch Head Admin': '#D36C60',
+  Office: '#597D8C',
+  Technician: '#84919A'
+};
+const DEFAULT_CUSTOM_ROLE_COLOR = '#84919A';
+const ROLE_COLOR_SWATCHES = [
+  '#16B99A', '#2CCB7D', '#3498DB', '#9B59B6', '#E91E63', '#F1C40F', '#E67E22', '#E74C3C', '#95A5A6', '#607D8B',
+  '#128F76', '#239B56', '#2874A6', '#7D3C98', '#B71540', '#B7950B', '#A04000', '#922B21', '#7B8788', '#455A64'
 ];
+const DEFAULT_BRANCH_TYPE_DEFINITIONS = [
+  { code: 'BNB', fullName: 'Bytes and Bots Gadget Center', color: '#21A675' },
+  { code: 'EZ', fullName: '', color: '#3388CC' },
+  { code: '1LR', fullName: '', color: '#E3A83D' }
+];
+
+function normalizeHexColor(value, fallback = DEFAULT_CUSTOM_ROLE_COLOR) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color.toUpperCase() : fallback;
+}
+
+function normalizeRoleColors(colors) {
+  const normalized = { ...DEFAULT_ROLE_COLORS };
+  if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return normalized;
+  Object.entries(colors).forEach(([role, color]) => {
+    if (String(role).trim()) normalized[role] = normalizeHexColor(color);
+  });
+  return normalized;
+}
+
+function getRoleColors() {
+  try {
+    return normalizeRoleColors(JSON.parse(localStorage.getItem('unitflowRoleColors') || '{}'));
+  } catch (error) {
+    return normalizeRoleColors({});
+  }
+}
+
+function setRoleColors(colors) {
+  const normalized = normalizeRoleColors(colors);
+  localStorage.setItem('unitflowRoleColors', JSON.stringify(normalized));
+  return normalized;
+}
 
 function normalizeBranchTypeDefinitions(definitions) {
   if (!Array.isArray(definitions)) return [];
@@ -43,7 +84,12 @@ function normalizeBranchTypeDefinitions(definitions) {
     const code = String(definition && definition.code || '').trim().toUpperCase();
     if (!code || seenCodes.has(code)) return result;
     seenCodes.add(code);
-    result.push({ code, fullName: String(definition.fullName || '').trim() });
+    const defaultType = DEFAULT_BRANCH_TYPE_DEFINITIONS.find((item) => item.code === code);
+    result.push({
+      code,
+      fullName: String(definition.fullName || '').trim(),
+      color: normalizeHexColor(definition.color, defaultType ? defaultType.color : DEFAULT_CUSTOM_ROLE_COLOR)
+    });
     return result;
   }, []);
 }
@@ -443,6 +489,85 @@ function logoutUser() {
   window.location.href = resolveRoutePath('pages/login.html');
 }
 
+function getDarkModeStorageKey(username = localStorage.getItem('unitflowUser')) {
+  return `unitflowDarkMode:${String(username || '').trim().toLowerCase()}`;
+}
+
+function applyDarkMode(enabled, saveToServer = true) {
+  const isEnabled = Boolean(enabled);
+  document.documentElement.dataset.theme = isEnabled ? 'dark' : 'light';
+  const toggle = document.getElementById('darkModeToggle');
+  if (toggle) toggle.checked = isEnabled;
+  localStorage.setItem('unitflowDarkMode', String(isEnabled));
+  const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
+  if (username) localStorage.setItem(getDarkModeStorageKey(username), String(isEnabled));
+  if (saveToServer && username) saveDarkModePreference(username, isEnabled);
+}
+
+function requestDarkModePreference(username) {
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl) return Promise.reject(new Error('Apps Script URL is not configured'));
+
+  return new Promise((resolve, reject) => {
+    const callbackName = `unitflowDarkModeCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const timeout = window.setTimeout(() => {
+      delete window[callbackName];
+      script.remove();
+      reject(new Error('Dark mode preference request timed out'));
+    }, 10000);
+
+    window[callbackName] = (result) => {
+      window.clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+      if (!result || result.ok === false) {
+        reject(new Error((result && result.error) || 'Dark mode preference request failed'));
+        return;
+      }
+      resolve(Boolean(result.darkMode));
+    };
+
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+      reject(new Error('Dark mode preference request failed'));
+    };
+    script.src = `${config.appScriptUrl}?action=userpreferences&username=${encodeURIComponent(username)}&callback=${encodeURIComponent(callbackName)}`;
+    document.head.appendChild(script);
+  });
+}
+
+async function loadDarkModePreference(username) {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!normalizedUsername) return;
+  try {
+    const isDark = await requestDarkModePreference(normalizedUsername);
+    applyDarkMode(isDark, false);
+  } catch (error) {
+    const cached = localStorage.getItem(getDarkModeStorageKey(normalizedUsername));
+    if (cached !== null) applyDarkMode(cached === 'true', false);
+    console.warn('Unable to load the saved dark mode preference:', error);
+  }
+}
+
+function saveDarkModePreference(username, isDark) {
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl) return;
+  const body = new URLSearchParams({
+    action: 'saveuserpreferences',
+    username,
+    darkMode: String(Boolean(isDark))
+  });
+  fetch(config.appScriptUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: body.toString()
+  }).catch((error) => console.warn('Unable to save the dark mode preference:', error));
+}
+
 function closeChangePasswordModal(backdrop) {
   backdrop.classList.remove('visible');
   backdrop.setAttribute('aria-hidden', 'true');
@@ -610,6 +735,12 @@ function initNavToggle() {
 }
 
 function initUserMenu() {
+  const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
+  const cachedDarkMode = username ? localStorage.getItem(getDarkModeStorageKey(username)) : null;
+  applyDarkMode(cachedDarkMode === null
+    ? localStorage.getItem('unitflowDarkMode') === 'true'
+    : cachedDarkMode === 'true', false);
+  if (username) loadDarkModePreference(username);
   if (!localStorage.getItem('unitflowRole')) {
     window.location.href = resolveRoutePath('pages/login.html');
     return;
@@ -621,6 +752,7 @@ function initUserMenu() {
   const userDropdown = document.getElementById('userDropdown');
   const logoutButton = document.getElementById('logoutButton');
   let changePasswordButton = document.getElementById('changePasswordButton');
+  let darkModeToggle = document.getElementById('darkModeToggle');
 
   if (userDropdown && !changePasswordButton) {
     changePasswordButton = document.createElement('button');
@@ -628,6 +760,19 @@ function initUserMenu() {
     changePasswordButton.id = 'changePasswordButton';
     changePasswordButton.textContent = 'Change Password';
     userDropdown.insertBefore(changePasswordButton, logoutButton || null);
+  }
+
+  if (userDropdown && !darkModeToggle) {
+    const themeRow = document.createElement('div');
+    themeRow.className = 'user-theme-row';
+    themeRow.innerHTML = '<span id="darkModeLabel">Dark mode</span><label class="user-theme-switch"><input id="darkModeToggle" type="checkbox" role="switch" aria-labelledby="darkModeLabel"><span aria-hidden="true"></span></label>';
+    userDropdown.insertBefore(themeRow, logoutButton || null);
+    darkModeToggle = themeRow.querySelector('#darkModeToggle');
+  }
+
+  if (darkModeToggle) {
+    darkModeToggle.checked = localStorage.getItem('unitflowDarkMode') === 'true';
+    darkModeToggle.addEventListener('change', () => applyDarkMode(darkModeToggle.checked));
   }
 
   initNavToggle();

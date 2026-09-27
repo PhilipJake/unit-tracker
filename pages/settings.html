@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Settings | Unitflow</title>
     <link rel="icon" type="image/svg+xml" href="../images/favicon.svg" />
+    <script src="../js/theme-init.js"></script>
     <link rel="stylesheet" href="../css/styles.css" />
   </head>
   <body class="dashboard-shell">
@@ -108,6 +109,14 @@
             </div>
 
             <section class="role-editor-content" id="rolePermissionsTab" role="tabpanel" aria-labelledby="permissionsTabButton">
+              <section class="permission-section role-color-section">
+                <div class="permission-section-heading"><div><h3>Role color</h3><p>Members use the color of the highest role they have on the roles list.</p></div></div>
+                <div class="color-picker-row role-color-control">
+                  <div class="color-current-swatch" id="roleColorCurrent" role="img" aria-label="Current role color"><span aria-hidden="true">✓</span></div>
+                  <label class="color-custom-button" title="Choose a custom role color"><span aria-hidden="true">✎</span><input id="roleColorPicker" type="color" aria-label="Choose a custom role color"></label>
+                  <div class="color-swatch-palette" id="roleColorPalette" role="group" aria-label="Preset role colors"></div>
+                </div>
+              </section>
               <section class="permission-section">
                 <div class="permission-section-heading"><div><h3>Workspace pages</h3><p>Choose which pages members with this role can open.</p></div></div>
                 <div class="page-access-grid" id="pageAccessGrid"></div>
@@ -171,6 +180,14 @@
               <div class="role-editor-content branch-type-editor-content">
                 <label class="branch-type-field" for="branchTypeShortcut"><span>Shortcut</span><input id="branchTypeShortcut" type="text" maxlength="12" autocomplete="off" required></label>
                 <label class="branch-type-field" for="branchTypeFullName"><span>Full CodeName</span><input id="branchTypeFullName" type="text" maxlength="80" placeholder="e.g. Bytes and Bots Gadget Center" autocomplete="off"></label>
+                <div class="branch-type-field">
+                  <span>Branch type color</span>
+                  <div class="color-picker-row">
+                    <div class="color-current-swatch" id="branchTypeColorCurrent" role="img" aria-label="Current branch type color"><span aria-hidden="true">✓</span></div>
+                    <label class="color-custom-button" title="Choose a custom branch type color"><span aria-hidden="true">✎</span><input id="branchTypeColor" type="color" aria-label="Choose a custom branch type color"></label>
+                    <div class="color-swatch-palette" id="branchTypeColorPalette" role="group" aria-label="Preset branch type colors"></div>
+                  </div>
+                </div>
                 <p class="branch-type-preview" id="branchTypePreview"></p>
               </div>
               <footer class="role-editor-footer">
@@ -192,10 +209,13 @@
         </div>
         <div class="modal-body" id="settingsMessageModalBody"></div>
         <div class="modal-actions">
+          <button type="button" class="action-btn" id="cancelSettingsMessageModalBtn" hidden>Cancel</button>
           <button type="button" class="action-btn primary" id="okSettingsMessageModalBtn">OK</button>
         </div>
       </div>
     </div>
+
+    <div class="message-toast" id="settingsToast" role="status" aria-live="polite"></div>
 
     <script src="../gs/config.js"></script>
     <script src="../js/data.js"></script>

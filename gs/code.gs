@@ -11,6 +11,16 @@ function doGet(e) {
     return readBranchTypeSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
   }
 
+  if (action === 'userpreferences') {
+    const result = readUserPreferences(SpreadsheetApp.openById(SPREADSHEET_ID), e.parameter.username);
+    const callback = String(e.parameter.callback || '');
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(callback)) {
+      return ContentService.createTextOutput(callback + '(' + JSON.stringify(result) + ');')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return jsonResponse(result);
+  }
+
   if (action === 'messages') {
     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ensureSheet(spreadsheet, 'Messages');
@@ -45,6 +55,10 @@ function doPost(e) {
 
   if (action === 'savebranchtypes') {
     return saveBranchTypeSettings(spreadsheet, values);
+  }
+
+  if (action === 'saveuserpreferences') {
+    return saveUserPreferences(spreadsheet, values);
   }
 
   if (action === 'contactadmin') {
@@ -258,7 +272,21 @@ function readPermissionSettings(spreadsheet) {
   const superAdminDefaults = defaults[0];
   permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15] };
   pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
-  return jsonResponse({ ok: true, permissions, pageAccess, userPermissions: readUserPermissionOverrides(spreadsheet) });
+  return jsonResponse({ ok: true, permissions, pageAccess, userPermissions: readUserPermissionOverrides(spreadsheet), roleColors: readRoleColors() });
+}
+
+function readRoleColors() {
+  try {
+    const colors = JSON.parse(PropertiesService.getScriptProperties().getProperty('ROLE_COLORS') || '{}');
+    if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return {};
+    return Object.keys(colors).reduce((result, role) => {
+      const color = String(colors[role] || '').trim();
+      if (/^#[0-9a-f]{6}$/i.test(color)) result[role] = color.toUpperCase();
+      return result;
+    }, {});
+  } catch (error) {
+    return {};
+  }
 }
 
 function readUserPermissionOverrides(spreadsheet) {
@@ -291,13 +319,23 @@ function savePermissionSettings(spreadsheet, values) {
   let permissions;
   let pageAccess;
   let userPermissions;
+  let roleColors;
   try {
     permissions = JSON.parse(String(values.permissions || '{}'));
     pageAccess = JSON.parse(String(values.pageAccess || '{}'));
     userPermissions = JSON.parse(String(values.userPermissions || '{}'));
+    roleColors = JSON.parse(String(values.roleColors || '{}'));
   } catch (error) {
     return jsonResponse({ ok: false, error: 'Invalid permission data' });
   }
+  if (!roleColors || typeof roleColors !== 'object' || Array.isArray(roleColors)) {
+    return jsonResponse({ ok: false, error: 'Invalid role color data' });
+  }
+  const normalizedRoleColors = {};
+  Object.keys(roleColors).forEach((role) => {
+    const color = String(roleColors[role] || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(color)) normalizedRoleColors[role] = color.toUpperCase();
+  });
 
   const defaults = getDefaultPermissionRows();
   const defaultsByRole = defaults.reduce((roleDefaults, row) => {
@@ -329,20 +367,23 @@ function savePermissionSettings(spreadsheet, values) {
   userSheet.getRange(1, 1, 1, 4).setValues([['Username', 'Role', 'Permissions', 'Page Access']]);
   if (userRows.length) userSheet.getRange(2, 1, userRows.length, 4).setValues(userRows);
   userSheet.setFrozenRows(1);
+  PropertiesService.getScriptProperties().setProperty('ROLE_COLORS', JSON.stringify(normalizedRoleColors));
   return jsonResponse({ ok: true, action: 'savePermissions' });
 }
 
 function ensureBranchTypeSheet(spreadsheet) {
   const sheet = spreadsheet.getSheetByName('Branch Types') || spreadsheet.insertSheet('Branch Types');
-  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 2).setValues([['Shortcut', 'Full CodeName']]);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 3).setValues([['Shortcut', 'Full CodeName', 'Color']]);
+  const headers = sheet.getRange(1, 1, 1, Math.max(3, sheet.getLastColumn())).getValues()[0];
+  if (!headers.some((header) => String(header).trim().toLowerCase() === 'color')) sheet.getRange(1, 3).setValue('Color');
   const properties = PropertiesService.getScriptProperties();
   if (properties.getProperty('BRANCH_TYPES_INITIALIZED') !== 'true') {
     const hasTypes = sheet.getLastRow() > 1 && sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().some((row) => String(row[0] || '').trim());
     if (!hasTypes) {
-      sheet.getRange(2, 1, 3, 2).setValues([
-        ['BNB', 'Bytes and Bots Gadget Center'],
-        ['EZ', ''],
-        ['1LR', '']
+      sheet.getRange(2, 1, 3, 3).setValues([
+        ['BNB', 'Bytes and Bots Gadget Center', '#21A675'],
+        ['EZ', '', '#3388CC'],
+        ['1LR', '', '#E3A83D']
       ]);
     }
     properties.setProperty('BRANCH_TYPES_INITIALIZED', 'true');
@@ -356,7 +397,7 @@ function readBranchTypeSettings(spreadsheet) {
   const rows = sheet.getDataRange().getValues().slice(1);
   const branchTypes = rows
     .filter((row) => String(row[0] || '').trim())
-    .map((row) => ({ code: String(row[0]).trim().toUpperCase(), fullName: String(row[1] || '').trim() }));
+    .map((row) => ({ code: String(row[0]).trim().toUpperCase(), fullName: String(row[1] || '').trim(), color: String(row[2] || '').trim() }));
   return jsonResponse({ ok: true, branchTypes });
 }
 
@@ -374,20 +415,58 @@ function saveBranchTypeSettings(spreadsheet, values) {
   if (!Array.isArray(branchTypes)) return jsonResponse({ ok: false, error: 'Invalid branch type data' });
 
   const seenCodes = new Set();
-  const rows = branchTypes.map((type) => {
+  const rows = [];
+  for (const type of branchTypes) {
     const code = String(type && type.code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{1,12}$/.test(code) || seenCodes.has(code)) throw new Error('Branch type shortcuts must be unique letters or numbers.');
     seenCodes.add(code);
-    return [code, String(type.fullName || '').trim()];
-  });
+    const color = String(type.color || '').trim().toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(color)) return jsonResponse({ ok: false, error: 'Branch type colors must be six-digit hex values.' });
+    rows.push([code, String(type.fullName || '').trim(), color]);
+  }
 
   const sheet = ensureBranchTypeSheet(spreadsheet);
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, 2).setValues([['Shortcut', 'Full CodeName']]);
-  if (rows.length) sheet.getRange(2, 1, rows.length, 2).setValues(rows);
+  sheet.getRange(1, 1, 1, 3).setValues([['Shortcut', 'Full CodeName', 'Color']]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   sheet.setFrozenRows(1);
   PropertiesService.getScriptProperties().setProperty('BRANCH_TYPES_INITIALIZED', 'true');
   return jsonResponse({ ok: true, action: 'saveBranchTypes' });
+}
+
+function ensureUserPreferencesSheet(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName('User Preferences') || spreadsheet.insertSheet('User Preferences');
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 2).setValues([['Username', 'Dark Mode']]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function readUserPreferences(spreadsheet, username) {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!normalizedUsername) return { ok: false, error: 'Missing username' };
+  const sheet = ensureUserPreferencesSheet(spreadsheet);
+  if (sheet.getLastRow() < 2) return { ok: true, darkMode: false };
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  const row = rows.find((item) => String(item[0] || '').trim().toLowerCase() === normalizedUsername);
+  return { ok: true, darkMode: row ? toPermissionBoolean(row[1]) : false };
+}
+
+function saveUserPreferences(spreadsheet, values) {
+  const username = String(values.username || '').trim().toLowerCase();
+  if (!username) return jsonResponse({ ok: false, error: 'Missing username' });
+  const darkMode = ['true', '1', 'yes', 'on'].includes(String(values.darkMode || '').trim().toLowerCase());
+  const sheet = ensureUserPreferencesSheet(spreadsheet);
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    const rowIndex = rows.findIndex((row) => String(row[0] || '').trim().toLowerCase() === username);
+    if (rowIndex !== -1) {
+      sheet.getRange(rowIndex + 2, 2).setValue(darkMode);
+      return jsonResponse({ ok: true, action: 'saveUserPreferences' });
+    }
+  }
+  sheet.appendRow([username, darkMode]);
+  return jsonResponse({ ok: true, action: 'saveUserPreferences' });
 }
 
 function markMessageRead(spreadsheet, messageId) {

@@ -348,6 +348,66 @@ button, input, select {
   background: #f2f5f2;
 }
 
+.user-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.user-theme-switch {
+  position: relative;
+  display: inline-flex;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 38px;
+  cursor: pointer;
+}
+
+.user-theme-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.user-theme-switch > span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #aeb8b1;
+  transition: background-color 150ms ease;
+}
+
+.user-theme-switch > span::before {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+  transition: transform 150ms ease;
+}
+
+.user-theme-switch input:checked + span {
+  background: var(--green-text);
+}
+
+.user-theme-switch input:checked + span::before {
+  transform: translateX(16px);
+}
+
+.user-theme-switch input:focus-visible + span {
+  outline: 2px solid var(--green-text);
+  outline-offset: 2px;
+}
+
 .content {
   padding: 26px 30px 30px;
   min-height: calc(100vh - 92px);
@@ -2259,7 +2319,21 @@ td {
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.settings-heading-row .eyebrow {
+  margin-bottom: 6px;
+}
+
+.settings-heading-row h1 {
+  font-size: 2rem;
+  letter-spacing: 0;
+}
+
+.settings-heading-row p {
+  margin-top: 6px;
+  font-size: 0.92rem;
 }
 
 .settings-status {
@@ -2284,13 +2358,13 @@ td {
 .settings-view-tabs {
   display: flex;
   gap: 26px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 
 .settings-view-tab {
   position: relative;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -2347,7 +2421,8 @@ td {
   font-size: 0.96rem;
 }
 
-.role-list-heading #roleCount {
+.role-list-heading #roleCount,
+.role-list-heading #branchTypeCount {
   margin-left: auto;
 }
 
@@ -2466,12 +2541,84 @@ td {
   background: #98a5a0;
 }
 
-.role-selector-item:nth-child(1) .role-selector-dot { background: #21a675; }
-.role-selector-item:nth-child(2) .role-selector-dot { background: #3388cc; }
-.role-selector-item:nth-child(3) .role-selector-dot { background: #e3a83d; }
-.role-selector-item:nth-child(4) .role-selector-dot { background: #d36c60; }
-.role-selector-item:nth-child(5) .role-selector-dot { background: #597d8c; }
-.role-selector-item:nth-child(6) .role-selector-dot { background: #84919a; }
+.role-color-control {
+  justify-content: flex-start;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-current-swatch,
+.color-custom-button {
+  position: relative;
+  display: inline-flex;
+  width: 64px;
+  height: 50px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.color-current-swatch {
+  color: #fff;
+  font-size: 1.2rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.color-custom-button {
+  width: 48px;
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.color-custom-button input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.color-custom-button:focus-within {
+  outline: 2px solid var(--green-text);
+  outline-offset: 2px;
+}
+
+.color-swatch-palette {
+  display: grid;
+  grid-template-columns: repeat(10, 18px);
+  grid-auto-rows: 18px;
+  gap: 5px;
+}
+
+.color-palette-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  background: var(--swatch-color);
+  cursor: pointer;
+}
+
+.color-palette-swatch:hover {
+  transform: scale(1.16);
+}
+
+.color-palette-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--panel-bg);
+  box-shadow: 0 0 0 3px var(--swatch-color);
+}
 
 .role-selector-lock {
   margin-left: auto;
@@ -2535,6 +2682,25 @@ td {
   color: var(--muted);
 }
 
+.branch-type-field input[type="color"] {
+  width: 52px;
+  padding: 4px;
+}
+
+.branch-type-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.branch-type-label i {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border: 1px solid rgba(18, 26, 22, 0.15);
+  border-radius: 50%;
+}
+
 .branch-type-preview {
   min-height: 20px;
   margin: 0;
@@ -2557,7 +2723,7 @@ td {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px 24px 17px;
+  padding: 16px 20px 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2615,7 +2781,7 @@ td {
 
 .role-editor-tab {
   position: relative;
-  min-height: 48px;
+  min-height: 42px;
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -2655,6 +2821,13 @@ td {
 
 .role-editor-content {
   padding: 22px 24px 8px;
+}
+
+#rolesManagerPanel .role-editor-content {
+  max-height: min(52vh, 580px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .permission-section {
@@ -2890,7 +3063,7 @@ td {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 14px 24px;
+  padding: 10px 20px;
   border-top: 1px solid var(--line);
   background: var(--panel-alt);
 }
@@ -2903,6 +3076,7 @@ td {
 .settings-content {
   max-width: 100%;
   overflow-x: hidden;
+  padding: 20px 30px 22px;
 }
 
 .settings-content .panel-header {
@@ -3097,6 +3271,17 @@ td {
 
   .role-editor-header {
     padding: 18px 16px 14px;
+  }
+
+  .color-swatch-palette {
+    grid-template-columns: repeat(10, 13px);
+    grid-auto-rows: 13px;
+    gap: 4px;
+  }
+
+  .color-palette-swatch {
+    width: 13px;
+    height: 13px;
   }
 
   .branch-type-editor-content {
@@ -4026,4 +4211,215 @@ td {
     padding-right: 12px;
     padding-left: 12px;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --main-bg: #111714;
+  --panel-bg: #1d2520;
+  --panel-alt: #252f29;
+  --text: #e8eee9;
+  --muted: #a5b1a9;
+  --line: #3a4740;
+  --dark-card: #151c18;
+  --green-soft: #203c2e;
+  --green-text: #8de0ad;
+  --orange-soft: #45391f;
+  --orange-text: #f1c776;
+  --blue-soft: #20364b;
+  --blue-text: #9fcaff;
+  --red-soft: #492b29;
+  --red-text: #ffaaa2;
+  --shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .workspace {
+  background: var(--main-bg);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .heading-block h1,
+html[data-theme="dark"] td {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .workspace-topbar {
+  background: #171e1a;
+}
+
+html[data-theme="dark"] .breadcrumb span {
+  color: #819087;
+}
+
+html[data-theme="dark"] .user-pill,
+html[data-theme="dark"] .user-dropdown,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .summary-card:not(.dark),
+html[data-theme="dark"] .accounts-directory,
+html[data-theme="dark"] .role-list-panel,
+html[data-theme="dark"] .role-editor-panel,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .branch-code-chart-content,
+html[data-theme="dark"] .recipient-picker,
+html[data-theme="dark"] .recipient-options,
+html[data-theme="dark"] .search-suggestions,
+html[data-theme="dark"] .dropdown-menu {
+  background-color: var(--panel-bg);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .user-dropdown button:hover,
+html[data-theme="dark"] .recipient-option:hover,
+html[data-theme="dark"] .account-member-row:hover,
+html[data-theme="dark"] .role-selector-item:hover {
+  background-color: var(--panel-alt);
+}
+
+html[data-theme="dark"] .user-theme-switch > span::before,
+html[data-theme="dark"] .color-current-swatch {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] .role-selector-item.active {
+  background: var(--green-soft);
+  color: var(--green-text);
+}
+
+html[data-theme="dark"] .role-editor-footer,
+html[data-theme="dark"] .permissions-actions,
+html[data-theme="dark"] .panel-header,
+html[data-theme="dark"] .table-wrap,
+html[data-theme="dark"] .overview-table,
+html[data-theme="dark"] .unit-table,
+html[data-theme="dark"] .unit-registry-table {
+  background-color: var(--panel-bg);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] table th,
+html[data-theme="dark"] .unit-table th,
+html[data-theme="dark"] .unit-registry-table th {
+  background-color: var(--panel-alt);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] table td,
+html[data-theme="dark"] .unit-table td,
+html[data-theme="dark"] .unit-registry-table td,
+html[data-theme="dark"] .account-member-row,
+html[data-theme="dark"] .permission-section,
+html[data-theme="dark"] .page-access-option {
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: #202a24;
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #8d9a91;
+}
+
+html[data-theme="dark"] .action-btn {
+  background-color: var(--panel-alt);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .action-btn.primary {
+  background-color: #287a52;
+  border-color: #287a52;
+  color: #fff;
+}
+
+html[data-theme="dark"] .action-btn.danger {
+  background-color: #402523;
+  color: var(--red-text);
+  border-color: #68403b;
+}
+
+html[data-theme="dark"] .role-create-form,
+html[data-theme="dark"] .account-member-actions button,
+html[data-theme="dark"] .attachment-button,
+html[data-theme="dark"] .attachment-chip,
+html[data-theme="dark"] .message-attachments a {
+  background-color: var(--panel-alt);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .message-toast {
+  background-color: var(--panel-bg);
+  color: var(--text);
+  border-color: #41654f;
+}
+
+html[data-theme="dark"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.68);
+}
+
+html[data-theme="dark"] .activity-grid line {
+  stroke: #46544b;
+}
+
+html[data-theme="dark"] .activity-chart-content {
+  background: var(--panel-alt);
+}
+
+html[data-theme="dark"] .activity-axis {
+  stroke: #64736a;
+}
+
+html[data-theme="dark"] .activity-point {
+  stroke: #202a24;
+}
+
+html[data-theme="dark"] .message-viewer {
+  background-color: var(--panel-bg);
+}
+
+html[data-theme="dark"] .message-search input,
+html[data-theme="dark"] .conversation-item:hover,
+html[data-theme="dark"] .conversation-item.selected {
+  background-color: var(--panel-alt);
+}
+
+html[data-theme="dark"] .auth-page {
+  background: linear-gradient(135deg, #111714 0%, #1a241e 100%);
+}
+
+html[data-theme="dark"] .auth-shell {
+  background-color: var(--panel-bg);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .auth-card {
+  background-color: var(--panel-alt);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .auth-button {
+  background-color: #287a52;
+}
+
+html[data-theme="dark"] .auth-button:hover {
+  background-color: #329363;
+}
+
+html[data-theme="dark"] .auth-developer {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .container .panel button[type="submit"] {
+  background: #287a52 !important;
+  color: #fff !important;
 }
