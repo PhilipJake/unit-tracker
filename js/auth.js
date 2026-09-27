@@ -19,6 +19,8 @@ function resolveAppPath(targetPath) {
 }
 
 const loginForm = document.getElementById('loginForm');
+const loginLoadingScreen = document.getElementById('loginLoadingScreen');
+const loginLoadingStatus = document.getElementById('loginLoadingStatus');
 const contactAdminLink = document.getElementById('contactAdminLink');
 const contactAdminBackdrop = document.getElementById('contactAdminBackdrop');
 const contactAdminForm = document.getElementById('contactAdminForm');
@@ -142,9 +144,21 @@ if (loginForm) {
       return;
     }
 
+    const submitButton = loginForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    if (loginLoadingScreen) {
+      loginLoadingScreen.hidden = false;
+      loginLoadingScreen.setAttribute('aria-hidden', 'false');
+    }
+
     const account = await authenticateAccount(username, password);
 
     if (!account) {
+      if (loginLoadingScreen) {
+        loginLoadingScreen.hidden = true;
+        loginLoadingScreen.setAttribute('aria-hidden', 'true');
+      }
+      submitButton.disabled = false;
       showAppPopup('Invalid username or password.');
       return;
     }
@@ -157,6 +171,7 @@ if (loginForm) {
     const config = window.GS_CONFIG || {};
     if (config.appScriptUrl) {
       try {
+        if (loginLoadingStatus) loginLoadingStatus.innerHTML = 'Syncing access profile<span>...</span>';
         const response = await fetch(`${config.appScriptUrl}?action=permissions`, { cache: 'no-store' });
         const result = await response.json();
         if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) {

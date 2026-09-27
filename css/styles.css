@@ -1706,6 +1706,202 @@ td {
   font-size: 1.05rem;
 }
 
+.login-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: #07110f;
+  color: #d9fff2;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.login-loading-screen[hidden] {
+  display: none;
+}
+
+.login-loading-grid {
+  position: absolute;
+  inset: -50%;
+  background-image: linear-gradient(rgba(67, 255, 190, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(67, 255, 190, 0.055) 1px, transparent 1px);
+  background-size: 44px 44px;
+  transform: perspective(500px) rotateX(58deg) scale(1.5);
+  transform-origin: center 75%;
+  mask-image: linear-gradient(transparent 10%, #000 70%);
+}
+
+.login-loading-panel {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 1px solid rgba(81, 255, 193, 0.4);
+  background: rgba(6, 20, 17, 0.92);
+  box-shadow: 0 0 70px rgba(16, 255, 174, 0.1), inset 0 0 36px rgba(16, 255, 174, 0.035);
+  animation: login-panel-in 320ms ease-out both;
+}
+
+.login-loading-brand,
+.login-loading-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.login-loading-brand {
+  justify-content: flex-start;
+  color: #f0fff9;
+}
+
+.login-loading-brand > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #4effbb;
+  color: #4effbb;
+  font-size: 0.9rem;
+}
+
+.login-loading-brand i {
+  margin-left: auto;
+  color: #68a997;
+  font-size: 0.62rem;
+  font-style: normal;
+}
+
+.login-loading-radar {
+  position: relative;
+  display: grid;
+  width: 78px;
+  height: 78px;
+  margin: 34px auto 24px;
+  place-items: center;
+  border: 1px solid rgba(78, 255, 187, 0.55);
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, transparent 0 12px, rgba(78, 255, 187, 0.22) 13px 14px);
+}
+
+.login-loading-radar::before {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  border-top: 1px solid #4effbb;
+  content: "";
+  transform-origin: bottom right;
+  animation: login-radar-sweep 2.4s linear infinite;
+}
+
+.login-loading-radar span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b5ffe3;
+  box-shadow: 0 0 12px #4effbb;
+}
+
+.login-loading-radar b {
+  position: absolute;
+  top: 19px;
+  right: 20px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #4effbb;
+  box-shadow: 0 0 8px #4effbb;
+}
+
+.login-loading-kicker,
+.login-loading-footer {
+  color: #6aa897;
+}
+
+.login-loading-kicker {
+  margin: 0 0 10px;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+}
+
+.login-loading-panel h1 {
+  margin: 0;
+  color: #e8fff6;
+  font-size: clamp(1.8rem, 7vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.login-loading-status {
+  margin: 20px 0 12px;
+  color: #a0d9c4;
+  font-size: 0.84rem;
+}
+
+.login-loading-status span {
+  display: inline-block;
+  width: 20px;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: login-ellipsis 1.2s steps(4, end) infinite;
+}
+
+.login-loading-progress {
+  height: 3px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  background: rgba(78, 255, 187, 0.14);
+}
+
+.login-loading-progress span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: #4effbb;
+  box-shadow: 0 0 14px #4effbb;
+  animation: login-progress 1.7s ease-in-out infinite;
+}
+
+.login-loading-footer {
+  font-size: 0.61rem;
+}
+
+.login-loading-indicator {
+  color: #4effbb;
+}
+
+@keyframes login-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes login-radar-sweep {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes login-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(270%); }
+}
+
+@keyframes login-ellipsis {
+  to { width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-loading-panel,
+  .login-loading-radar::before,
+  .login-loading-status span,
+  .login-loading-progress span {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
