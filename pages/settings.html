@@ -61,51 +61,126 @@
       </header>
 
       <main class="content settings-content">
-        <div class="header-row">
+        <div class="settings-heading-row">
           <div class="heading-block">
             <div class="eyebrow">Access control</div>
-            <h1>Role permissions</h1>
-            <p>Choose what each role can do across the workspace.</p>
+            <h1 id="settingsViewTitle">Roles</h1>
+            <p id="settingsViewDescription">Manage workspace permissions by role or member.</p>
           </div>
           <div class="settings-status" id="settingsStatus" role="status" aria-live="polite"></div>
         </div>
 
-        <section class="panel access-panel">
-          <div class="panel-header">
-            <div><h2>Page Access</h2><p class="panel-subtitle">Choose which workspace pages each role can open.</p></div>
-          </div>
-          <div class="page-access-grid" id="pageAccessGrid"></div>
-        </section>
+        <div class="settings-view-tabs" role="tablist" aria-label="Settings section">
+          <button class="settings-view-tab active" id="rolesSettingsTab" type="button" role="tab" aria-selected="true" aria-controls="rolesManagerPanel" data-settings-view="roles">Roles</button>
+          <button class="settings-view-tab" id="branchTypesSettingsTab" type="button" role="tab" aria-selected="false" aria-controls="branchTypesManagerPanel" data-settings-view="branchTypes">Branch Types</button>
+        </div>
 
-        <section class="panel member-permissions-panel">
-          <div class="panel-header">
-            <div><h2>Member Overrides</h2><p class="panel-subtitle">Customize access for one account without changing its role defaults.</p></div>
-          </div>
-          <div class="member-permission-controls">
-            <label class="member-select-label" for="memberAccountSelect">Account
-              <select id="memberAccountSelect"><option value="">Loading accounts…</option></select>
-            </label>
-            <label class="member-override-control" for="memberOverrideEnabled">
-              <input id="memberOverrideEnabled" type="checkbox" disabled>
-              <span><strong>Customize permissions</strong><small>Turn off to inherit this account's role settings.</small></span>
-            </label>
-          </div>
-          <div id="memberPermissionEditor" class="member-permission-editor" hidden>
-            <h3>Page access</h3>
-            <div class="page-access-grid" id="memberPageAccessGrid"></div>
-            <h3>Actions</h3>
-            <div class="permissions-role-list" id="memberActionPermissions"></div>
-          </div>
-        </section>
+        <div class="settings-managers-grid">
+        <div class="role-editor-shell" id="rolesManagerPanel" role="tabpanel" aria-labelledby="rolesSettingsTab">
+          <aside class="role-list-panel" aria-label="Workspace roles">
+            <div class="role-list-heading"><h2>Roles</h2><span id="roleCount"></span><button id="addRoleButton" type="button" aria-label="Create role" title="Create role">+</button></div>
+            <p>Choose a role to edit its access.</p>
+            <form class="role-create-form" id="roleCreateForm" hidden>
+              <label for="newRoleName">New role name</label>
+              <input id="newRoleName" name="roleName" type="text" maxlength="40" autocomplete="off" required>
+              <div><button class="action-btn" id="cancelCreateRoleButton" type="button">Cancel</button><button class="action-btn primary" type="submit">Create role</button></div>
+              <small id="roleCreateError" role="alert"></small>
+            </form>
+            <nav class="role-selector" id="roleSelector" aria-label="Select role"></nav>
+          </aside>
 
-        <section class="panel permissions-panel">
-          <div class="panel-header">
-            <div><h2>Permissions</h2><p class="panel-subtitle">Released access controls For Release and Released together; other toggles control their matching actions.</p></div>
-            <div class="permission-legend"><span class="permission-dot allowed"></span>Allowed <span class="permission-dot restricted"></span>Restricted</div>
+          <section class="role-editor-panel" aria-labelledby="selectedRoleTitle">
+            <header class="role-editor-header">
+              <div>
+                <div class="eyebrow">Role editor</div>
+                <h2 id="selectedRoleTitle">Administrator</h2>
+                <p id="selectedRoleDescription">Configure page access and unit actions for this role.</p>
+              </div>
+              <div class="role-editor-header-actions">
+                <button class="delete-role-button" id="deleteRoleButton" type="button" hidden>Delete role</button>
+                <span class="role-editor-lock" id="selectedRoleLock" hidden>Protected role</span>
+              </div>
+            </header>
+
+            <div class="role-editor-tabs" role="tablist" aria-label="Role settings">
+              <button class="role-editor-tab active" id="permissionsTabButton" type="button" role="tab" aria-selected="true" aria-controls="rolePermissionsTab" data-settings-tab="permissions">Permissions</button>
+              <button class="role-editor-tab" id="membersTabButton" type="button" role="tab" aria-selected="false" aria-controls="memberManagementTab" data-settings-tab="members">Manage Members <span id="memberCount">0</span></button>
+            </div>
+
+            <section class="role-editor-content" id="rolePermissionsTab" role="tabpanel" aria-labelledby="permissionsTabButton">
+              <section class="permission-section">
+                <div class="permission-section-heading"><div><h3>Workspace pages</h3><p>Choose which pages members with this role can open.</p></div></div>
+                <div class="page-access-grid" id="pageAccessGrid"></div>
+              </section>
+              <section class="permission-section">
+                <div class="permission-section-heading"><div><h3>Unit permissions</h3><p>Released access controls For Release and Released together.</p></div></div>
+                <div class="permissions-role-list" id="permissionsTableBody"></div>
+              </section>
+            </section>
+
+            <section class="role-editor-content member-management-content" id="memberManagementTab" role="tabpanel" aria-labelledby="membersTabButton" hidden>
+              <div class="permission-section-heading"><div><h3>Members with this role</h3><p>Customize an individual account without changing role defaults.</p></div></div>
+              <div class="member-permission-controls">
+                <label class="member-select-label" for="memberAccountSelect">Member
+                  <select id="memberAccountSelect"><option value="">Loading members…</option></select>
+                </label>
+                <label class="member-override-control" for="memberOverrideEnabled">
+                  <input id="memberOverrideEnabled" type="checkbox" disabled>
+                  <span><strong>Customize permissions</strong><small>Turn off to inherit this role's settings.</small></span>
+                </label>
+              </div>
+              <div id="memberPermissionEditor" class="member-permission-editor" hidden>
+                <div class="permission-section-heading"><div><h3>Page access</h3><p>Overrides apply only to the selected member.</p></div></div>
+                <div class="page-access-grid" id="memberPageAccessGrid"></div>
+                <div class="permission-section-heading"><div><h3>Unit permissions</h3></div></div>
+                <div class="permissions-role-list" id="memberActionPermissions"></div>
+              </div>
+              <div class="member-empty-state" id="memberEmptyState" hidden>No active members have this role.</div>
+            </section>
+
+            <footer class="role-editor-footer">
+              <button class="action-btn" id="resetPermissionsBtn" type="button">Reset this role</button>
+              <button class="action-btn primary" id="savePermissionsBtn" type="button">Save changes</button>
+            </footer>
+          </section>
+        </div>
+
+        <section class="branch-type-settings" id="branchTypesManagerPanel" role="tabpanel" aria-labelledby="branchTypesSettingsTab" hidden>
+          <div class="role-editor-shell">
+            <aside class="role-list-panel" aria-label="Branch types">
+              <div class="role-list-heading"><h2>Types</h2><span id="branchTypeCount"></span><button id="addBranchTypeButton" type="button" aria-label="Create branch type" title="Create branch type">+</button></div>
+              <p>Choose a type to edit its code and name.</p>
+              <form class="role-create-form" id="branchTypeCreateForm" hidden>
+                <label for="newBranchTypeCode">New shortcut</label>
+                <input id="newBranchTypeCode" name="branchTypeCode" type="text" maxlength="12" autocomplete="off" required>
+                <div><button class="action-btn" id="cancelCreateBranchTypeButton" type="button">Cancel</button><button class="action-btn primary" type="submit">Create type</button></div>
+                <small id="branchTypeCreateError" role="alert"></small>
+              </form>
+              <nav class="role-selector" id="branchTypeSelector" aria-label="Select branch type"></nav>
+            </aside>
+
+            <section class="role-editor-panel" aria-labelledby="selectedBranchTypeTitle">
+              <header class="role-editor-header">
+                <div>
+                  <div class="eyebrow">Branch type editor</div>
+                  <h2 id="selectedBranchTypeTitle">BNB</h2>
+                  <p id="selectedBranchTypeDescription">Set the display name for this branch type.</p>
+                </div>
+                <button class="delete-role-button" id="deleteBranchTypeButton" type="button" hidden>Delete type</button>
+              </header>
+              <div class="role-editor-content branch-type-editor-content">
+                <label class="branch-type-field" for="branchTypeShortcut"><span>Shortcut</span><input id="branchTypeShortcut" type="text" maxlength="12" autocomplete="off" required></label>
+                <label class="branch-type-field" for="branchTypeFullName"><span>Full CodeName</span><input id="branchTypeFullName" type="text" maxlength="80" placeholder="e.g. Bytes and Bots Gadget Center" autocomplete="off"></label>
+                <p class="branch-type-preview" id="branchTypePreview"></p>
+              </div>
+              <footer class="role-editor-footer">
+                <span class="branch-type-save-status" id="branchTypeSaveStatus" role="status" aria-live="polite"></span>
+                <button class="action-btn primary" id="saveBranchTypeButton" type="button">Save changes</button>
+              </footer>
+            </section>
           </div>
-          <div class="permissions-role-list" id="permissionsTableBody"></div>
-          <div class="permissions-actions"><button class="action-btn" id="resetPermissionsBtn" type="button">Reset defaults</button><button class="action-btn primary" id="savePermissionsBtn" type="button">Save permissions</button></div>
         </section>
+        </div>
       </main>
     </div>
 

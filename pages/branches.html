@@ -79,34 +79,38 @@
         </div>
       </header>
 
-      <main class="content">
+      <main class="content branches-content">
+        <div class="accounts-heading branches-heading">
+          <div>
+            <div class="eyebrow">Workspace</div>
+            <h1>Branches</h1>
+            <p>Browse locations and manage branch assignments.</p>
+          </div>
+          <span class="accounts-result-count" id="branchResultCount" aria-live="polite"></span>
+        </div>
+
         <div class="page-toolbar">
           <div class="search-box">
-            <input type="text" placeholder="Search branches" aria-label="Search branches" />
+            <input id="branchesSearchInput" type="search" placeholder="Search branches" aria-label="Search branches" />
           </div>
+          <select class="toolbar-select" id="branchTypeFilter" aria-label="Filter branches by type">
+            <option value="all">All types</option>
+          </select>
+          <select class="toolbar-select" id="branchStatusFilter" aria-label="Filter branches by status">
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="disabled">Disabled</option>
+          </select>
 
           <div class="page-actions">
             <button class="action-btn primary" id="openBranchModalBtn">+ Add branch</button>
           </div>
         </div>
 
-        <section class="panel table-panel">
-          <div class="table-wrap">
-            <table class="branches-table">
-              <thead>
-                <tr>
-                  <th>Branch Name</th>
-                  <th>Manager</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="branchesTableBody">
-                <tr>
-                  <td colspan="4" class="empty-state">Loading branches from the spreadsheet…</td>
-                </tr>
-              </tbody>
-            </table>
+        <section class="accounts-directory branch-directory" aria-label="Workspace branches">
+          <div class="accounts-member-list" id="branchesTableBody" aria-live="polite">
+            <div class="member-list-empty">Loading branches…</div>
           </div>
         </section>
       </main>

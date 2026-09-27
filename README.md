@@ -83,7 +83,7 @@ Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUn
 
 ## Access control
 
-Super Admins and Administrators can configure page and action permissions by role in Settings. View is always allowed and locked; release, warehouse, pullout, and replacement permissions control their matching unit views and workflows. The Member Overrides section can set custom permissions for an individual account; accounts without an override inherit their role's current settings. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
+Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. View is always allowed and locked; release, warehouse, pullout, and replacement permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
 
 ## Trash
 

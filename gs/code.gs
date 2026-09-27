@@ -7,6 +7,10 @@ function doGet(e) {
     return readPermissionSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
   }
 
+  if (action === 'branchtypes') {
+    return readBranchTypeSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
+  }
+
   if (action === 'messages') {
     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ensureSheet(spreadsheet, 'Messages');
@@ -37,6 +41,10 @@ function doPost(e) {
 
   if (action === 'savepermissions') {
     return savePermissionSettings(spreadsheet, values);
+  }
+
+  if (action === 'savebranchtypes') {
+    return saveBranchTypeSettings(spreadsheet, values);
   }
 
   if (action === 'contactadmin') {
@@ -104,6 +112,13 @@ function doPost(e) {
   if (action === 'units') ensureUnitDateColumns(sheet);
   if (action === 'accounts' && isAdministratorCreatingSuperAdmin(values)) {
     return jsonResponse({ ok: false, error: 'Administrator cannot create a Super Admin account' });
+  }
+  if (action === 'accounts') {
+    if (!canManageAccountStatus(values.actorRole)) {
+      values.status = 'Active';
+    } else if (values.status && !isValidAccountStatus(values.status)) {
+      return jsonResponse({ ok: false, error: 'Invalid account status' });
+    }
   }
   const headers = getHeadersForAction(action);
   if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
@@ -285,12 +300,17 @@ function savePermissionSettings(spreadsheet, values) {
   }
 
   const defaults = getDefaultPermissionRows();
-  const rows = defaults.map((defaultRow) => {
-    const role = defaultRow[0];
+  const defaultsByRole = defaults.reduce((roleDefaults, row) => {
+    roleDefaults[row[0]] = row;
+    return roleDefaults;
+  }, {});
+  const roleNames = [...defaults.map((row) => row[0]), ...Object.keys(permissions).filter((role) => !defaultsByRole[role])];
+  const rows = roleNames.map((role) => {
+    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
-    const roleAccess = pageAccess[role] || {};
+    const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
     const isSuperAdmin = role === 'Super Admin';
-    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), Boolean(roleAccess.Overview), Boolean(roleAccess.Messages), Boolean(roleAccess['Unit registry']), Boolean(roleAccess.Trash), Boolean(roleAccess.Branches), Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement)];
+    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -310,6 +330,64 @@ function savePermissionSettings(spreadsheet, values) {
   if (userRows.length) userSheet.getRange(2, 1, userRows.length, 4).setValues(userRows);
   userSheet.setFrozenRows(1);
   return jsonResponse({ ok: true, action: 'savePermissions' });
+}
+
+function ensureBranchTypeSheet(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName('Branch Types') || spreadsheet.insertSheet('Branch Types');
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 2).setValues([['Shortcut', 'Full CodeName']]);
+  const properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('BRANCH_TYPES_INITIALIZED') !== 'true') {
+    const hasTypes = sheet.getLastRow() > 1 && sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().some((row) => String(row[0] || '').trim());
+    if (!hasTypes) {
+      sheet.getRange(2, 1, 3, 2).setValues([
+        ['BNB', 'Bytes and Bots Gadget Center'],
+        ['EZ', ''],
+        ['1LR', '']
+      ]);
+    }
+    properties.setProperty('BRANCH_TYPES_INITIALIZED', 'true');
+  }
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function readBranchTypeSettings(spreadsheet) {
+  const sheet = ensureBranchTypeSheet(spreadsheet);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const branchTypes = rows
+    .filter((row) => String(row[0] || '').trim())
+    .map((row) => ({ code: String(row[0]).trim().toUpperCase(), fullName: String(row[1] || '').trim() }));
+  return jsonResponse({ ok: true, branchTypes });
+}
+
+function saveBranchTypeSettings(spreadsheet, values) {
+  if (!['Super Admin', 'Administrator'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin or Administrator can manage branch types' });
+  }
+
+  let branchTypes;
+  try {
+    branchTypes = JSON.parse(String(values.branchTypes || '[]'));
+  } catch (error) {
+    return jsonResponse({ ok: false, error: 'Invalid branch type data' });
+  }
+  if (!Array.isArray(branchTypes)) return jsonResponse({ ok: false, error: 'Invalid branch type data' });
+
+  const seenCodes = new Set();
+  const rows = branchTypes.map((type) => {
+    const code = String(type && type.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,12}$/.test(code) || seenCodes.has(code)) throw new Error('Branch type shortcuts must be unique letters or numbers.');
+    seenCodes.add(code);
+    return [code, String(type.fullName || '').trim()];
+  });
+
+  const sheet = ensureBranchTypeSheet(spreadsheet);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, 2).setValues([['Shortcut', 'Full CodeName']]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, 2).setValues(rows);
+  sheet.setFrozenRows(1);
+  PropertiesService.getScriptProperties().setProperty('BRANCH_TYPES_INITIALIZED', 'true');
+  return jsonResponse({ ok: true, action: 'saveBranchTypes' });
 }
 
 function markMessageRead(spreadsheet, messageId) {
@@ -393,6 +471,14 @@ function jsonResponse(payload) {
 function isAdministratorCreatingSuperAdmin(values) {
   return String(values.actorRole || '').trim() === 'Administrator'
     && String(values.accountType || '').trim() === 'Super Admin';
+}
+
+function canManageAccountStatus(role) {
+  return ['Super Admin', 'Administrator', 'Main Head Admin'].includes(String(role || '').trim());
+}
+
+function isValidAccountStatus(status) {
+  return ['active', 'inactive', 'disabled'].includes(String(status || '').trim().toLowerCase());
 }
 
 function changeAccountPassword(spreadsheet, values) {
@@ -824,10 +910,12 @@ function updateAccountRow(spreadsheet, values) {
       const statusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'status');
       const existingStatus = statusIndex === -1 ? 'Active' : String(data[rowIndex][statusIndex] || 'Active').trim();
       const requestedStatus = String(values.status || '').trim();
-      if (String(values.actorRole || '').trim() !== 'Super Admin') {
+      if (!canManageAccountStatus(values.actorRole)) {
         values.status = existingStatus;
-      } else if (String(values.actorRole || '').trim() === 'Super Admin' && requestedStatus && !['active', 'inactive', 'disabled'].includes(requestedStatus.toLowerCase())) {
+      } else if (requestedStatus && !isValidAccountStatus(requestedStatus)) {
         return jsonResponse({ ok: false, error: 'Invalid account status' });
+      } else {
+        values.status = requestedStatus || existingStatus;
       }
       const rowToWrite = buildRowForAction('accounts', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);

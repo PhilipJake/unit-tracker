@@ -1,8 +1,35 @@
-const roleHierarchy = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
-const permissionRoles = [...roleHierarchy];
-const pageAccessRoles = [...roleHierarchy];
+const builtInRoleHierarchy = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
+let roleHierarchy = [...builtInRoleHierarchy];
 const permissionActions = ['view', 'create', 'edit', 'delete', 'export', 'release', 'warehouse', 'pullOut', 'forReplacement'];
 const permissionActionLabels = { release: 'Released', pullOut: 'Pullout', forReplacement: 'For Replacement' };
+const permissionActionDescriptions = {
+  view: 'View unit information across this workspace.',
+  create: 'Add new units, branches, or accounts.',
+  edit: 'Change unit, branch, or account details.',
+  delete: 'Move units, branches, or accounts to trash.',
+  export: 'Download unit registry data.',
+  release: 'Move units through For Release and Released.',
+  warehouse: 'Open Warehouse and move units in or out.',
+  pullOut: 'Open Pullout and move units to Pull Out.',
+  forReplacement: 'Open For Replacement and mark replacements.'
+};
+const roleSelector = document.getElementById('roleSelector');
+const roleCount = document.getElementById('roleCount');
+const selectedRoleTitle = document.getElementById('selectedRoleTitle');
+const selectedRoleDescription = document.getElementById('selectedRoleDescription');
+const selectedRoleLock = document.getElementById('selectedRoleLock');
+const deleteRoleButton = document.getElementById('deleteRoleButton');
+const memberCount = document.getElementById('memberCount');
+const permissionsTabButton = document.getElementById('permissionsTabButton');
+const membersTabButton = document.getElementById('membersTabButton');
+const rolePermissionsTab = document.getElementById('rolePermissionsTab');
+const memberManagementTab = document.getElementById('memberManagementTab');
+const memberEmptyState = document.getElementById('memberEmptyState');
+const addRoleButton = document.getElementById('addRoleButton');
+const roleCreateForm = document.getElementById('roleCreateForm');
+const newRoleName = document.getElementById('newRoleName');
+const roleCreateError = document.getElementById('roleCreateError');
+const cancelCreateRoleButton = document.getElementById('cancelCreateRoleButton');
 const permissionsTableBody = document.getElementById('permissionsTableBody');
 const pageAccessGrid = document.getElementById('pageAccessGrid');
 const memberAccountSelect = document.getElementById('memberAccountSelect');
@@ -17,47 +44,393 @@ const settingsMessageModalBackdrop = document.getElementById('settingsMessageMod
 const settingsMessageModalBody = document.getElementById('settingsMessageModalBody');
 const closeSettingsMessageModalBtn = document.getElementById('closeSettingsMessageModalBtn');
 const okSettingsMessageModalBtn = document.getElementById('okSettingsMessageModalBtn');
+const settingsViewTitle = document.getElementById('settingsViewTitle');
+const settingsViewDescription = document.getElementById('settingsViewDescription');
+const rolesManagerPanel = document.getElementById('rolesManagerPanel');
+const branchTypesManagerPanel = document.getElementById('branchTypesManagerPanel');
+const rolesSettingsTab = document.getElementById('rolesSettingsTab');
+const branchTypesSettingsTab = document.getElementById('branchTypesSettingsTab');
+const branchTypeSelector = document.getElementById('branchTypeSelector');
+const branchTypeCount = document.getElementById('branchTypeCount');
+const selectedBranchTypeTitle = document.getElementById('selectedBranchTypeTitle');
+const selectedBranchTypeDescription = document.getElementById('selectedBranchTypeDescription');
+const branchTypeShortcut = document.getElementById('branchTypeShortcut');
+const branchTypeFullName = document.getElementById('branchTypeFullName');
+const branchTypePreview = document.getElementById('branchTypePreview');
+const addBranchTypeButton = document.getElementById('addBranchTypeButton');
+const branchTypeCreateForm = document.getElementById('branchTypeCreateForm');
+const newBranchTypeCode = document.getElementById('newBranchTypeCode');
+const branchTypeCreateError = document.getElementById('branchTypeCreateError');
+const cancelCreateBranchTypeButton = document.getElementById('cancelCreateBranchTypeButton');
+const deleteBranchTypeButton = document.getElementById('deleteBranchTypeButton');
+const saveBranchTypeButton = document.getElementById('saveBranchTypeButton');
+const branchTypeSaveStatus = document.getElementById('branchTypeSaveStatus');
 let managedAccounts = [];
+let roleAssignments = [];
 let userPermissionOverrides = {};
+let rolePermissionsState = getRolePermissions();
+let pageAccessState = getPageAccess();
+let selectedRole = getCurrentRole();
+let selectedSettingsTab = 'permissions';
+let branchTypeDefinitions = getBranchTypeDefinitions();
+let selectedBranchType = branchTypeDefinitions[0]?.code || '';
+let branchTypeDefinitionsChanged = false;
+
+function setSettingsView(view) {
+  const showBranchTypes = view === 'branchTypes';
+  rolesManagerPanel.hidden = showBranchTypes;
+  branchTypesManagerPanel.hidden = !showBranchTypes;
+  rolesSettingsTab.classList.toggle('active', !showBranchTypes);
+  branchTypesSettingsTab.classList.toggle('active', showBranchTypes);
+  rolesSettingsTab.setAttribute('aria-selected', String(!showBranchTypes));
+  branchTypesSettingsTab.setAttribute('aria-selected', String(showBranchTypes));
+  settingsViewTitle.textContent = showBranchTypes ? 'Branch Types' : 'Roles';
+  settingsViewDescription.textContent = showBranchTypes
+    ? 'Manage the shortcuts and full names used by branches.'
+    : 'Manage workspace permissions by role or member.';
+}
+
+function renderBranchTypeSelector() {
+  branchTypeCount.textContent = String(branchTypeDefinitions.length);
+  branchTypeSelector.innerHTML = branchTypeDefinitions.map((type) => `
+    <button class="role-selector-item ${type.code === selectedBranchType ? 'active' : ''}" type="button" data-branch-type-select="${type.code}" aria-pressed="${type.code === selectedBranchType}">
+      <span class="role-selector-dot" aria-hidden="true"></span><span>${type.code}</span>
+    </button>
+  `).join('');
+  renderSelectedBranchType();
+}
+
+function renderSelectedBranchType() {
+  const definition = branchTypeDefinitions.find((type) => type.code === selectedBranchType);
+  const hasSelection = Boolean(definition);
+  selectedBranchTypeTitle.textContent = hasSelection ? definition.code : 'No branch types';
+  selectedBranchTypeDescription.textContent = hasSelection
+    ? (definition.fullName || 'Add a full name to show what this shortcut stands for.')
+    : 'Create a shortcut to start a branch type.';
+  branchTypeShortcut.value = definition ? definition.code : '';
+  branchTypeShortcut.disabled = !definition;
+  branchTypeFullName.value = definition ? definition.fullName : '';
+  branchTypeFullName.disabled = !definition;
+  deleteBranchTypeButton.hidden = !definition;
+  saveBranchTypeButton.disabled = !definition;
+  branchTypePreview.textContent = definition
+    ? `${definition.code}${definition.fullName ? ` — ${definition.fullName}` : ''}`
+    : '';
+  branchTypeSelector.querySelectorAll('[data-branch-type-select]').forEach((button) => {
+    const isSelected = button.dataset.branchTypeSelect === selectedBranchType;
+    button.classList.toggle('active', isSelected);
+    button.setAttribute('aria-pressed', String(isSelected));
+  });
+}
+
+function openBranchTypeCreateForm() {
+  branchTypeCreateError.textContent = '';
+  branchTypeCreateForm.hidden = false;
+  addBranchTypeButton.hidden = true;
+  newBranchTypeCode.value = '';
+  newBranchTypeCode.focus();
+}
+
+function closeBranchTypeCreateForm() {
+  branchTypeCreateForm.hidden = true;
+  addBranchTypeButton.hidden = false;
+  branchTypeCreateError.textContent = '';
+}
+
+function createBranchType(code) {
+  if (selectedBranchType && !captureSelectedBranchType()) return;
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,12}$/.test(normalizedCode)) {
+    branchTypeCreateError.textContent = 'Use 1–12 letters or numbers for the shortcut.';
+    return;
+  }
+  if (branchTypeDefinitions.some((type) => type.code.toLowerCase() === normalizedCode.toLowerCase())) {
+    branchTypeCreateError.textContent = 'A branch type with that shortcut already exists.';
+    return;
+  }
+  branchTypeDefinitions.push({ code: normalizedCode, fullName: '' });
+  branchTypeDefinitionsChanged = true;
+  selectedBranchType = normalizedCode;
+  closeBranchTypeCreateForm();
+  renderBranchTypeSelector();
+  branchTypeFullName.focus();
+  branchTypeSaveStatus.textContent = 'Type created. Save changes to apply.';
+}
+
+function captureSelectedBranchType() {
+  const definition = branchTypeDefinitions.find((type) => type.code === selectedBranchType);
+  if (!definition) return true;
+  const code = String(branchTypeShortcut.value || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,12}$/.test(code)) {
+    branchTypeSaveStatus.textContent = 'Use 1–12 letters or numbers for the shortcut.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    return false;
+  }
+  if (branchTypeDefinitions.some((type) => type !== definition && type.code.toLowerCase() === code.toLowerCase())) {
+    branchTypeSaveStatus.textContent = 'That shortcut is already in use.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    return false;
+  }
+  if (code !== definition.code && !managedBranchesLoaded) {
+    branchTypeSaveStatus.textContent = 'Branch usage is unavailable; reload before changing this shortcut.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    return false;
+  }
+  if (code !== definition.code && managedBranches.some((branch) => getBranchRecordType(branch).toUpperCase() === definition.code)) {
+    branchTypeSaveStatus.textContent = 'Reassign branches using this shortcut before changing it.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    return false;
+  }
+  const fullName = String(branchTypeFullName.value || '').trim();
+  if (definition.code !== code || definition.fullName !== fullName) branchTypeDefinitionsChanged = true;
+  definition.code = code;
+  definition.fullName = fullName;
+  selectedBranchType = code;
+  return true;
+}
+
+async function saveSelectedBranchType() {
+  if (!captureSelectedBranchType()) return;
+  try {
+    const synced = await saveBranchTypeDefinitions(branchTypeDefinitions);
+    branchTypeSaveStatus.textContent = synced ? 'Branch type saved.' : 'Saved in this browser. Configure Apps Script to share it.';
+    branchTypeSaveStatus.dataset.state = synced ? 'success' : 'notice';
+    renderBranchTypeSelector();
+  } catch (error) {
+    branchTypeSaveStatus.textContent = 'Saved in this browser; Google Sheets could not be updated.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    renderBranchTypeSelector();
+    console.error('Unable to save branch types to Google Sheets:', error);
+  }
+}
+
+function deleteSelectedBranchType() {
+  if (branchTypeDefinitions.length < 2) {
+    showSettingsMessage('Keep at least one branch type so new branches can be assigned a type.', 'Cannot delete the last type');
+    return;
+  }
+  if (!managedBranchesLoaded) {
+    branchTypeSaveStatus.textContent = 'Branch usage is unavailable; reload before deleting a type.';
+    branchTypeSaveStatus.dataset.state = 'notice';
+    return;
+  }
+  const inUse = managedBranches.some((branch) => getBranchRecordType(branch).toUpperCase() === selectedBranchType);
+  if (inUse) {
+    showSettingsMessage(`${selectedBranchType} is assigned to one or more branches. Reassign those branches before deleting this type.`, 'Branch type is in use');
+    return;
+  }
+  if (!window.confirm(`Delete the ${selectedBranchType} branch type? Save changes to apply this deletion.`)) return;
+  branchTypeDefinitions = branchTypeDefinitions.filter((type) => type.code !== selectedBranchType);
+  branchTypeDefinitionsChanged = true;
+  selectedBranchType = branchTypeDefinitions[0]?.code || '';
+  renderBranchTypeSelector();
+  branchTypeSaveStatus.textContent = 'Type deleted. Save changes to apply.';
+  branchTypeSaveStatus.dataset.state = 'notice';
+}
+
+let managedBranches = [];
+let managedBranchesLoaded = false;
+
+function getBranchRecordType(branch) {
+  const name = String(branch.branchName || branch.branchname || branch.name || '').trim();
+  return String(branch.branchCode || branch.branchcode || branch.branchType || branch.branchtype || branch.type || name.split(/\s+/)[0] || '').trim();
+}
+
+function syncRoleHierarchy() {
+  const customRoles = [...new Set([...Object.keys(rolePermissionsState), ...Object.keys(pageAccessState)])]
+    .filter((role) => !builtInRoleHierarchy.includes(role))
+    .sort((first, second) => first.localeCompare(second));
+  roleHierarchy = [...builtInRoleHierarchy, ...customRoles];
+  if (!roleHierarchy.includes(selectedRole)) selectedRole = 'Administrator';
+}
+
+function createCustomRolePermissions() {
+  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false };
+}
+
+function createCustomRolePageAccess() {
+  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false };
+}
 
 function cloneDefaultPermissions() {
   return JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS));
 }
 
-function renderActionToggles(permissions, attributes, role = '') {
+function renderActionToggles(permissions, role, member = false) {
   return permissionActions.map((action) => {
     const allowed = action === 'view' || Boolean(permissions[action]);
     const locked = action === 'view' || role === 'Super Admin';
     const label = permissionActionLabels[action] || action[0].toUpperCase() + action.slice(1);
-    const dataAttribute = Object.entries(attributes).map(([key, value]) => `data-${key}="${value === true ? action : value}"`).join(' ');
-    return `<label class="permission-toggle"><span class="permission-action-name">${label}</span><input type="checkbox" ${dataAttribute} ${allowed ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>${allowed ? 'Allowed' : 'Off'}</span></label>`;
+    const dataAttributes = member
+      ? `data-member-action="${action}"`
+      : `data-role="${role}" data-action="${action}"`;
+    return `<label class="role-permission-row"><span class="role-permission-copy"><strong>${label}</strong><small>${permissionActionDescriptions[action]}</small></span><span class="role-permission-control"><span>${allowed ? 'Allowed' : 'Off'}</span><input type="checkbox" ${dataAttributes} ${allowed ? 'checked' : ''} ${locked ? 'disabled' : ''}></span></label>`;
   }).join('');
 }
 
-function renderPermissions(permissions = getRolePermissions()) {
-  permissionsTableBody.innerHTML = permissionRoles.map((role) => `
-    <article class="permissions-role-card">
-      <div class="permissions-role-heading"><strong>${role}</strong><span>${role === 'Super Admin' ? 'Locked' : role === 'Administrator' ? 'Can manage access' : 'Workspace role'}</span></div>
-      <div class="permissions-action-grid">
-        ${renderActionToggles(permissions[role], { role, action: true }, role)}
-      </div>
-    </article>
+function renderRoleSelector() {
+  roleCount.textContent = String(roleHierarchy.length);
+  roleSelector.innerHTML = roleHierarchy.map((role) => `
+    <button class="role-selector-item ${role === selectedRole ? 'active' : ''}" type="button" data-role-select="${role}" aria-pressed="${role === selectedRole}">
+      <span class="role-selector-dot" aria-hidden="true"></span><span>${role}</span>
+      ${role === 'Super Admin' ? '<span class="role-selector-lock" aria-label="Protected role">Locked</span>' : ''}
+    </button>
   `).join('');
 }
 
-function renderPageAccess(access = getPageAccess()) {
-  pageAccessGrid.innerHTML = pageAccessRoles.map((role) => `
-    <article class="page-access-card">
-      <div><strong>${role}</strong><span>${role === 'Super Admin' ? 'Locked' : ['Administrator'].includes(role) ? 'Can manage access' : 'Workspace role'}</span></div>
-      <div class="page-access-options">
-        ${Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `<label class="permission-toggle"><input type="checkbox" data-page-role="${role}" data-page="${page}" ${access[role][page] ? 'checked' : ''} ${role === 'Super Admin' ? 'disabled' : ''}><span>${page}</span></label>`).join('')}
-      </div>
-    </article>
+function openRoleCreateForm() {
+  roleCreateError.textContent = '';
+  roleCreateForm.hidden = false;
+  addRoleButton.hidden = true;
+  newRoleName.value = '';
+  newRoleName.focus();
+}
+
+function closeRoleCreateForm() {
+  roleCreateForm.hidden = true;
+  addRoleButton.hidden = false;
+  roleCreateError.textContent = '';
+}
+
+function deleteSelectedRole() {
+  if (builtInRoleHierarchy.includes(selectedRole)) return;
+  const assignedAccounts = roleAssignments.filter((account) => account.role === selectedRole);
+  if (assignedAccounts.length) {
+    showSettingsMessage(`Reassign all ${assignedAccounts.length} account${assignedAccounts.length === 1 ? '' : 's'} using ${selectedRole} before deleting this role.`, 'Role is in use');
+    return;
+  }
+  if (!window.confirm(`Delete the ${selectedRole} role? Save changes to apply this deletion.`)) return;
+
+  delete rolePermissionsState[selectedRole];
+  delete pageAccessState[selectedRole];
+  Object.keys(userPermissionOverrides).forEach((username) => {
+    if (userPermissionOverrides[username].role === selectedRole) delete userPermissionOverrides[username];
+  });
+  selectedRole = 'Administrator';
+  syncRoleHierarchy();
+  renderRoleSelector();
+  renderSelectedRole();
+  showSettingsStatus('Role deleted. Save changes to apply.', 'notice');
+}
+
+function createRole(name) {
+  const normalizedName = String(name || '').trim().replace(/\s+/g, ' ');
+  if (!normalizedName) {
+    roleCreateError.textContent = 'Enter a role name.';
+    return;
+  }
+  if (roleHierarchy.some((role) => role.toLowerCase() === normalizedName.toLowerCase())) {
+    roleCreateError.textContent = 'A role with that name already exists.';
+    return;
+  }
+
+  rolePermissionsState[normalizedName] = createCustomRolePermissions();
+  pageAccessState[normalizedName] = createCustomRolePageAccess();
+  selectedRole = normalizedName;
+  syncRoleHierarchy();
+  closeRoleCreateForm();
+  renderRoleSelector();
+  renderSelectedRole();
+  setSettingsTab('permissions');
+  showSettingsStatus('Role created. Save changes to apply.', 'notice');
+}
+
+function renderSelectedRole() {
+  const locked = selectedRole === 'Super Admin';
+  selectedRoleTitle.textContent = selectedRole;
+  selectedRoleDescription.textContent = locked
+    ? 'This protected role always has full workspace access.'
+    : `Configure page access and unit actions for ${selectedRole}.`;
+  selectedRoleLock.hidden = !locked;
+  deleteRoleButton.hidden = builtInRoleHierarchy.includes(selectedRole);
+  roleSelector.querySelectorAll('[data-role-select]').forEach((button) => {
+    const isSelected = button.dataset.roleSelect === selectedRole;
+    button.classList.toggle('active', isSelected);
+    button.setAttribute('aria-pressed', String(isSelected));
+  });
+  renderPermissions(rolePermissionsState[selectedRole]);
+  renderPageAccess(pageAccessState[selectedRole]);
+  renderManagedMemberOptions();
+  renderMemberPermissions();
+  updateResetButton();
+}
+
+function renderPermissions(permissions = rolePermissionsState[selectedRole]) {
+  permissionsTableBody.innerHTML = renderActionToggles(permissions, selectedRole);
+}
+
+function renderPageAccess(access = pageAccessState[selectedRole]) {
+  pageAccessGrid.innerHTML = Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `
+    <label class="page-access-option">
+      <span><strong>${page}</strong><small>Allow this role to open ${page}.</small></span>
+      <input type="checkbox" data-page-role="${selectedRole}" data-page="${page}" ${access[page] ? 'checked' : ''} ${selectedRole === 'Super Admin' ? 'disabled' : ''}>
+    </label>
   `).join('');
+}
+
+function setSettingsTab(tab) {
+  selectedSettingsTab = tab;
+  const showMembers = tab === 'members';
+  rolePermissionsTab.hidden = showMembers;
+  memberManagementTab.hidden = !showMembers;
+  permissionsTabButton.classList.toggle('active', !showMembers);
+  membersTabButton.classList.toggle('active', showMembers);
+  permissionsTabButton.setAttribute('aria-selected', String(!showMembers));
+  membersTabButton.setAttribute('aria-selected', String(showMembers));
+  updateResetButton();
+}
+
+function updateResetButton() {
+  if (selectedSettingsTab === 'members') {
+    resetPermissionsBtn.textContent = 'Clear member override';
+    const member = getSelectedMember();
+    resetPermissionsBtn.disabled = !member || member.role === 'Super Admin' || !userPermissionOverrides[member.username.toLowerCase()];
+  } else {
+    resetPermissionsBtn.textContent = 'Reset this role';
+    resetPermissionsBtn.disabled = selectedRole === 'Super Admin';
+  }
+}
+
+function captureSelectedRoleSettings() {
+  if (!rolePermissionsState[selectedRole]) return;
+  document.querySelectorAll('[data-role][data-action]').forEach((input) => {
+    rolePermissionsState[selectedRole][input.dataset.action] = input.checked;
+  });
+  document.querySelectorAll('[data-page-role][data-page]').forEach((input) => {
+    pageAccessState[selectedRole][input.dataset.page] = input.checked;
+  });
+  rolePermissionsState[selectedRole].view = true;
+  if (selectedRole === 'Super Admin') {
+    rolePermissionsState[selectedRole] = { ...DEFAULT_ROLE_PERMISSIONS['Super Admin'] };
+    pageAccessState[selectedRole] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
+  }
+}
+
+function selectRole(role) {
+  if (!roleHierarchy.includes(role) || role === selectedRole) return;
+  captureSelectedRoleSettings();
+  captureMemberOverrides();
+  selectedRole = role;
+  renderRoleSelector();
+  renderSelectedRole();
 }
 
 function getSelectedMember() {
   return managedAccounts.find((account) => account.username.toLowerCase() === memberAccountSelect.value) || null;
+}
+
+function renderManagedMemberOptions() {
+  const previousSelection = memberAccountSelect.value;
+  const roleMembers = managedAccounts.filter((account) => account.role === selectedRole);
+  memberCount.textContent = String(roleMembers.length);
+  memberAccountSelect.replaceChildren(new Option(roleMembers.length ? 'Select a member' : 'No active members in this role', ''));
+  roleMembers.forEach((account) => {
+    memberAccountSelect.add(new Option(account.fullName, account.username.toLowerCase()));
+  });
+  memberAccountSelect.value = roleMembers.some((account) => account.username.toLowerCase() === previousSelection)
+    ? previousSelection
+    : '';
+  memberEmptyState.hidden = roleMembers.length > 0;
 }
 
 function renderMemberPermissions() {
@@ -67,31 +440,28 @@ function renderMemberPermissions() {
     memberOverrideEnabled.checked = false;
     memberOverrideEnabled.disabled = true;
     memberPermissionEditor.hidden = true;
+    memberEmptyState.hidden = managedAccounts.some((account) => account.role === selectedRole);
+    updateResetButton();
     return;
   }
 
   const locked = member.role === 'Super Admin';
+  memberEmptyState.hidden = true;
   const override = userPermissionOverrides[member.username.toLowerCase()];
   memberOverrideEnabled.disabled = locked;
   memberOverrideEnabled.checked = Boolean(!locked && override && override.enabled);
   memberPermissionEditor.hidden = locked || !memberOverrideEnabled.checked;
 
   if (memberPermissionEditor.hidden) return;
-  const rolePermissions = getRolePermissions()[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician;
-  const rolePageAccess = getPageAccess()[member.role] || DEFAULT_PAGE_ACCESS.Technician;
+  const rolePermissions = rolePermissionsState[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician;
+  const rolePageAccess = pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician;
   const permissions = { ...rolePermissions, ...(override && override.permissions) };
   const pageAccess = { ...rolePageAccess, ...(override && override.pageAccess) };
   memberPageAccessGrid.innerHTML = Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `
-    <label class="permission-toggle"><input type="checkbox" data-member-page="${page}" ${pageAccess[page] ? 'checked' : ''}><span>${page}</span></label>
+    <label class="page-access-option"><span><strong>${page}</strong><small>Allow this member to open ${page}.</small></span><input type="checkbox" data-member-page="${page}" ${pageAccess[page] ? 'checked' : ''}></label>
   `).join('');
-  memberActionPermissions.innerHTML = `
-    <article class="permissions-role-card">
-      <div class="permissions-role-heading"><strong>${member.fullName}</strong><span>Overrides ${member.role}</span></div>
-      <div class="permissions-action-grid">
-        ${renderActionToggles(permissions, { 'member-action': true })}
-      </div>
-    </article>
-  `;
+  memberActionPermissions.innerHTML = renderActionToggles(permissions, member.role, true);
+  updateResetButton();
 }
 
 async function loadManagedAccounts() {
@@ -102,40 +472,23 @@ async function loadManagedAccounts() {
       const username = String(row.username || row.userName || row.accountUsername || '').trim();
       const role = String(row.accountType || row.role || row.userType || '').trim();
       const status = String(row.status || 'Active').trim().toLowerCase();
-      if (!username || !role || ['inactive', 'disabled', 'deactivated'].includes(status)) return;
+      if (!username || !role) return;
       uniqueAccounts.set(username.toLowerCase(), {
         username,
         role,
-        fullName: String(row.fullName || row.name || username).trim()
+        fullName: String(row.fullName || row.name || username).trim(),
+        status
       });
     });
-    managedAccounts = [...uniqueAccounts.values()].sort((first, second) => {
+    roleAssignments = [...uniqueAccounts.values()];
+    managedAccounts = roleAssignments.filter((account) => !['inactive', 'disabled', 'deactivated'].includes(account.status)).sort((first, second) => {
       const firstRoleOrder = roleHierarchy.indexOf(first.role);
       const secondRoleOrder = roleHierarchy.indexOf(second.role);
       const firstOrder = firstRoleOrder === -1 ? roleHierarchy.length : firstRoleOrder;
       const secondOrder = secondRoleOrder === -1 ? roleHierarchy.length : secondRoleOrder;
       return firstOrder - secondOrder || first.fullName.localeCompare(second.fullName);
     });
-    memberAccountSelect.replaceChildren(new Option('Select an account', ''));
-    const accountRoles = [...new Set([
-      ...roleHierarchy,
-      ...managedAccounts.map((account) => account.role).filter((role) => !roleHierarchy.includes(role)).sort()
-    ])];
-    accountRoles.forEach((role) => {
-      const roleAccounts = managedAccounts.filter((account) => account.role === role);
-      if (!roleAccounts.length) return;
-      const group = document.createElement('optgroup');
-      group.label = role;
-      roleAccounts.forEach((account) => {
-        group.appendChild(new Option(account.fullName, account.username.toLowerCase()));
-      });
-      memberAccountSelect.appendChild(group);
-    });
-    const currentUsername = String(localStorage.getItem('unitflowUser') || '').toLowerCase();
-    memberAccountSelect.value = managedAccounts.some((account) => account.username.toLowerCase() === currentUsername)
-      ? currentUsername
-      : '';
-    if (!managedAccounts.length) memberAccountSelect.replaceChildren(new Option('No active accounts found', ''));
+    renderManagedMemberOptions();
   } catch (error) {
     memberAccountSelect.replaceChildren(new Option('Unable to load accounts', ''));
     console.error('Unable to load accounts for member permissions:', error);
@@ -148,8 +501,8 @@ function captureMemberOverrides() {
   if (!member || member.role === 'Super Admin' || !memberOverrideEnabled.checked) return;
   const username = member.username.toLowerCase();
   const existing = userPermissionOverrides[username] || {};
-  const permissions = { ...(getRolePermissions()[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician), ...(existing.permissions || {}) };
-  const pageAccess = { ...(existing.pageAccess || getPageAccess()[member.role]) };
+  const permissions = { ...(rolePermissionsState[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician), ...(existing.permissions || {}) };
+  const pageAccess = { ...(pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician), ...(existing.pageAccess || {}) };
   memberPermissionEditor.querySelectorAll('[data-member-action]').forEach((input) => {
     permissions[input.dataset.memberAction] = input.checked;
   });
@@ -184,24 +537,17 @@ function closeSettingsMessage() {
 }
 
 function getFormPermissions() {
-  const permissions = cloneDefaultPermissions();
-  document.querySelectorAll('[data-role][data-action]').forEach((input) => {
-    permissions[input.dataset.role][input.dataset.action] = input.checked;
-  });
-  permissionRoles.forEach((role) => { permissions[role].view = true; });
-  return permissions;
+  captureSelectedRoleSettings();
+  return JSON.parse(JSON.stringify(rolePermissionsState));
 }
 
 function getFormPageAccess() {
-  const access = JSON.parse(JSON.stringify(DEFAULT_PAGE_ACCESS));
-  document.querySelectorAll('[data-page-role][data-page]').forEach((input) => {
-    access[input.dataset.pageRole][input.dataset.page] = input.checked;
-  });
-  access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
-  return access;
+  captureSelectedRoleSettings();
+  return JSON.parse(JSON.stringify(pageAccessState));
 }
 
 async function savePermissions() {
+  captureSelectedRoleSettings();
   captureMemberOverrides();
   const permissions = getFormPermissions();
   const pageAccess = getFormPageAccess();
@@ -238,9 +584,20 @@ async function savePermissions() {
 }
 
 function resetPermissions() {
-  renderPermissions(cloneDefaultPermissions());
-  renderPageAccess(JSON.parse(JSON.stringify(DEFAULT_PAGE_ACCESS)));
-  showSettingsStatus('Defaults restored. Save to apply.', 'notice');
+  if (selectedSettingsTab === 'members') {
+    const member = getSelectedMember();
+    if (!member) return;
+    delete userPermissionOverrides[member.username.toLowerCase()];
+    renderMemberPermissions();
+    showSettingsStatus('Member overrides cleared. Save to apply.', 'notice');
+    return;
+  }
+
+  if (selectedRole === 'Super Admin') return;
+  rolePermissionsState[selectedRole] = { ...(DEFAULT_ROLE_PERMISSIONS[selectedRole] || createCustomRolePermissions()) };
+  pageAccessState[selectedRole] = { ...(DEFAULT_PAGE_ACCESS[selectedRole] || createCustomRolePageAccess()) };
+  renderSelectedRole();
+  showSettingsStatus('Role defaults restored. Save to apply.', 'notice');
 }
 
 async function loadPermissionsFromServer() {
@@ -257,19 +614,34 @@ async function loadPermissionsFromServer() {
     userPermissionOverrides = result.userPermissions || {};
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));
-    renderPermissions(result.permissions);
-    renderPageAccess(pageAccess);
+    rolePermissionsState = getRolePermissions();
+    pageAccessState = getPageAccess();
+    syncRoleHierarchy();
+    renderSelectedRole();
   } catch (error) {
     showSettingsStatus('The database was unavailable', 'notice');
     console.error('Unable to load permissions from Google Sheets:', error);
   }
 }
 
+async function loadManagedBranches() {
+  try {
+    managedBranches = await DATA.fetchBranches();
+    managedBranchesLoaded = true;
+  } catch (error) {
+    managedBranches = [];
+    console.warn('Unable to load branches for branch type management:', error);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   if (!isPermissionManager()) return;
-  renderPermissions();
-  renderPageAccess();
-  await loadPermissionsFromServer();
+  syncRoleHierarchy();
+  renderRoleSelector();
+  renderSelectedRole();
+  renderBranchTypeSelector();
+  setSettingsView('roles');
+  setSettingsTab('permissions');
   savePermissionsBtn.addEventListener('click', savePermissions);
   resetPermissionsBtn.addEventListener('click', resetPermissions);
   closeSettingsMessageModalBtn.addEventListener('click', closeSettingsMessage);
@@ -280,6 +652,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeSettingsMessage();
   });
+  roleSelector.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-role-select]');
+    if (button) selectRole(button.dataset.roleSelect);
+  });
+  document.querySelector('.role-editor-tabs').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-settings-tab]');
+    if (button) setSettingsTab(button.dataset.settingsTab);
+  });
+  document.querySelector('.settings-view-tabs').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-settings-view]');
+    if (button) setSettingsView(button.dataset.settingsView);
+  });
+  addRoleButton.addEventListener('click', openRoleCreateForm);
+  cancelCreateRoleButton.addEventListener('click', closeRoleCreateForm);
+  deleteRoleButton.addEventListener('click', deleteSelectedRole);
+  roleCreateForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    createRole(newRoleName.value);
+  });
+  branchTypeSelector.addEventListener('click', (event) => {
+    if (!captureSelectedBranchType()) return;
+    const button = event.target.closest('[data-branch-type-select]');
+    if (!button || button.dataset.branchTypeSelect === selectedBranchType) return;
+    selectedBranchType = button.dataset.branchTypeSelect;
+    renderBranchTypeSelector();
+  });
+  addBranchTypeButton.addEventListener('click', openBranchTypeCreateForm);
+  cancelCreateBranchTypeButton.addEventListener('click', closeBranchTypeCreateForm);
+  branchTypeCreateForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    createBranchType(newBranchTypeCode.value);
+  });
+  const updateBranchTypePreview = () => {
+    branchTypePreview.textContent = `${branchTypeShortcut.value.trim().toUpperCase()}${branchTypeFullName.value.trim() ? ` — ${branchTypeFullName.value.trim()}` : ''}`;
+  };
+  branchTypeShortcut.addEventListener('input', updateBranchTypePreview);
+  branchTypeFullName.addEventListener('input', updateBranchTypePreview);
+  saveBranchTypeButton.addEventListener('click', saveSelectedBranchType);
+  deleteBranchTypeButton.addEventListener('click', deleteSelectedBranchType);
+  permissionsTableBody.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-role][data-action]');
+    if (!input) return;
+    rolePermissionsState[selectedRole][input.dataset.action] = input.dataset.action === 'view' || input.checked;
+    if (input.previousElementSibling) input.previousElementSibling.textContent = input.checked ? 'Allowed' : 'Off';
+  });
+  pageAccessGrid.addEventListener('change', captureSelectedRoleSettings);
   memberAccountSelect.addEventListener('change', renderMemberPermissions);
   memberOverrideEnabled.addEventListener('change', () => {
     const member = getSelectedMember();
@@ -291,14 +709,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       userPermissionOverrides[username] = {
         enabled: true,
         role: member.role,
-        permissions: { ...(getRolePermissions()[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician) },
-        pageAccess: { ...(getPageAccess()[member.role] || DEFAULT_PAGE_ACCESS.Technician) }
+        permissions: { ...(rolePermissionsState[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician) },
+        pageAccess: { ...(pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician) }
       };
     }
     renderMemberPermissions();
   });
   memberPermissionEditor.addEventListener('change', (event) => {
-    if (event.target.matches('[data-member-action], [data-member-page]')) captureMemberOverrides();
+    const input = event.target.closest('[data-member-action], [data-member-page]');
+    if (!input) return;
+    captureMemberOverrides();
+    if (input.matches('[data-member-action]') && input.previousElementSibling) {
+      input.previousElementSibling.textContent = input.checked ? 'Allowed' : 'Off';
+    }
+  });
+
+  loadPermissionsFromServer();
+  loadManagedBranches();
+  loadBranchTypeDefinitions().then((definitions) => {
+    if (branchTypeDefinitionsChanged) return;
+    branchTypeDefinitions = definitions.length ? definitions : getBranchTypeDefinitions();
+    selectedBranchType = branchTypeDefinitions.some((type) => type.code === selectedBranchType)
+      ? selectedBranchType
+      : (branchTypeDefinitions[0]?.code || '');
+    renderBranchTypeSelector();
   });
   await loadManagedAccounts();
 });

@@ -27,7 +27,83 @@ const ACCESS_RULES = {
 
 function getCurrentRole() {
   const role = localStorage.getItem('unitflowRole');
-  return role && ACCESS_RULES[role] ? role : 'Technician';
+  return role && role.trim() ? role.trim() : 'Technician';
+}
+
+const DEFAULT_BRANCH_TYPE_DEFINITIONS = [
+  { code: 'BNB', fullName: 'Bytes and Bots Gadget Center' },
+  { code: 'EZ', fullName: '' },
+  { code: '1LR', fullName: '' }
+];
+
+function normalizeBranchTypeDefinitions(definitions) {
+  if (!Array.isArray(definitions)) return [];
+  const seenCodes = new Set();
+  return definitions.reduce((result, definition) => {
+    const code = String(definition && definition.code || '').trim().toUpperCase();
+    if (!code || seenCodes.has(code)) return result;
+    seenCodes.add(code);
+    result.push({ code, fullName: String(definition.fullName || '').trim() });
+    return result;
+  }, []);
+}
+
+function getBranchTypeDefinitions() {
+  try {
+    const saved = localStorage.getItem('unitflowBranchTypes');
+    const definitions = saved === null ? [] : normalizeBranchTypeDefinitions(JSON.parse(saved));
+    return definitions.length ? definitions : [...DEFAULT_BRANCH_TYPE_DEFINITIONS];
+  } catch (error) {
+    return [...DEFAULT_BRANCH_TYPE_DEFINITIONS];
+  }
+}
+
+function setBranchTypeDefinitions(definitions) {
+  const normalized = normalizeBranchTypeDefinitions(definitions);
+  localStorage.setItem('unitflowBranchTypes', JSON.stringify(normalized));
+  return normalized;
+}
+
+async function loadBranchTypeDefinitions() {
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl || config.appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
+    return getBranchTypeDefinitions();
+  }
+  try {
+    const response = await fetch(`${config.appScriptUrl}?action=branchtypes`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok || result.ok === false || !Array.isArray(result.branchTypes)) throw new Error(result.error || 'Branch type load failed');
+    return setBranchTypeDefinitions(result.branchTypes.length ? result.branchTypes : DEFAULT_BRANCH_TYPE_DEFINITIONS);
+  } catch (error) {
+    console.warn('Unable to load branch types from Google Sheets:', error);
+    return getBranchTypeDefinitions();
+  }
+}
+
+async function saveBranchTypeDefinitions(definitions) {
+  const normalized = setBranchTypeDefinitions(definitions);
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl || config.appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') return false;
+  const response = await fetch(config.appScriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams({
+      action: 'savebranchtypes',
+      actorRole: getCurrentRole(),
+      branchTypes: JSON.stringify(normalized)
+    }).toString()
+  });
+  const result = await response.json();
+  if (!response.ok || result.ok === false) throw new Error(result.error || 'Branch type save failed');
+  return true;
+}
+
+function getCustomRolePermissionDefaults() {
+  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false };
+}
+
+function getCustomRolePageDefaults() {
+  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false };
 }
 
 function getCurrentPagePath() {
@@ -66,8 +142,10 @@ const DEFAULT_PAGE_ACCESS = {
 function getRolePermissions() {
   try {
     const saved = JSON.parse(localStorage.getItem('unitflowRolePermissions') || '{}');
-    const permissions = Object.keys(DEFAULT_ROLE_PERMISSIONS).reduce((rolePermissions, role) => {
-      rolePermissions[role] = { ...DEFAULT_ROLE_PERMISSIONS[role], ...(saved[role] || {}) };
+    const roleNames = new Set([...Object.keys(DEFAULT_ROLE_PERMISSIONS), ...Object.keys(saved)]);
+    const permissions = [...roleNames].reduce((rolePermissions, role) => {
+      const defaults = DEFAULT_ROLE_PERMISSIONS[role] || getCustomRolePermissionDefaults();
+      rolePermissions[role] = { ...defaults, ...(saved[role] || {}), view: true };
       return rolePermissions;
     }, {});
     permissions['Super Admin'] = { ...DEFAULT_ROLE_PERMISSIONS['Super Admin'] };
@@ -116,8 +194,10 @@ function getEffectiveRolePermissions(role = getCurrentRole()) {
 function getPageAccess() {
   try {
     const saved = JSON.parse(localStorage.getItem('unitflowPageAccess') || '{}');
-    const access = Object.keys(DEFAULT_PAGE_ACCESS).reduce((pageAccess, role) => {
-      pageAccess[role] = { ...DEFAULT_PAGE_ACCESS[role], ...(saved[role] || {}) };
+    const roleNames = new Set([...Object.keys(DEFAULT_PAGE_ACCESS), ...Object.keys(saved)]);
+    const access = [...roleNames].reduce((pageAccess, role) => {
+      const defaults = DEFAULT_PAGE_ACCESS[role] || getCustomRolePageDefaults();
+      pageAccess[role] = { ...defaults, ...(saved[role] || {}) };
       return pageAccess;
     }, {});
     access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
@@ -350,6 +430,11 @@ function getLoggedInUserName() {
   return username.charAt(0).toUpperCase() + username.slice(1);
 }
 
+function getLoggedInUserInitials() {
+  const words = getLoggedInUserName().trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : (words[0] || '?').slice(0, 2)).toUpperCase();
+}
+
 function logoutUser() {
   localStorage.removeItem('unitflowRole');
   localStorage.removeItem('unitflowUser');
@@ -532,6 +617,7 @@ function initUserMenu() {
 
   const userNameElement = document.getElementById('topbarUserName');
   const userMenuButton = document.getElementById('userMenuButton');
+  const userAvatarElement = userMenuButton && userMenuButton.querySelector('.user-avatar');
   const userDropdown = document.getElementById('userDropdown');
   const logoutButton = document.getElementById('logoutButton');
   let changePasswordButton = document.getElementById('changePasswordButton');
@@ -552,6 +638,9 @@ function initUserMenu() {
 
   if (userNameElement) {
     userNameElement.textContent = getLoggedInUserName();
+  }
+  if (userAvatarElement) {
+    userAvatarElement.textContent = getLoggedInUserInitials();
   }
 
   if (userMenuButton && userDropdown) {

@@ -79,105 +79,123 @@
         </div>
       </header>
 
-      <main class="content">
+      <main class="content accounts-content">
+        <div class="accounts-heading">
+          <div>
+            <div class="eyebrow">Workspace</div>
+            <h1>Members</h1>
+            <p>Browse accounts by role and manage workspace access.</p>
+          </div>
+          <span class="accounts-result-count" id="accountResultCount" aria-live="polite"></span>
+        </div>
+
         <div class="page-toolbar">
           <div class="search-box">
-            <input type="text" placeholder="Search accounts" aria-label="Search accounts" />
+            <input id="accountsSearchInput" type="search" placeholder="Search members" aria-label="Search members" />
           </div>
+          <select class="toolbar-select" id="accountRoleFilter" aria-label="Filter members by role">
+            <option value="all">All roles</option>
+          </select>
+          <select class="toolbar-select" id="accountStatusFilter" aria-label="Filter members by status">
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="disabled">Disabled</option>
+          </select>
 
           <div class="page-actions">
             <button class="action-btn primary" id="openAccountModalBtn">+ Add account</button>
           </div>
         </div>
 
-        <section class="panel table-panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Full Name</th>
-                  <th>Account Type</th>
-                  <th>Email</th>
-                  <th>Branch</th>
-                  <th class="date-column">Created</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="accountsTableBody">
-                <tr>
-                  <td colspan="8" class="empty-state">Loading accounts from the spreadsheet…</td>
-                </tr>
-              </tbody>
-            </table>
+        <section class="accounts-directory" aria-label="Workspace members">
+          <div class="accounts-member-list" id="accountsTableBody" aria-live="polite">
+            <div class="member-list-empty">Loading members…</div>
           </div>
         </section>
       </main>
     </div>
 
     <div class="modal-backdrop" id="accountModalBackdrop" aria-hidden="true">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+      <div class="modal account-create-modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
         <div class="modal-header">
-          <h3 id="accountModalTitle">Add Account</h3>
+          <div>
+            <div class="eyebrow">Workspace member</div>
+            <h3 id="accountModalTitle">Create member</h3>
+          </div>
           <button class="modal-close" id="closeAccountModalBtn" aria-label="Close modal">×</button>
         </div>
 
         <form class="unit-form" id="accountForm">
-          <div class="form-grid">
-            <div class="field-group">
-              <label for="accountUsername">Username</label>
-              <input id="accountUsername" name="accountUsername" type="text" placeholder="Enter username" required />
-            </div>
+          <div class="account-member-preview">
+            <div class="account-member-avatar" id="accountPreviewAvatar" aria-hidden="true">?</div>
+            <div class="account-preview-identity"><strong id="accountPreviewName">New member</strong><span id="accountPreviewRole">Choose an account type</span></div>
+            <div class="account-preview-branch"><span>Branch</span><strong id="accountPreviewBranch">Unassigned</strong></div>
+          </div>
 
-            <div class="field-group">
-              <label for="accountPassword">Password</label>
-              <input id="accountPassword" name="accountPassword" type="password" placeholder="Enter password" required />
-            </div>
+          <div class="account-creation-layout">
+            <aside class="account-assignment-panel">
+              <div class="account-section-heading"><h4>Workspace assignment</h4><p>Choose the member's role and branch.</p></div>
+              <div class="field-group">
+                <label for="accountTypeSelect">Account type</label>
+                <select id="accountTypeSelect" name="accountTypeSelect" required>
+                  <option value="">Select account type</option>
+                  <option value="Super Admin">Super Admin</option>
+                  <option value="Administrator">Administrator</option>
+                  <option value="Main Head Admin">Main Head Admin</option>
+                  <option value="Branch Head Admin">Branch Head Admin</option>
+                  <option value="Office">Office</option>
+                  <option value="Technician">Technician</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="accountBranch">Branch</label>
+                <select id="accountBranch" name="accountBranch">
+                  <option value="">No branch assigned</option>
+                </select>
+              </div>
+              <div class="field-group" id="accountStatusGroup" hidden>
+                <label for="accountStatus">Account status</label>
+                <select id="accountStatus" name="accountStatus">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Disabled">Disabled</option>
+                </select>
+              </div>
+            </aside>
 
-            <div class="field-group">
-              <label for="accountTypeSelect">Account Type</label>
-              <select id="accountTypeSelect" name="accountTypeSelect" required>
-                <option value="">Select account type</option>
-                <option value="Super Admin">Super Admin</option>
-                <option value="Administrator">Administrator</option>
-                <option value="Main Head Admin">Main Head Admin</option>
-                <option value="Branch Head Admin">Branch Head Admin</option>
-                <option value="Office">Office</option>
-                <option value="Technician">Technician</option>
-              </select>
-            </div>
-
-            <div class="field-group">
-              <label for="accountFullName">Full Name</label>
-              <input id="accountFullName" name="accountFullName" type="text" placeholder="Full name" required />
-            </div>
-
-            <div class="field-group">
-              <label for="accountEmail">Email</label>
-              <input id="accountEmail" name="accountEmail" type="email" placeholder="email@example.com" required />
-            </div>
-
-            <div class="field-group">
-              <label for="accountBranch">Branch</label>
-              <select id="accountBranch" name="accountBranch">
-                <option value="">No branch assigned</option>
-              </select>
-            </div>
-
-            <div class="field-group" id="accountStatusGroup" hidden>
-              <label for="accountStatus">Account Status</label>
-              <select id="accountStatus" name="accountStatus">
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
+            <section class="account-details-panel">
+              <div class="account-section-heading"><h4>Member details</h4><p>Set the name and sign-in information for this account.</p></div>
+              <div class="form-grid">
+                <div class="field-group">
+                  <label for="accountFullName">Full name</label>
+                  <input id="accountFullName" name="accountFullName" type="text" placeholder="Full name" required />
+                </div>
+                <div class="field-group">
+                  <label for="accountEmail">Email</label>
+                  <input id="accountEmail" name="accountEmail" type="email" placeholder="email@example.com" required />
+                </div>
+                <div class="field-group">
+                  <label for="accountUsername">Username</label>
+                  <input id="accountUsername" name="accountUsername" type="text" placeholder="Enter username" required />
+                </div>
+                <div class="field-group">
+                  <label for="accountPassword">Password</label>
+                  <div class="password-input-wrap">
+                    <input id="accountPassword" name="accountPassword" type="password" placeholder="Enter password" required />
+                    <button class="password-visibility-toggle" id="toggleAccountPasswordVisibility" type="button" aria-label="Show password" title="Show password" aria-pressed="false">
+                      <svg data-password-visible-icon aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      <svg data-password-hidden-icon aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden><path d="m3 3 18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3.1 3.9"/><path d="M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10.3 10.3 0 0 0 4.1-.8"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div class="modal-actions">
             <button type="button" class="action-btn" id="cancelAccountModalBtn">Cancel</button>
-            <button type="submit" class="action-btn primary">Save Account</button>
+            <button type="submit" class="action-btn primary" id="saveAccountButton">Create member</button>
           </div>
         </form>
       </div>

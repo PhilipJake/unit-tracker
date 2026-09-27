@@ -7,13 +7,27 @@ const accountForm = document.getElementById('accountForm');
 const accountBranchField = document.getElementById('accountBranch');
 const accountStatusGroup = document.getElementById('accountStatusGroup');
 const accountStatusField = document.getElementById('accountStatus');
+const accountPasswordField = document.getElementById('accountPassword');
+const toggleAccountPasswordVisibilityButton = document.getElementById('toggleAccountPasswordVisibility');
 const accountTypeSelect = document.getElementById('accountTypeSelect');
+const accountModalTitle = document.getElementById('accountModalTitle');
+const saveAccountButton = document.getElementById('saveAccountButton');
+const accountPreviewAvatar = document.getElementById('accountPreviewAvatar');
+const accountPreviewName = document.getElementById('accountPreviewName');
+const accountPreviewRole = document.getElementById('accountPreviewRole');
+const accountPreviewBranch = document.getElementById('accountPreviewBranch');
+const accountsSearchInput = document.getElementById('accountsSearchInput');
+const accountRoleFilter = document.getElementById('accountRoleFilter');
+const accountStatusFilter = document.getElementById('accountStatusFilter');
+const accountResultCount = document.getElementById('accountResultCount');
 const messageModalBackdrop = document.getElementById('messageModalBackdrop');
 const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 let activeEditUsername = '';
 let pendingConfirmAction = null;
+let loadedAccounts = [];
+const builtInAccountRoleOrder = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
 
 function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return;
@@ -35,13 +49,17 @@ function closePopupMessage() {
 
 function getAllowedAccountTypesForRole() {
   const currentRole = localStorage.getItem('unitflowRole');
+  const builtInRoles = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
+  const customRoles = typeof getRolePermissions === 'function'
+    ? Object.keys(getRolePermissions()).filter((role) => !builtInRoles.includes(role))
+    : [];
 
   if (currentRole === 'Super Admin') {
-    return ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
+    return [...builtInRoles, ...customRoles];
   }
 
   if (currentRole === 'Administrator') {
-    return ['Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
+    return ['Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician', ...customRoles];
   }
 
   if (currentRole === 'Main Head Admin') {
@@ -55,6 +73,12 @@ function applyAccountTypeOptions() {
   if (!accountTypeSelect) return;
 
   const allowedTypes = getAllowedAccountTypesForRole();
+  const existingTypes = new Set(Array.from(accountTypeSelect.options).map((option) => option.value));
+  allowedTypes.forEach((role) => {
+    if (existingTypes.has(role)) return;
+    const option = new Option(role, role);
+    accountTypeSelect.add(option);
+  });
   const currentValue = accountTypeSelect.value || '';
 
   Array.from(accountTypeSelect.options).forEach((option) => {
@@ -71,9 +95,34 @@ function applyAccountTypeOptions() {
 
 function applyAccountStatusOptions() {
   if (!accountStatusGroup || !accountStatusField) return;
-  const isSuperAdmin = localStorage.getItem('unitflowRole') === 'Super Admin';
-  accountStatusGroup.hidden = !isSuperAdmin;
-  accountStatusField.disabled = !isSuperAdmin;
+  const canManageStatus = ['Super Admin', 'Administrator', 'Main Head Admin'].includes(localStorage.getItem('unitflowRole'));
+  accountStatusGroup.hidden = !canManageStatus;
+  accountStatusField.disabled = !canManageStatus;
+}
+
+function setAccountPasswordVisibility(isVisible, animate = false) {
+  if (!accountPasswordField || !toggleAccountPasswordVisibilityButton) return;
+  const visibleIcon = toggleAccountPasswordVisibilityButton.querySelector('[data-password-visible-icon]');
+  const hiddenIcon = toggleAccountPasswordVisibilityButton.querySelector('[data-password-hidden-icon]');
+  visibleIcon.classList.remove('password-eye-animated');
+  hiddenIcon.classList.remove('password-eye-animated');
+  accountPasswordField.type = isVisible ? 'text' : 'password';
+  toggleAccountPasswordVisibilityButton.setAttribute('aria-label', `${isVisible ? 'Hide' : 'Show'} password`);
+  toggleAccountPasswordVisibilityButton.setAttribute('title', `${isVisible ? 'Hide' : 'Show'} password`);
+  toggleAccountPasswordVisibilityButton.setAttribute('aria-pressed', String(isVisible));
+  if (isVisible) {
+    visibleIcon.setAttribute('hidden', '');
+    hiddenIcon.removeAttribute('hidden');
+  } else {
+    visibleIcon.removeAttribute('hidden');
+    hiddenIcon.setAttribute('hidden', '');
+  }
+
+  if (animate) {
+    const icon = isVisible ? hiddenIcon : visibleIcon;
+    void icon.offsetWidth;
+    icon.classList.add('password-eye-animated');
+  }
 }
 
 async function loadBranchOptions() {
@@ -160,53 +209,109 @@ async function loadAccounts() {
   try {
     const rows = await DATA.fetchAccounts();
     const currentRole = localStorage.getItem('unitflowRole');
-    const visibleRows = normalizeAccountRole(currentRole) === 'main head admin'
+    loadedAccounts = normalizeAccountRole(currentRole) === 'main head admin'
       ? rows.filter((row) => !['super admin', 'administrator'].includes(normalizeAccountRole(row.accountType || row.role || row.userType || '')))
       : rows;
-
-    if (!visibleRows.length) {
-      accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No accounts found in the Accounts sheet.</td></tr>';
-      return;
-    }
-
-    accountsTableBody.innerHTML = visibleRows
-      .map((row) => {
-        const username = row.username || row.userName || row.accountUsername || '';
-        const fullName = row.fullName || row.name || row.full_name || '';
-        const accountType = row.accountType || row.role || row.userType || '';
-        const email = row.email || '';
-        const branch = row.branch || row.branchLocation || '';
-        const created = formatAccountCreatedDate(row.created || row.createdAt || row.dateCreated || row['created at'] || '');
-        const status = row.status || 'Active';
-        const isProtected = isProtectedSuperAdminAccount(accountType, currentRole);
-        const canEdit = canManageAction('edit', currentRole) && !isProtected;
-        const canDelete = canManageAction('delete', currentRole) && !isProtected;
-        const displayedAccountType = getDisplayedAccountType(accountType, currentRole);
-        const displayedUsername = getDisplayedAccountUsername(username, accountType, currentRole);
-
-        const statusClass = normalizeAccountStatus(status) === 'inactive' ? 'released' : 'in-stock';
-
-        return `
-          <tr data-account-username="${escapeHtml(username || '')}">
-            <td>${escapeHtml(displayedUsername || '—')}</td>
-            <td>${escapeHtml(fullName || '—')}</td>
-            <td>${escapeHtml(displayedAccountType || '—')}</td>
-            <td>${escapeHtml(email || '—')}</td>
-            <td class="account-branch-cell">${escapeHtml(branch || '—')}</td>
-            <td class="date-column">${escapeHtml(created || '—')}</td>
-            <td><span class="badge ${statusClass}">${escapeHtml(status || 'Active')}</span></td>
-            <td class="table-actions">
-              <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
-              <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
-            </td>
-          </tr>
-        `;
-      })
-      .join('');
+    renderAccountRoleFilter();
+    renderAccountsDirectory();
   } catch (error) {
     console.error(error);
-    accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">Unable to load accounts from the spreadsheet. Please check the Accounts sheet configuration.</td></tr>';
+    accountsTableBody.innerHTML = '<div class="member-list-empty">Unable to load accounts. Check the Accounts sheet configuration.</div>';
   }
+}
+
+function accountRoleOrder(role) {
+  const index = builtInAccountRoleOrder.indexOf(role);
+  return index === -1 ? builtInAccountRoleOrder.length : index;
+}
+
+function renderAccountRoleFilter() {
+  if (!accountRoleFilter) return;
+  const currentFilter = accountRoleFilter.value || 'all';
+  const roles = [...new Set(loadedAccounts.map((row) => String(row.accountType || row.role || row.userType || '').trim()).filter(Boolean))]
+    .sort((first, second) => accountRoleOrder(first) - accountRoleOrder(second) || first.localeCompare(second));
+  accountRoleFilter.replaceChildren(new Option('All roles', 'all'));
+  roles.forEach((role) => accountRoleFilter.add(new Option(role, role)));
+  accountRoleFilter.value = roles.includes(currentFilter) ? currentFilter : 'all';
+}
+
+function getMemberInitials(name) {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : (words[0] || '?').slice(0, 2)).toUpperCase();
+}
+
+function updateAccountPreview() {
+  const fullName = String(accountForm?.elements.namedItem('accountFullName')?.value || '').trim();
+  const accountRole = String(accountTypeSelect?.value || '').trim();
+  const branchName = String(accountBranchField?.value || '').trim();
+  if (accountPreviewName) accountPreviewName.textContent = fullName || 'New member';
+  if (accountPreviewAvatar) accountPreviewAvatar.textContent = getMemberInitials(fullName || 'New member');
+  if (accountPreviewRole) accountPreviewRole.textContent = accountRole || 'Choose an account type';
+  if (accountPreviewBranch) accountPreviewBranch.textContent = branchName || 'Unassigned';
+}
+
+function renderAccountsDirectory() {
+  if (!accountsTableBody) return;
+  const query = String(accountsSearchInput?.value || '').trim().toLowerCase();
+  const selectedRole = accountRoleFilter?.value || 'all';
+  const selectedStatus = accountStatusFilter?.value || 'all';
+  const currentRole = localStorage.getItem('unitflowRole');
+  const filteredAccounts = loadedAccounts.filter((row) => {
+    const username = String(row.username || row.userName || row.accountUsername || '').trim();
+    const fullName = String(row.fullName || row.name || row.full_name || '').trim();
+    const role = String(row.accountType || row.role || row.userType || '').trim();
+    const status = String(row.status || 'Active').trim();
+    const branch = String(row.branch || row.branchLocation || '').trim();
+    const searchable = [username, fullName, role, row.email, branch, status].join(' ').toLowerCase();
+    return (!query || searchable.includes(query))
+      && (selectedRole === 'all' || role === selectedRole)
+      && (selectedStatus === 'all' || normalizeAccountStatus(status) === selectedStatus);
+  });
+
+  accountResultCount.textContent = `${filteredAccounts.length} ${filteredAccounts.length === 1 ? 'member' : 'members'}`;
+  if (!filteredAccounts.length) {
+    accountsTableBody.innerHTML = `<div class="member-list-empty">${loadedAccounts.length ? 'No members match these filters.' : 'No accounts found in the Accounts sheet.'}</div>`;
+    return;
+  }
+
+  const roles = [...new Set(filteredAccounts.map((row) => String(row.accountType || row.role || row.userType || '').trim()))]
+    .sort((first, second) => accountRoleOrder(first) - accountRoleOrder(second) || first.localeCompare(second));
+  accountsTableBody.innerHTML = roles.map((role) => {
+    const roleMembers = filteredAccounts.filter((row) => String(row.accountType || row.role || row.userType || '').trim() === role);
+    const memberRows = roleMembers.map((row) => {
+      const username = String(row.username || row.userName || row.accountUsername || '').trim();
+      const fullName = String(row.fullName || row.name || row.full_name || username).trim();
+      const email = String(row.email || '').trim();
+      const branch = String(row.branch || row.branchLocation || '').trim();
+      const status = String(row.status || 'Active').trim();
+      const isProtected = isProtectedSuperAdminAccount(role, currentRole);
+      const canEdit = canManageAction('edit', currentRole) && !isProtected;
+      const canDelete = canManageAction('delete', currentRole) && !isProtected;
+      const displayedName = getDisplayedAccountUsername(fullName, role, currentRole) === 'Protected account' ? 'Protected account' : fullName;
+      const isActive = !['inactive', 'disabled', 'deactivated'].includes(normalizeAccountStatus(status));
+      const metadata = [email, branch].filter(Boolean).map(escapeHtml);
+      return `
+        <article class="account-member-row" data-account-username="${escapeHtml(username)}">
+          <div class="account-member-avatar" aria-hidden="true">${escapeHtml(getMemberInitials(displayedName))}</div>
+          <div class="account-member-identity">
+            <strong>${escapeHtml(displayedName || '—')}</strong>
+            <span>${metadata.length ? metadata.join('<span class="member-meta-separator">·</span>') : 'No email or branch listed'}</span>
+          </div>
+          <span class="account-member-status ${isActive ? 'is-active' : ''}"><i aria-hidden="true"></i>${escapeHtml(status)}</span>
+          <div class="account-member-actions">
+            <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+            <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+    return `
+      <section class="account-role-group" aria-label="${escapeHtml(role)} members">
+        <header><span>${escapeHtml(role)}</span><span>${roleMembers.length}</span></header>
+        <div>${memberRows}</div>
+      </section>
+    `;
+  }).join('');
 }
 
 function openAccountModal(mode = 'create', account = null) {
@@ -232,8 +337,12 @@ function openAccountModal(mode = 'create', account = null) {
     if (accountStatusField) accountStatusField.value = 'Active';
   }
 
+  setAccountPasswordVisibility(false);
+  if (accountModalTitle) accountModalTitle.textContent = mode === 'edit' ? 'Edit member' : 'Create member';
+  if (saveAccountButton) saveAccountButton.textContent = mode === 'edit' ? 'Save changes' : 'Create member';
   applyAccountTypeOptions();
   applyAccountStatusOptions();
+  updateAccountPreview();
   accountModalBackdrop.classList.add('visible');
   accountModalBackdrop.setAttribute('aria-hidden', 'false');
 }
@@ -271,6 +380,10 @@ function closeAccountModal() {
     delete accountForm.dataset.createdAt;
     accountForm.reset();
   }
+  setAccountPasswordVisibility(false);
+  if (accountModalTitle) accountModalTitle.textContent = 'Create member';
+  if (saveAccountButton) saveAccountButton.textContent = 'Create member';
+  updateAccountPreview();
 }
 
 async function saveAccountToSheet(event) {
@@ -349,7 +462,7 @@ async function saveAccountToSheet(event) {
     actorRole: currentRole || ''
   };
 
-  if (!isEditMode || currentRole === 'Super Admin') {
+  if (!isEditMode || ['Super Admin', 'Administrator', 'Main Head Admin'].includes(currentRole)) {
     bodyValues.status = accountStatusField ? accountStatusField.value : 'Active';
   }
 
@@ -487,7 +600,7 @@ if (accountsTableBody) {
       return;
     }
 
-    const row = button.closest('tr');
+    const row = button.closest('.account-member-row');
     const username = row && row.dataset.accountUsername ? row.dataset.accountUsername : '';
     if (!username) return;
 
@@ -538,8 +651,26 @@ document.addEventListener('keydown', (event) => {
 });
 
 if (accountTypeSelect) {
-  accountTypeSelect.addEventListener('change', applyAccountTypeOptions);
+  accountTypeSelect.addEventListener('change', () => {
+    applyAccountTypeOptions();
+    updateAccountPreview();
+  });
 }
+
+if (toggleAccountPasswordVisibilityButton) {
+  toggleAccountPasswordVisibilityButton.addEventListener('click', () => {
+    setAccountPasswordVisibility(accountPasswordField.type === 'password', true);
+  });
+}
+
+if (accountForm) {
+  accountForm.elements.namedItem('accountFullName').addEventListener('input', updateAccountPreview);
+}
+if (accountBranchField) accountBranchField.addEventListener('change', updateAccountPreview);
+
+if (accountsSearchInput) accountsSearchInput.addEventListener('input', renderAccountsDirectory);
+if (accountRoleFilter) accountRoleFilter.addEventListener('change', renderAccountsDirectory);
+if (accountStatusFilter) accountStatusFilter.addEventListener('change', renderAccountsDirectory);
 
 document.addEventListener('DOMContentLoaded', () => {
   applyAccountTypeOptions();

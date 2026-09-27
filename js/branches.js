@@ -10,6 +10,10 @@ const branchNameInput = document.getElementById('branchName');
 const branchModalTitle = document.getElementById('branchModalTitle');
 const branchSubmitButton = document.getElementById('saveBranchButton');
 const headAdminSelect = document.getElementById('headAdminSelect');
+const branchesSearchInput = document.getElementById('branchesSearchInput');
+const branchTypeFilter = document.getElementById('branchTypeFilter');
+const branchStatusFilter = document.getElementById('branchStatusFilter');
+const branchResultCount = document.getElementById('branchResultCount');
 const messageModalBackdrop = document.getElementById('messageModalBackdrop');
 const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
@@ -17,6 +21,25 @@ const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 let activeEditBranchName = '';
 let activeBranchRecord = null;
 let pendingConfirmAction = null;
+let loadedBranches = [];
+const builtInBranchTypeOrder = ['BNB', 'EZ', '1LR'];
+
+function getBranchTypeLabel(type) {
+  const definition = getBranchTypeDefinitions().find((item) => item.code.toUpperCase() === String(type).toUpperCase());
+  return definition && definition.fullName ? `${type} — ${definition.fullName}` : type;
+}
+
+function renderBranchTypeOptions() {
+  if (!branchTypeSelect) return;
+  const selectedType = branchTypeSelect.value;
+  const types = [...new Set([
+    ...getBranchTypeDefinitions().map((definition) => definition.code),
+    ...loadedBranches.map(getBranchType).filter(Boolean)
+  ])].sort((first, second) => getBranchTypeOrder(first) - getBranchTypeOrder(second) || first.localeCompare(second));
+  branchTypeSelect.replaceChildren(new Option('Select branch type', ''));
+  types.forEach((type) => branchTypeSelect.add(new Option(getBranchTypeLabel(type), type)));
+  branchTypeSelect.value = types.includes(selectedType) ? selectedType : '';
+}
 
 function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return;
@@ -38,42 +61,106 @@ function closePopupMessage() {
 
 async function loadBranches() {
   try {
-    const rows = await DATA.fetchBranches();
-
-    if (!rows.length) {
-      branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No branches found in the Branches sheet.</td></tr>';
-      return;
-    }
-
-    const currentRole = localStorage.getItem('unitflowRole');
-    branchesTableBody.innerHTML = rows
-      .map((row) => {
-        const branchName = row.branchName || row.branchname || row.name || '';
-        const manager = row.manager || row.branchManager || row.headAdmin || row.headadmin || row.head || '';
-        const status = row.status || 'Active';
-
-        const badgeClass = normalizeBranchStatus(status) === 'inactive' ? 'released' : 'in-stock';
-
-        const canEdit = canManageAction('edit', currentRole);
-        const canDelete = canManageAction('delete', currentRole);
-
-        return `
-          <tr data-branch-name="${escapeHtml(branchName)}">
-            <td>${escapeHtml(branchName || '—')}</td>
-            <td class="branch-manager-cell">${escapeHtml(manager || '—')}</td>
-            <td class="branch-status-cell"><span class="badge ${badgeClass}">${escapeHtml(status || 'Active')}</span></td>
-            <td class="table-actions">
-              <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
-              <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
-            </td>
-          </tr>
-        `;
-      })
-      .join('');
+    loadedBranches = await DATA.fetchBranches();
+    renderBranchTypeOptions();
+    renderBranchTypeFilter();
+    renderBranchesDirectory();
   } catch (error) {
     console.error(error);
-    branchesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load branches from the spreadsheet. Please check the Branches sheet configuration.</td></tr>';
+    branchesTableBody.innerHTML = '<div class="member-list-empty">Unable to load branches. Check the Branches sheet configuration.</div>';
   }
+}
+
+function getBranchName(row) {
+  return String(row.branchName || row.branchname || row.name || '').trim();
+}
+
+function getBranchType(row) {
+  const branchName = getBranchName(row);
+  return String(row.branchType || row.branchtype || row.type || branchName.split(/\s+/)[0] || 'Other').trim();
+}
+
+function getBranchTypeOrder(type) {
+  const index = builtInBranchTypeOrder.indexOf(type.toUpperCase());
+  return index < 0 ? builtInBranchTypeOrder.length : index;
+}
+
+function renderBranchTypeFilter() {
+  if (!branchTypeFilter) return;
+  const selectedType = branchTypeFilter.value || 'all';
+  const types = [...new Set(loadedBranches.map(getBranchType).filter(Boolean))]
+    .concat(getBranchTypeDefinitions().map((definition) => definition.code))
+    .filter((type, index, allTypes) => allTypes.indexOf(type) === index)
+    .sort((first, second) => getBranchTypeOrder(first) - getBranchTypeOrder(second) || first.localeCompare(second));
+  branchTypeFilter.replaceChildren(new Option('All types', 'all'));
+  types.forEach((type) => branchTypeFilter.add(new Option(getBranchTypeLabel(type), type)));
+  branchTypeFilter.value = types.includes(selectedType) ? selectedType : 'all';
+}
+
+function getBranchInitials(name) {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : (words[0] || '?').slice(0, 2)).toUpperCase();
+}
+
+function renderBranchesDirectory() {
+  if (!branchesTableBody) return;
+  const query = String(branchesSearchInput?.value || '').trim().toLowerCase();
+  const selectedType = branchTypeFilter?.value || 'all';
+  const selectedStatus = branchStatusFilter?.value || 'all';
+  const currentRole = localStorage.getItem('unitflowRole');
+  const filteredBranches = loadedBranches.filter((row) => {
+    const branchName = getBranchName(row);
+    const branchType = getBranchType(row);
+    const location = String(row.location || row.branchLocation || row.branchlocation || '').trim();
+    const manager = String(row.manager || row.branchManager || row.headAdmin || row.headadmin || row.head || '').trim();
+    const status = String(row.status || 'Active').trim();
+    const searchable = [branchName, branchType, location, manager, status].join(' ').toLowerCase();
+    return (!query || searchable.includes(query))
+      && (selectedType === 'all' || branchType === selectedType)
+      && (selectedStatus === 'all' || normalizeBranchStatus(status) === selectedStatus);
+  });
+
+  branchResultCount.textContent = `${filteredBranches.length} ${filteredBranches.length === 1 ? 'branch' : 'branches'}`;
+  if (!filteredBranches.length) {
+    branchesTableBody.innerHTML = `<div class="member-list-empty">${loadedBranches.length ? 'No branches match these filters.' : 'No branches found in the Branches sheet.'}</div>`;
+    return;
+  }
+
+  const branchTypes = [...new Set(filteredBranches.map(getBranchType))]
+    .sort((first, second) => getBranchTypeOrder(first) - getBranchTypeOrder(second) || first.localeCompare(second));
+  const canEdit = canManageAction('edit', currentRole);
+  const canDelete = canManageAction('delete', currentRole);
+  branchesTableBody.innerHTML = branchTypes.map((type) => {
+    const groupBranches = filteredBranches.filter((row) => getBranchType(row) === type);
+    const rows = groupBranches.map((row) => {
+      const branchName = getBranchName(row);
+      const location = String(row.location || row.branchLocation || row.branchlocation || '').trim();
+      const manager = String(row.manager || row.branchManager || row.headAdmin || row.headadmin || row.head || '').trim();
+      const status = String(row.status || 'Active').trim();
+      const isActive = !['inactive', 'disabled', 'deactivated'].includes(normalizeBranchStatus(status));
+      const details = [location, manager ? `Manager: ${manager}` : ''].filter(Boolean).map(escapeHtml);
+      return `
+        <article class="account-member-row branch-directory-row" data-branch-name="${escapeHtml(branchName)}">
+          <div class="account-member-avatar" aria-hidden="true">${escapeHtml(getBranchInitials(branchName || type))}</div>
+          <div class="account-member-identity">
+            <strong>${escapeHtml(branchName || 'Unnamed branch')}</strong>
+            <span>${details.length ? details.join('<span class="member-meta-separator">·</span>') : 'No location or manager listed'}</span>
+          </div>
+          <span class="account-member-status ${isActive ? 'is-active' : ''}"><i aria-hidden="true"></i>${escapeHtml(status)}</span>
+          <div class="account-member-actions">
+            <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
+            <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+    return `
+      <section class="account-role-group branch-type-group" aria-label="${escapeHtml(type)} branches">
+        <header><span>${escapeHtml(getBranchTypeLabel(type))}</span><span>${groupBranches.length}</span></header>
+        <div>${rows}</div>
+      </section>
+    `;
+  }).join('');
 }
 
 async function loadHeadAdminOptions() {
@@ -380,6 +467,10 @@ if (branchForm) {
   branchForm.addEventListener('submit', saveBranchToSheet);
 }
 
+if (branchesSearchInput) branchesSearchInput.addEventListener('input', renderBranchesDirectory);
+if (branchTypeFilter) branchTypeFilter.addEventListener('change', renderBranchesDirectory);
+if (branchStatusFilter) branchStatusFilter.addEventListener('change', renderBranchesDirectory);
+
 if (branchesTableBody) {
   branchesTableBody.addEventListener('click', async (event) => {
     const button = event.target.closest('button');
@@ -389,7 +480,7 @@ if (branchesTableBody) {
       return;
     }
 
-    const row = button.closest('tr');
+    const row = button.closest('.branch-directory-row');
     const branchName = row && row.dataset.branchName ? row.dataset.branchName : '';
     if (!branchName) return;
 
@@ -444,6 +535,11 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  renderBranchTypeOptions();
+  loadBranchTypeDefinitions().then(() => {
+    renderBranchTypeOptions();
+    renderBranchTypeFilter();
+  });
   loadBranches();
   loadHeadAdminOptions();
 });
