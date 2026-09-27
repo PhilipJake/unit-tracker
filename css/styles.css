@@ -1,3 +1,7 @@
+@view-transition {
+  navigation: auto;
+}
+
 :root {
   --sidebar-bg: #18241f;
   --sidebar-accent: #7fe2a7;
@@ -1252,7 +1256,7 @@ td {
 .unit-registry-table th:nth-child(7),
 .unit-registry-table td:nth-child(7) { width: 110px; min-width: 110px; }
 .unit-registry-table th:nth-child(8),
-.unit-registry-table td:nth-child(8) { width: 100px; min-width: 100px; }
+.unit-registry-table td:nth-child(8) { width: 130px; min-width: 130px; }
 .unit-registry-table th:nth-child(9),
 .unit-registry-table td:nth-child(9) { width: 190px; min-width: 190px; }
 .unit-registry-table th:nth-child(10),

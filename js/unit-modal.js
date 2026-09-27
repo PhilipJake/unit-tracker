@@ -27,6 +27,7 @@ let activeEditCode = '';
 let activeEditRowIndex = null;
 let pendingConfirmAction = null;
 let registryRowsCache = [];
+let registryRowsLoaded = false;
 let unitToastTimer = null;
 const contactInfoPrefix = '+63 ';
 const canSetForDiagnose = ['Super Admin', 'Administrator', 'Technician'];
@@ -454,7 +455,57 @@ async function saveUnitToSheet(event) {
   }
 }
 
+function syncRegistryViewLinks() {
+  const currentUrl = new URL(window.location.href);
+  const currentView = currentUrl.searchParams.get('view') || 'monitoring';
+  const unitsLink = document.querySelector('[data-unit-menu] .nav-group-header > .nav-item');
+  const isMonitoringView = currentUrl.pathname.endsWith('units.html') && currentView === 'monitoring';
+  if (unitsLink) {
+    unitsLink.classList.toggle('active', isMonitoringView);
+    if (isMonitoringView) unitsLink.setAttribute('aria-current', 'page');
+    else unitsLink.removeAttribute('aria-current');
+  }
+
+  document.querySelectorAll('[data-unit-menu] .nav-submenu a[href]').forEach((link) => {
+    const linkUrl = new URL(link.href, currentUrl);
+    const isActive = linkUrl.pathname.endsWith('units.html')
+      && linkUrl.pathname === currentUrl.pathname
+      && (linkUrl.searchParams.get('view') || 'monitoring') === currentView;
+    link.classList.toggle('active', isActive);
+    if (isActive) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+}
+
+function initRegistryViewNavigation() {
+  const viewLinks = document.querySelectorAll('[data-unit-menu] .nav-group-header > .nav-item[href], [data-unit-menu] .nav-submenu a[href]');
+  if (!unitRegistryTableBody || !viewLinks.length) return;
+
+  const renderCurrentView = () => {
+    syncRegistryViewLinks();
+    if (registryRowsLoaded) renderRegistryTable(registryRowsCache);
+  };
+
+  viewLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const targetUrl = new URL(link.href, window.location.href);
+      if (!targetUrl.pathname.endsWith('units.html') || targetUrl.pathname !== window.location.pathname || !targetUrl.searchParams.has('view')) return;
+
+      event.preventDefault();
+      if (targetUrl.pathname !== window.location.pathname || targetUrl.search !== window.location.search) {
+        window.history.pushState({}, '', `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+      }
+      renderCurrentView();
+    });
+  });
+
+  window.addEventListener('popstate', renderCurrentView);
+  syncRegistryViewLinks();
+}
+
 function initUnitModal() {
+  initRegistryViewNavigation();
+
   if (openBtn) {
     openBtn.addEventListener('click', () => openUnitModal('create'));
   }
@@ -797,9 +848,11 @@ async function loadRegistryUnits() {
   try {
     const rows = await DATA.fetchUnits();
     registryRowsCache = Array.isArray(rows) ? rows : [];
+    registryRowsLoaded = true;
     renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error(error);
+    registryRowsLoaded = true;
     unitRegistryTableBody.innerHTML = '<tr><td colspan="18" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
   }
 }

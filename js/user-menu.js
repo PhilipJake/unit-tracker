@@ -196,6 +196,10 @@ function applyRoleRestrictions() {
 function initUnitsMenu() {
   const currentPath = window.location.pathname;
   const isUnitsPage = currentPath.endsWith('units.html');
+  const trashExpansionKey = 'unitflowExpandUnitsMenuOnTrash';
+  const shouldExpandOnTrash = currentPath.endsWith('trash.html')
+    && sessionStorage.getItem(trashExpansionKey) === 'true';
+  if (shouldExpandOnTrash) sessionStorage.removeItem(trashExpansionKey);
   const savedState = localStorage.getItem('unitflowUnitsMenuCollapsed');
   const defaultCollapsed = savedState === null ? true : savedState === 'true';
 
@@ -225,11 +229,39 @@ function initUnitsMenu() {
       else link.removeAttribute('aria-current');
     });
 
-    setCollapsed(isUnitsPage ? false : defaultCollapsed);
+    setCollapsed(isUnitsPage ? defaultCollapsed : !shouldExpandOnTrash);
+    const unitsLink = menu.querySelector('.nav-group-header > .nav-item');
+    if (unitsLink) {
+      unitsLink.addEventListener('click', () => {
+        setCollapsed(false);
+        localStorage.setItem('unitflowUnitsMenuCollapsed', 'false');
+      });
+    }
+    submenu.querySelectorAll('a[href]').forEach((link) => {
+      const linkUrl = new URL(link.href, window.location.href);
+      if (!linkUrl.pathname.endsWith('/trash.html')) return;
+      link.addEventListener('click', () => {
+        if (!menu.classList.contains('is-collapsed')) {
+          sessionStorage.setItem(trashExpansionKey, 'true');
+        }
+      });
+    });
     toggle.addEventListener('click', () => {
       const collapsed = !menu.classList.contains('is-collapsed');
       setCollapsed(collapsed);
       localStorage.setItem('unitflowUnitsMenuCollapsed', String(collapsed));
+    });
+  });
+}
+
+function preventCurrentPageReload() {
+  const currentUrl = new URL(window.location.href);
+  document.querySelectorAll('.nav a.nav-item[href]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const linkUrl = new URL(link.href, currentUrl);
+      if (linkUrl.pathname === currentUrl.pathname && linkUrl.search === currentUrl.search && linkUrl.hash === currentUrl.hash) {
+        event.preventDefault();
+      }
     });
   });
 }
@@ -499,6 +531,7 @@ function initUserMenu() {
 
 function bootUserMenu() {
   initUserMenu();
+  preventCurrentPageReload();
   initUnitsMenu();
 }
 
