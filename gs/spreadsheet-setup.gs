@@ -15,6 +15,8 @@ function initializeClientUnitTrackerSheets() {
     'Date Purchased',
     'Date of Return',
     'Date Released',
+    'Date Sent to Warehouse',
+    'Date Left Warehouse',
     'Warranty',
     'Unit Problem',
     'Inclusion',

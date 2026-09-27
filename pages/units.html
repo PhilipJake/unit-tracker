@@ -221,14 +221,8 @@
               <select id="status" name="status" required>
                 <option value="">Select status</option>
                 <option>For Observation</option>
-                <option>Transferred to Technical</option>
                 <option>For Diagnose</option>
-                <option>For Replacement</option>
-                <option>Replaced</option>
-                <option>In Service</option>
-                <option>For Release</option>
-                <option>Released</option>
-                <option>Pull Out</option>
+                <option>Transferred to Technical</option>
               </select>
             </div>
 
@@ -317,7 +311,7 @@
         <section class="panel table-panel">
           <div class="table-wrap">
             <table class="unit-registry-table trash-table">
-              <thead><tr><th>Code</th><th>Client Name</th><th>Branch</th><th>Deleted At</th><th>Expires At</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Code</th><th>Client Name</th><th>Branch</th><th class="date-column">Deleted At</th><th class="date-column">Expires At</th><th>Actions</th></tr></thead>
               <tbody id="trashTableBody"><tr><td colspan="6" class="empty-state">Loading deleted units…</td></tr></tbody>
             </table>
           </div>

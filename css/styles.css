@@ -1278,6 +1278,13 @@ td {
 .unit-registry-table th:nth-child(18),
 .unit-registry-table td:nth-child(18) { width: 170px; min-width: 170px; }
 
+.unit-registry-table th.warehouse-days-column,
+.unit-registry-table td.warehouse-days-column { width: 130px; min-width: 130px; }
+.unit-registry-table th.warehouse-date-column,
+.unit-registry-table td.warehouse-date-column { width: 130px; min-width: 130px; text-align: center; }
+.date-column { text-align: center; }
+.unit-registry-table td.date-column { text-align: center; }
+
 .unit-registry-table .technician-notes-cell {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1871,11 +1878,13 @@ td {
 .table-actions .edit {
   background: var(--blue-soft);
   color: var(--blue-text);
-  transition: opacity 160ms ease;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .table-actions .edit:hover:not(:disabled) {
-  opacity: 0.72;
+  background: #7fb0ff;
+  color: #152b5e;
+  transform: translateY(-1px);
 }
 
 .table-actions .release {
@@ -1901,6 +1910,29 @@ td {
   color: #fff;
   transform: translateY(-1px);
 }
+
+.table-actions .for-release,
+.table-actions .for-replacement,
+.table-actions .replaced,
+.table-actions .warehouse,
+.table-actions .pull-out,
+.table-actions .return-tracking {
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.table-actions .for-release { background: #fff0ce; color: #85570b; }
+.table-actions .for-replacement { background: #fce7d7; color: #984b17; }
+.table-actions .replaced { background: #dff3e7; color: #286443; }
+.table-actions .warehouse { background: #d9f2ec; color: #17685c; }
+.table-actions .pull-out { background: #f4e2d4; color: #8a4a23; }
+.table-actions .return-tracking { background: #e6eaf8; color: #3b4e89; }
+
+.table-actions .for-release:hover:not(:disabled) { background: #f5c542; color: #473400; transform: translateY(-1px); }
+.table-actions .for-replacement:hover:not(:disabled) { background: #f08a52; color: #4a210c; transform: translateY(-1px); }
+.table-actions .replaced:hover:not(:disabled) { background: #52c77c; color: #123d25; transform: translateY(-1px); }
+.table-actions .warehouse:hover:not(:disabled) { background: #3ac2a7; color: #073e35; transform: translateY(-1px); }
+.table-actions .pull-out:hover:not(:disabled) { background: #e98948; color: #49210b; transform: translateY(-1px); }
+.table-actions .return-tracking:hover:not(:disabled) { background: #8aa8ff; color: #152b5e; transform: translateY(-1px); }
 
 .trash-table .table-actions .delete {
   min-width: 92px;

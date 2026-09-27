@@ -429,15 +429,7 @@ function getUnitRecord(sheet, unitCode) {
 function getTrashSheet(spreadsheet, unitHeaders) {
   const sheet = ensureSheet(spreadsheet, 'Trash');
   const trashHeaders = getTrashHeaders(unitHeaders);
-  const headerRange = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), trashHeaders.length));
-  const firstRow = headerRange.getValues()[0];
-  const isEmpty = firstRow.every((cell) => String(cell).trim() === '');
-
-  if (isEmpty) {
-    sheet.getRange(1, 1, 1, trashHeaders.length).setValues([trashHeaders]);
-  } else {
-    sheet.getRange(1, trashHeaders.length - 2, 1, 3).setValues([trashHeaders.slice(-3)]);
-  }
+  sheet.getRange(1, 1, 1, trashHeaders.length).setValues([trashHeaders]);
 
   return sheet;
 }
@@ -484,6 +476,7 @@ function getTrashArchiveDateIndexes(row, fallbackDeletedIndex, fallbackExpiresIn
 
 function readTrashRows(spreadsheet) {
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
+  ensureUnitDateColumns(unitsSheet);
   const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
   const trashSheet = getTrashSheet(spreadsheet, unitHeaders);
   const values = trashSheet.getDataRange().getValues();
@@ -524,6 +517,7 @@ function deleteUnitRow(spreadsheet, unitCode, values) {
   }
 
   const sheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
+  ensureUnitDateColumns(sheet);
   const record = getUnitRecord(sheet, unitCode);
   if (!record) {
     const codeIndex = getCodeColumnIndex(sheet.getDataRange().getValues()[0] || []);
@@ -545,10 +539,18 @@ function restoreUnitRow(spreadsheet, unitCode) {
   const trashSheet = spreadsheet.getSheetByName('Trash');
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
   if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
+  ensureUnitDateColumns(unitsSheet);
   const record = getUnitRecord(trashSheet, unitCode);
   if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
-  const unitColumnCount = (unitsSheet.getDataRange().getValues()[0] || []).length;
-  unitsSheet.appendRow(record.values.slice(0, unitColumnCount));
+  const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
+  const archiveIndexes = getTrashArchiveDateIndexes(record.values, unitHeaders.length, unitHeaders.length + 2);
+  const archiveValueIndexes = new Set([archiveIndexes.deletedAtIndex, archiveIndexes.deletedAtIndex + 1, archiveIndexes.expiresAtIndex]);
+  const sourceHeaderIndexes = new Map(record.headers.map((header, index) => [String(header).trim().toLowerCase(), index]));
+  const restoredValues = unitHeaders.map((header) => {
+    const sourceIndex = sourceHeaderIndexes.get(String(header).trim().toLowerCase());
+    return sourceIndex === undefined || archiveValueIndexes.has(sourceIndex) ? '' : record.values[sourceIndex] || '';
+  });
+  unitsSheet.appendRow(restoredValues);
   trashSheet.deleteRow(record.rowIndex);
   return jsonResponse({ ok: true, action: 'restoreUnit', restoredCode: unitCode });
 }
@@ -596,9 +598,6 @@ function deleteBranchRow(spreadsheet, branchName) {
 }
 
 function updateUnitRow(spreadsheet, values) {
-  if (!isValidContactInfo(values.contactInfo || '')) {
-    return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
-  }
   if (String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
     return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
   }
@@ -622,9 +621,18 @@ function updateUnitRow(spreadsheet, values) {
   for (const rowIndex of rowIndexes) {
     const currentCode = String(data[rowIndex][codeIndex] || '').trim();
     if (currentCode === targetCode) {
+      const contactInfoIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'contact info');
       const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
       const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
       const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
+      const currentLocationIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'current location');
+      const warehouseDateInIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date sent to warehouse');
+      const warehouseDateOutIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date left warehouse');
+      const requestedContactInfo = String(values.contactInfo || '').trim();
+      if (requestedContactInfo && !isValidContactInfo(requestedContactInfo)) {
+        return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
+      }
+      if (!requestedContactInfo && contactInfoIndex >= 0) values.contactInfo = data[rowIndex][contactInfoIndex] || '';
       if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
         values.unitPrice = data[rowIndex][unitPriceIndex] || '';
       }
@@ -634,6 +642,15 @@ function updateUnitRow(spreadsheet, values) {
       if (urgentIndex >= 0 && ['true', '1', 'yes', 'urgent'].includes(String(data[rowIndex][urgentIndex] || '').trim().toLowerCase())) {
         values.isUrgent = 'TRUE';
       }
+      const previousLocation = String(currentLocationIndex >= 0 ? data[rowIndex][currentLocationIndex] : '').trim().toLowerCase();
+      const nextLocation = String(values.currentLocation || values.branchLocation || '').trim().toLowerCase();
+      const wasInWarehouse = previousLocation === 'warehouse';
+      const isInWarehouse = nextLocation === 'warehouse';
+      const existingDateIn = warehouseDateInIndex >= 0 ? data[rowIndex][warehouseDateInIndex] || '' : '';
+      const existingDateOut = warehouseDateOutIndex >= 0 ? data[rowIndex][warehouseDateOutIndex] || '' : '';
+      const warehouseDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd');
+      values.warehouseDateIn = isInWarehouse ? (wasInWarehouse ? existingDateIn || warehouseDate : warehouseDate) : existingDateIn;
+      values.warehouseDateOut = isInWarehouse ? '' : (wasInWarehouse ? warehouseDate : existingDateOut);
       const rowToWrite = buildRowForAction('units', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
       targetRange.setValues([rowToWrite]);
@@ -920,6 +937,8 @@ function getHeadersForAction(action) {
         'Date Purchased',
         'Date of Return',
         'Date Released',
+        'Date Sent to Warehouse',
+        'Date Left Warehouse',
         'Warranty',
         'Unit Problem',
         'Inclusion',
@@ -984,6 +1003,8 @@ function buildRowForAction(action, values) {
         values.dateReceived || values.datePurchase || '',
         values.dateReturn || values.returnDate || '',
         values.dateReleased || '',
+        values.warehouseDateIn || '',
+        values.warehouseDateOut || '',
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',

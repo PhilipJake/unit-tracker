@@ -237,9 +237,6 @@ function markMessageRead(spreadsheet, messageId) {
 }
 
 function updateUnitRow(spreadsheet, values) {
-  if (!isValidContactInfo(values.contactInfo || '')) {
-    return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
-  }
   if (String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
     return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
   }
@@ -259,9 +256,18 @@ function updateUnitRow(spreadsheet, values) {
   for (const rowIndex of rowIndexes) {
     if (String(data[rowIndex][codeIndex] || '').trim() !== targetCode) continue;
 
+    const contactInfoIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'contact info');
     const notesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
     const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
     const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
+    const currentLocationIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'current location');
+    const warehouseDateInIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date sent to warehouse');
+    const warehouseDateOutIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date left warehouse');
+    const requestedContactInfo = String(values.contactInfo || '').trim();
+    if (requestedContactInfo && !isValidContactInfo(requestedContactInfo)) {
+      return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
+    }
+    if (!requestedContactInfo && contactInfoIndex >= 0) values.contactInfo = data[rowIndex][contactInfoIndex] || '';
     if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
       values.unitPrice = data[rowIndex][unitPriceIndex] || '';
     }
@@ -271,6 +277,15 @@ function updateUnitRow(spreadsheet, values) {
     if (urgentIndex >= 0 && ['true', '1', 'yes', 'urgent'].includes(String(data[rowIndex][urgentIndex] || '').trim().toLowerCase())) {
       values.isUrgent = 'TRUE';
     }
+    const previousLocation = String(currentLocationIndex >= 0 ? data[rowIndex][currentLocationIndex] : '').trim().toLowerCase();
+    const nextLocation = String(values.currentLocation || values.branchLocation || '').trim().toLowerCase();
+    const wasInWarehouse = previousLocation === 'warehouse';
+    const isInWarehouse = nextLocation === 'warehouse';
+    const existingDateIn = warehouseDateInIndex >= 0 ? data[rowIndex][warehouseDateInIndex] || '' : '';
+    const existingDateOut = warehouseDateOutIndex >= 0 ? data[rowIndex][warehouseDateOutIndex] || '' : '';
+    const warehouseDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd');
+    values.warehouseDateIn = isInWarehouse ? (wasInWarehouse ? existingDateIn || warehouseDate : warehouseDate) : existingDateIn;
+    values.warehouseDateOut = isInWarehouse ? '' : (wasInWarehouse ? warehouseDate : existingDateOut);
 
     sheet.getRange(rowIndex + 1, 1, 1, getHeadersForAction('units').length).setValues([buildRowForAction('units', values)]);
     return jsonResponse({ ok: true, action: 'updateUnit', updatedCode: targetCode });
@@ -712,6 +727,8 @@ function getHeadersForAction(action) {
         'Date Purchased',
         'Date of Return',
         'Date Released',
+        'Date Sent to Warehouse',
+        'Date Left Warehouse',
         'Warranty',
         'Unit Problem',
         'Inclusion',
@@ -772,6 +789,8 @@ function buildRowForAction(action, values) {
         values.dateReceived || values.datePurchase || '',
         values.dateReturn || values.returnDate || '',
         values.dateReleased || '',
+        values.warehouseDateIn || '',
+        values.warehouseDateOut || '',
         values.warranty || '',
         values.unitProblem || '',
         values.inclusion || '',

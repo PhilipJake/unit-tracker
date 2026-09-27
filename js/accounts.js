@@ -193,7 +193,7 @@ async function loadAccounts() {
             <td>${escapeHtml(displayedAccountType || '—')}</td>
             <td>${escapeHtml(email || '—')}</td>
             <td class="account-branch-cell">${escapeHtml(branch || '—')}</td>
-            <td>${escapeHtml(created || '—')}</td>
+            <td class="date-column">${escapeHtml(created || '—')}</td>
             <td><span class="badge ${statusClass}">${escapeHtml(status || 'Active')}</span></td>
             <td class="table-actions">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>

@@ -94,8 +94,8 @@ function renderTrashRows() {
       <td><strong>${escapeHtml(row.unitCode || '—')}</strong></td>
       <td>${escapeHtml(row.clientName || '—')}</td>
       <td><span class="branch-tag ${branchClass(row.branchLocation || row.uploadedBranch || row.currentLocation)}"><span class="center-stack">${renderTrashBranch(row.branchLocation || row.uploadedBranch || row.currentLocation)}</span></span></td>
-      <td>${escapeHtml(formatTrashDate(row.deletedAt))}</td>
-      <td>${escapeHtml(formatTrashCountdown(row.expiresAt))}</td>
+      <td class="date-column">${escapeHtml(formatTrashDate(row.deletedAt))}</td>
+      <td class="date-column">${escapeHtml(formatTrashCountdown(row.expiresAt))}</td>
       <td class="table-actions">
         <button class="restore" type="button" ${canRestore ? '' : 'disabled'}>Restore</button>
         <button class="purge delete" type="button" ${canPurge ? '' : 'disabled'}><span>Delete</span><span>Permanently</span></button>

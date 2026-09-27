@@ -337,7 +337,7 @@ function normalizeSavedUnitPayload(form) {
 async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation, successMessage) {
   const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
   if (!appScriptUrl || appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
-    showPopupMessage('Please configure the Apps Script URL before pulling out a unit.');
+    showPopupMessage('Please configure the Apps Script URL before moving a unit.');
     return;
   }
 
@@ -348,7 +348,6 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     originalRowIndex: '-1',
     unitCode,
     clientName: unit.clientName || '',
-    contactInfo: formatContactInfoValue(unit.contactInfo || '').replace(/\s+/g, ''),
     unitBrand: unit.unitBrand || '',
     unitSpecs: unit.specs || '',
     unitPrice: unit.unitPrice || '',
@@ -377,8 +376,24 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     if (!response.ok || (result && result.ok === false)) {
       throw new Error(result && result.error ? result.error : `HTTP ${response.status}`);
     }
+    const today = getManilaDateKey(new Date());
+    registryRowsCache = registryRowsCache.map((cachedUnit) => {
+      if (String(cachedUnit.unitCode || cachedUnit.code || '').trim().toLowerCase() !== unitCode.toLowerCase()) return cachedUnit;
+
+      const previousLocation = normalizeSearchText(cachedUnit.currentLocation);
+      const currentLocation = nextLocation || cachedUnit.currentLocation || cachedUnit.branchLocation || cachedUnit.uploadedBranch || '';
+      const isInWarehouse = normalizeSearchText(currentLocation) === 'warehouse';
+      const wasInWarehouse = previousLocation === 'warehouse';
+      return {
+        ...cachedUnit,
+        status: nextStatus,
+        currentLocation,
+        warehouseDateIn: isInWarehouse ? (wasInWarehouse ? cachedUnit.warehouseDateIn || today : today) : cachedUnit.warehouseDateIn || '',
+        warehouseDateOut: isInWarehouse ? '' : (wasInWarehouse ? today : cachedUnit.warehouseDateOut || '')
+      };
+    });
     showUnitToast(successMessage);
-    await loadRegistryUnits();
+    renderRegistryTable(registryRowsCache);
   } catch (error) {
     console.error('Unit status transfer failed:', error);
     showPopupMessage(`Transfer failed: ${error.message || 'Unknown Apps Script error'}`);
@@ -564,9 +579,9 @@ function initUnitModal() {
     okMessageModalBtn.addEventListener('click', async () => {
       if (pendingConfirmAction) {
         const action = pendingConfirmAction;
-        pendingConfirmAction = null;
-        okMessageModalBtn.textContent = 'OK';
+        closePopupMessage();
         await action();
+        return;
       }
       closePopupMessage();
     });
@@ -759,6 +774,11 @@ function initUnitModal() {
 
         activeEditRowIndex = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0 ? selectedRowIndex : null;
 
+        if (button.classList.contains('warehouse')) {
+          showPopupMessage(`Move unit ${unitCode} to Warehouse?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'Warehouse', 'Warehouse', 'Unit moved to Warehouse successfully.'));
+          return;
+        }
+
         if (button.classList.contains('pull-out')) {
           showPopupMessage(`Move unit ${unitCode} to Pull Out?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'Pull Out', '', 'Unit moved to Pull Out successfully.'));
           return;
@@ -769,12 +789,12 @@ function initUnitModal() {
           return;
         }
 
-        openUnitModal('edit', unit);
-
         if (button.classList.contains('for-release')) {
-          const statusField = unitForm.elements.namedItem('status');
-          if (statusField) statusField.value = 'For Release';
+          showPopupMessage(`Move unit ${unitCode} to For Release?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'For Release', '', 'Unit moved to For Release successfully.'));
+          return;
         }
+
+        openUnitModal('edit', unit);
 
         if (button.classList.contains('for-replacement')) {
           const statusField = unitForm.elements.namedItem('status');
@@ -784,11 +804,6 @@ function initUnitModal() {
         if (button.classList.contains('replaced')) {
           const statusField = unitForm.elements.namedItem('status');
           if (statusField) statusField.value = 'Replaced';
-        }
-
-        if (button.classList.contains('warehouse')) {
-          const locationField = unitForm.elements.namedItem('currentLocation');
-          if (locationField) locationField.value = 'Warehouse';
         }
 
         return;
@@ -827,8 +842,14 @@ function initUnitModal() {
             if (!response.ok || (result && result.ok === false)) {
               throw new Error(result && result.error ? result.error : `HTTP ${response.status}`);
             }
+            const dateReleased = result && result.dateReleased ? result.dateReleased : getManilaDateKey(new Date());
+            registryRowsCache = registryRowsCache.map((cachedUnit) => (
+              String(cachedUnit.unitCode || cachedUnit.code || '').trim().toLowerCase() === unitCode.toLowerCase()
+                ? { ...cachedUnit, status: 'Released', dateReleased }
+                : cachedUnit
+            ));
             showUnitToast('Unit released successfully.');
-            await loadRegistryUnits();
+            renderRegistryTable(registryRowsCache);
           } catch (error) {
             console.error('Release unit failed:', error);
             showPopupMessage('Release failed. Please confirm the Apps Script URL is correct.');
@@ -940,10 +961,15 @@ function renderRegistryTableHeader(view) {
   const headers = view === 'released'
     ? ['Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
     : view === 'warehouse'
-      ? ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
+      ? ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Days in Warehouse', 'Date Sent to<br>Warehouse', 'Date Left<br>Warehouse', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
       : ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes'];
 
-  unitRegistryTableHead.innerHTML = `<tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr>`;
+  unitRegistryTableHead.innerHTML = `<tr>${headers.map((header, index) => {
+    const warehouseColumnClass = view !== 'warehouse' ? '' : index === 8 ? 'warehouse-days-column' : index === 9 || index === 10 ? 'warehouse-date-column' : '';
+    const isDateColumn = header.replace(/<br>/g, ' ').startsWith('Date ');
+    const headerClasses = [isDateColumn ? 'date-column' : '', warehouseColumnClass].filter(Boolean).join(' ');
+    return `<th${headerClasses ? ` class="${headerClasses}"` : ''}>${header}</th>`;
+  }).join('')}</tr>`;
 }
 
 function renderRegistryTable(rows) {
@@ -954,7 +980,7 @@ function renderRegistryTable(rows) {
   const searchTerm = normalizeSearchText(unitSearchInput ? unitSearchInput.value : '');
   const selectedStatus = normalizeSearchText(unitStatusFilter ? unitStatusFilter.value : 'all');
   const selectedBranch = normalizeSearchText(unitBranchFilter ? unitBranchFilter.value : 'all');
-  const requestedView = normalizeSearchText(new URLSearchParams(window.location.search).get('view'));
+  const requestedView = normalizeSearchText(new URLSearchParams(window.location.search).get('view') || 'monitoring');
   const isReleasedView = requestedView === 'released';
   const isReplacedView = requestedView === 'replaced';
   const isWarehouseView = requestedView === 'warehouse';
@@ -990,7 +1016,8 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    unitRegistryTableBody.innerHTML = `<tr><td colspan="${isReleasedView ? 16 : 18}" class="empty-state">No matching units found.</td></tr>`;
+    const columnCount = isReleasedView ? 16 : isWarehouseView ? 21 : 18;
+    unitRegistryTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="empty-state">No matching units found.</td></tr>`;
     return;
   }
 
@@ -1008,6 +1035,9 @@ function renderRegistryTable(rows) {
       const datePurchase = formatDateDisplay(unit.dateReceived || unit.datePurchase || '');
       const dateReturn = formatDateDisplay(unit.dateReturn || '');
       const dateReleased = formatDateDisplay(unit.dateReleased || '');
+      const warehouseDateIn = formatWarehouseDateDisplay(unit.warehouseDateIn || '');
+      const warehouseDateOut = formatWarehouseDateDisplay(unit.warehouseDateOut || '');
+      const daysInWarehouse = computeRunningDays(unit.warehouseDateIn, unit.warehouseDateOut) || '—';
       const problem = unit.unitProblem || unit.problem || '—';
       const status = unit.status || 'Unknown';
       const isReleased = normalizeSearchText(status) === 'released';
@@ -1025,7 +1055,7 @@ function renderRegistryTable(rows) {
         : `<td class="table-actions"><div class="unit-registry-actions">${requestedView === 'for-release' || isReplacedView || requestedView === 'pull-out'
           ? `<div class="unit-action-row"><button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Release permission is disabled or unit is already released"'}>Released</button></div>`
           : isWarehouseView
-            ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>Return to Tracking</button></div>`
+            ? currentLocation === 'warehouse' ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions ? '' : 'disabled title="Edit permission is disabled"'}>Return to Tracking</button></div>` : ''
           : `<div class="unit-action-row">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
               <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
@@ -1047,12 +1077,13 @@ function renderRegistryTable(rows) {
           <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
+          ${isWarehouseView ? `<td class="unit-running-days-cell warehouse-days-column"><span class="center-stack">${renderStackedText(daysInWarehouse)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateIn)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateOut)}</span></td>` : ''}
           <td class="unit-brand-cell">${escapeHtml(brand)}</td>
           <td>${escapeHtml(specs)}</td>
           ${isReleasedView ? '' : `<td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>`}
-          <td><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
-          <td><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
-          <td><span class="center-stack">${renderStackedText(dateReleased)}</span></td>
+          <td class="date-column"><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
+          <td class="date-column"><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
+          <td class="date-column"><span class="center-stack">${renderStackedText(dateReleased)}</span></td>
           <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
           <td>${escapeHtml(problem)}</td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
@@ -1079,6 +1110,15 @@ function formatDateDisplay(value) {
   const year = date.getFullYear();
 
   return `${month}/${day}/${year}`;
+}
+
+function formatWarehouseDateDisplay(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '—';
+
+  const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) return `${isoDate[2]}/${isoDate[3]}/${isoDate[1]}`;
+  return formatDateDisplay(trimmed);
 }
 
 function renderStackedText(value) {

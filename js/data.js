@@ -205,6 +205,8 @@ function normalizeRow(rawRow) {
   const dateReceived = legacyValue(9, ['date purchased', 'datepurchase', 'date of purchase', 'date received', 'datereceived', 'received date']);
   const dateReturn = legacyValue(10, ['date of return', 'date return', 'datereturn', 'return date', 'returndate']);
   const dateReleased = findValue(row, ['date released', 'datereleased']);
+  const warehouseDateIn = findValue(row, ['date sent to warehouse', 'warehouse date in']);
+  const warehouseDateOut = findValue(row, ['date left warehouse', 'warehouse date out']);
   const warranty = legacyValue(11, ['warranty']);
   const status = legacyValue(6, ['status']);
   const accountType = findValue(row, ['account type', 'accounttype', 'role', 'user type', 'usertype']);
@@ -237,6 +239,8 @@ function normalizeRow(rawRow) {
     dateReceived: dateReceived || '',
     dateReturn: dateReturn || '',
     dateReleased: dateReleased || '',
+    warehouseDateIn: warehouseDateIn || '',
+    warehouseDateOut: warehouseDateOut || '',
     warranty: warranty || '',
     runningDays: runningDays || '',
     status: status || row.status || 'Unknown',
