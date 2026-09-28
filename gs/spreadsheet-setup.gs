@@ -15,6 +15,7 @@ function initializeClientUnitTrackerSheets() {
     'Date Purchased',
     'Date of Return',
     'Date Released',
+    'Released By',
     'Date Sent to Warehouse',
     'Date Left Warehouse',
     'Warranty',
@@ -22,7 +23,10 @@ function initializeClientUnitTrackerSheets() {
     'Inclusion',
     'Uploaded Branch',
     'Technician Notes',
-    'Urgent'
+    'Urgent',
+    'Deleted At',
+    'Deleted By',
+    'Status Before Deletion'
   ];
 
   const accountsHeaders = [
@@ -43,7 +47,7 @@ function initializeClientUnitTrackerSheets() {
     'Status'
   ];
 
-  const trashHeaders = unitsHeaders.concat(['Deleted At', 'Deleted By', 'Expires At']);
+  const trashHeaders = unitsHeaders.concat(['Expires At', 'Restored At']);
 
   const unitsSheet = ensureSheet(spreadsheet, 'Units', unitsHeaders);
   migrateUnitSheetSchema(unitsSheet);

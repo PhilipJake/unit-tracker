@@ -83,11 +83,11 @@ Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUn
 
 ## Access control
 
-Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. View is always allowed and locked; release, warehouse, pullout, and replacement permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
+Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. View is always allowed and locked; release, warehouse, pullout, replacement, and repair permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
 
 ## Trash
 
-Run `initializeClientUnitTrackerSheets()` in Apps Script to create the `Trash` sheet. Deleting a unit moves its original row to Trash with `Deleted At`, `Deleted By`, and `Expires At` metadata. The Trash page can restore or permanently delete units; expired rows are removed when Trash is loaded.
+Run `initializeClientUnitTrackerSheets()` in Apps Script to create or migrate the unit and `Trash` sheets. Delete marks a unit as `Deleted`, records `Deleted By`, and keeps its row in `Units`. Trash lets users restore it to its previous status or archive it: Delete Permanently copies the complete row to the `Trash` sheet before removing it from `Units`. Archived rows remain recoverable. Releasing a unit records the user's name in `Released By`.
 
 ## Sample data
 

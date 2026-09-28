@@ -330,6 +330,7 @@ function normalizeSavedUnitPayload(form) {
     technicianNotes: String(raw.technicianNotes || '').trim(),
     isUrgent: urgentField && urgentField.checked ? 'TRUE' : '',
     actorRole: role || '',
+    actorName: getLoggedInUserName(),
     uploadedBranch
   };
 }
@@ -363,7 +364,8 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     inclusion: unit.inclusion || '',
     technicianNotes: unit.technicianNotes || '',
     isUrgent: unit.isUrgent || '',
-    actorRole: role || ''
+    actorRole: role || '',
+    actorName: getLoggedInUserName()
   }).toString();
 
   try {
@@ -388,15 +390,19 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
         ...cachedUnit,
         status: nextStatus,
         currentLocation,
+        dateReleased: nextStatus === 'Released' ? cachedUnit.dateReleased || today : cachedUnit.dateReleased || '',
+        releasedBy: nextStatus === 'Released' ? getLoggedInUserName() : cachedUnit.releasedBy || '',
         warehouseDateIn: isInWarehouse ? (wasInWarehouse ? cachedUnit.warehouseDateIn || today : today) : cachedUnit.warehouseDateIn || '',
         warehouseDateOut: isInWarehouse ? '' : (wasInWarehouse ? today : cachedUnit.warehouseDateOut || '')
       };
     });
     showUnitToast(successMessage);
     renderRegistryTable(registryRowsCache);
+    return true;
   } catch (error) {
     console.error('Unit status transfer failed:', error);
     showPopupMessage(`Transfer failed: ${error.message || 'Unknown Apps Script error'}`);
+    return false;
   }
 }
 
@@ -422,6 +428,14 @@ async function saveUnitToSheet(event) {
 
   if (role === 'Branch Head Admin' && !assignedBranch) {
     showPopupMessage('This Branch Head Admin account has no assigned branch. Please assign a branch before adding a unit.');
+    return;
+  }
+
+  const requestedStatus = normalizeSearchText(unitForm.elements.namedItem('status')?.value || '');
+  const currentUnit = registryRowsCache.find((unit) => String(unit.unitCode || unit.code || '').trim().toLowerCase() === activeEditCode.toLowerCase());
+  const wasReleased = normalizeSearchText(currentUnit?.status || '') === 'released';
+  if (requestedStatus === 'released' && !wasReleased && !canManageAction('release', role)) {
+    showPopupMessage('You do not have permission to release units.');
     return;
   }
 
@@ -758,16 +772,20 @@ function initUnitModal() {
       const currentRole = localStorage.getItem('unitflowRole');
       if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
       if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
-      if (button.classList.contains('for-release') || button.classList.contains('for-replacement') || button.classList.contains('replaced') || button.classList.contains('warehouse') || button.classList.contains('pull-out') || button.classList.contains('return-tracking')) {
+      const workflowActions = ['for-release', 'for-warehouse', 'for-replacement', 'for-repair', 'released', 'replaced', 'repaired', 'warehouse-transfer', 'return-tracking'];
+      if (workflowActions.some((action) => button.classList.contains(action))) {
         const canEditWorkflow = canManageAction('edit', currentRole);
-        if ((button.classList.contains('warehouse') || button.classList.contains('return-tracking'))
+        if ((button.classList.contains('for-warehouse') || button.classList.contains('warehouse-transfer') || button.classList.contains('return-tracking'))
           && (!canEditWorkflow || !canManageAction('warehouse', currentRole))) return;
-        if (button.classList.contains('pull-out')
-          && (!canEditWorkflow || !canManageAction('pullOut', currentRole))) return;
         if (button.classList.contains('for-release')
           && (!canEditWorkflow || !canManageAction('release', currentRole))) return;
-        if ((button.classList.contains('for-replacement') || button.classList.contains('replaced'))
+        if (button.classList.contains('for-replacement')
           && (!canEditWorkflow || !canManageAction('forReplacement', currentRole))) return;
+        if ((button.classList.contains('for-repair') || button.classList.contains('repaired'))
+          && (!canEditWorkflow || !canManageAction('repair', currentRole))) return;
+        if (button.classList.contains('replaced') && !canEditWorkflow) return;
+        if (button.classList.contains('replaced') && !canManageAction('forReplacement', currentRole)) return;
+        if (button.classList.contains('released') && !canManageAction('release', currentRole)) return;
 
         const rows = await DATA.fetchUnits();
         const selectedRowIndex = Number(row.dataset.rowIndex);
@@ -782,38 +800,30 @@ function initUnitModal() {
 
         activeEditRowIndex = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0 ? selectedRowIndex : null;
 
-        if (button.classList.contains('warehouse')) {
-          showPopupMessage(`Move unit ${unitCode} to Warehouse?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'Warehouse', 'Warehouse', 'Unit moved to Warehouse successfully.'));
-          return;
+        const statusMoves = [
+          { action: 'for-release', status: 'For Release', message: 'Unit moved to For Release successfully.' },
+          { action: 'for-warehouse', status: 'For Warehouse', message: 'Unit moved to For Warehouse successfully.' },
+          { action: 'for-replacement', status: 'For Replacement', message: 'Unit moved to For Replacement successfully.' },
+          { action: 'for-repair', status: 'For Repair', message: 'Unit moved to For Repair successfully.' },
+          { action: 'released', status: 'Released', message: 'Unit released successfully.' },
+          { action: 'repaired', status: 'For Observation', message: 'Unit returned to Units successfully.' },
+          { action: 'replaced', status: 'Replaced', message: 'Unit marked as Replaced.' },
+          { action: 'warehouse-transfer', status: 'Warehouse', location: 'Warehouse', message: 'Unit moved to Warehouse successfully.' },
+          { action: 'return-tracking', status: 'For Observation', location: unit.uploadedBranch || unit.branchLocation, message: 'Unit returned to Tracking successfully.' }
+        ];
+        const move = statusMoves.find(({ action }) => button.classList.contains(action));
+        if (move) {
+          showPopupMessage(`Update unit ${unitCode} to ${move.status}?`, async () => {
+            const moved = await transferUnitStatus(unit, selectedRowIndex, currentRole, move.status, move.location || unit.currentLocation, move.message);
+            if (moved && (move.action === 'repaired' || move.action === 'return-tracking')) {
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'monitoring');
+              window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+              syncRegistryViewLinks();
+              renderRegistryTable(registryRowsCache);
+            }
+          });
         }
-
-        if (button.classList.contains('pull-out')) {
-          showPopupMessage(`Move unit ${unitCode} to Pull Out?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'Pull Out', '', 'Unit moved to Pull Out successfully.'));
-          return;
-        }
-
-        if (button.classList.contains('return-tracking')) {
-          showPopupMessage(`Return unit ${unitCode} to Tracking?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'Transferred to Technical', 'Technical Hub', 'Unit returned to Tracking successfully.'));
-          return;
-        }
-
-        if (button.classList.contains('for-release')) {
-          showPopupMessage(`Move unit ${unitCode} to For Release?`, () => transferUnitStatus(unit, selectedRowIndex, currentRole, 'For Release', '', 'Unit moved to For Release successfully.'));
-          return;
-        }
-
-        openUnitModal('edit', unit);
-
-        if (button.classList.contains('for-replacement')) {
-          const statusField = unitForm.elements.namedItem('status');
-          if (statusField) statusField.value = 'For Replacement';
-        }
-
-        if (button.classList.contains('replaced')) {
-          const statusField = unitForm.elements.namedItem('status');
-          if (statusField) statusField.value = 'Replaced';
-        }
-
         return;
       }
 
@@ -967,7 +977,7 @@ function renderRegistryTableHeader(view) {
   if (!unitRegistryTableHead) return;
 
   const headers = view === 'released'
-    ? ['Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
+    ? ['Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Released By', 'Warranty', 'Unit Brand', 'Unit Specs', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
     : view === 'warehouse'
       ? ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Days in Warehouse', 'Date Sent to<br>Warehouse', 'Date Left<br>Warehouse', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
       : ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes'];
@@ -990,7 +1000,6 @@ function renderRegistryTable(rows) {
   const selectedBranch = normalizeSearchText(unitBranchFilter ? unitBranchFilter.value : 'all');
   const requestedView = normalizeSearchText(new URLSearchParams(window.location.search).get('view') || 'monitoring');
   const isReleasedView = requestedView === 'released';
-  const isReplacedView = requestedView === 'replaced';
   const isWarehouseView = requestedView === 'warehouse';
   renderRegistryTableHeader(requestedView);
   const monitoringStatuses = new Set(['for observation', 'transferred to technical', 'for diagnose']);
@@ -1008,9 +1017,11 @@ function renderRegistryTable(rows) {
         : requestedView === 'released'
           ? status === 'released'
           : requestedView === 'replaced'
-            ? status === 'for replacement' || status === 'replaced'
+            ? status === 'for replacement'
+            : requestedView === 'for-repair'
+              ? status === 'for repair'
             : requestedView === 'warehouse'
-              ? currentLocation === 'warehouse'
+              ? status === 'for warehouse' || status === 'warehouse' || currentLocation === 'warehouse'
               : requestedView === 'pull-out'
                 ? status === 'pull out'
                 : true;
@@ -1024,7 +1035,7 @@ function renderRegistryTable(rows) {
   }
 
   if (!filteredRows.length) {
-    const columnCount = isReleasedView ? 16 : isWarehouseView ? 21 : 18;
+    const columnCount = isReleasedView ? 17 : isWarehouseView ? 21 : 18;
     unitRegistryTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="empty-state">No matching units found.</td></tr>`;
     return;
   }
@@ -1059,25 +1070,35 @@ function renderRegistryTable(rows) {
       const canRelease = canManageAction('release', currentRole);
       const canEditActions = canManageAction('edit', currentRole);
       const canWarehouse = canManageAction('warehouse', currentRole);
-      const canPullOut = canManageAction('pullOut', currentRole);
       const canForReplacement = canManageAction('forReplacement', currentRole);
+      const canRepair = canManageAction('repair', currentRole);
       const currentLocation = normalizeSearchText(unit.currentLocation || branch);
-      const actionCell = isReleasedView
-        ? ''
-        : `<td class="table-actions"><div class="unit-registry-actions">${requestedView === 'for-release' || isReplacedView || requestedView === 'pull-out'
-          ? `<div class="unit-action-row"><button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Released permission is disabled or unit is already released"'}>Released</button></div>`
-          : isWarehouseView
-            ? currentLocation === 'warehouse' ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>` : ''
-          : `<div class="unit-action-row">
+      let actionButtons = `<div class="unit-action-row">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
               <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
             </div>
             <div class="unit-action-row">
               <button class="for-release" type="button" ${canEditActions && canRelease ? '' : 'disabled title="Released permission is disabled"'}>For Release</button>
-              <button class="release" type="button" ${canRelease && !isReleased ? '' : 'disabled title="Released permission is disabled or unit is already released"'}>Released</button>
+              <button class="for-repair" type="button" ${canEditActions && canRepair ? '' : 'disabled title="Repair permission is disabled"'}>For Repair</button>
             </div>
-            <div class="unit-action-row"><button class="for-replacement" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>For Replacement</button></div>
-            <div class="unit-action-row"><button class="warehouse" type="button" ${canEditActions && canWarehouse && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already in the warehouse"'}>Warehouse</button><button class="pull-out" type="button" ${canEditActions && canPullOut ? '' : 'disabled title="Pullout permission is disabled"'}>Pull Out</button></div>`}</div></td>`;
+            <div class="unit-action-row">
+              <button class="for-replacement" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>For Replacement</button>
+              <button class="for-warehouse" type="button" ${canEditActions && canWarehouse && status !== 'for warehouse' && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already assigned to the warehouse"'}>For Warehouse</button>
+            </div>`;
+      if (requestedView === 'for-release' || requestedView === 'pull-out') {
+        actionButtons = `<div class="unit-action-row"><button class="released" type="button" ${canRelease ? '' : 'disabled title="Released permission is disabled"'}>Released</button></div>`;
+      } else if (requestedView === 'for-repair') {
+        actionButtons = `<div class="unit-action-row"><button class="repaired" type="button" ${canEditActions && canRepair ? '' : 'disabled title="Repair permission is disabled"'}>Repaired</button></div>`;
+      } else if (requestedView === 'replaced') {
+        actionButtons = `<div class="unit-action-row"><button class="replaced" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>Replaced</button></div>`;
+      } else if (isWarehouseView) {
+        actionButtons = status === 'for warehouse'
+          ? `<div class="unit-action-row"><button class="warehouse-transfer" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Warehouse</button></div>`
+          : status === 'warehouse' || currentLocation === 'warehouse'
+            ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>`
+            : '';
+      }
+      const actionCell = isReleasedView ? '' : `<td class="table-actions"><div class="unit-registry-actions">${actionButtons}</div></td>`;
 
       return `
         <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
@@ -1088,6 +1109,7 @@ function renderRegistryTable(rows) {
           <td><span class="center-stack">${renderStackedText(code)}</span></td>
           <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
           <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
+          ${isReleasedView ? `<td>${escapeHtml(unit.releasedBy || '—')}</td>` : ''}
           <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
           ${isWarehouseView ? `<td class="unit-running-days-cell warehouse-days-column"><span class="center-stack">${renderStackedText(daysInWarehouse)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateIn)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateOut)}</span></td>` : ''}
           <td class="unit-brand-cell">${escapeHtml(brand)}</td>

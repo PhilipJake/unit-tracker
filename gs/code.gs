@@ -74,15 +74,19 @@ function doPost(e) {
   }
 
   if (action === 'restoreunit') {
-    return restoreUnitRow(spreadsheet, values.unitCode || values.code || '');
+    return restoreUnitRow(spreadsheet, values.unitCode || values.code || '', values.source || 'trash');
+  }
+
+  if (action === 'archiveunit') {
+    return archiveDeletedUnitRow(spreadsheet, values.unitCode || values.code || '');
   }
 
   if (action === 'purgeunit') {
-    return purgeUnitRow(spreadsheet, values.unitCode || values.code || '');
+    return jsonResponse({ ok: false, error: 'Permanent deletion is disabled' });
   }
 
   if (action === 'purgealltrash') {
-    return purgeAllTrashRows(spreadsheet);
+    return jsonResponse({ ok: false, error: 'Permanent deletion is disabled' });
   }
 
   if (action === 'updateunit') {
@@ -172,17 +176,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement', 'Repair'];
 }
 
 function getDefaultPermissionRows() {
   return [
     ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
     ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false],
-    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true],
-    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true],
-    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true]
+    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false, false],
+    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true, true],
+    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true, true],
+    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true, true]
   ];
 }
 
@@ -233,7 +237,7 @@ function migrateUnitActionPermissionDefaults(sheet) {
     const roleDefaults = defaultsByRole[String(row[0] || '').trim()];
     if (!roleDefaults) return;
     sheet.getRange(rowIndex + 2, 2).setValue(true);
-    [14, 15, 16].forEach((column) => {
+    [14, 15, 16, 17].forEach((column) => {
       if (String(row[column - 1] == null ? '' : row[column - 1]).trim() === '') {
         sheet.getRange(rowIndex + 2, column).setValue(roleDefaults[column - 1]);
       }
@@ -264,13 +268,13 @@ function readPermissionSettings(spreadsheet) {
 
   rows.forEach((row) => {
     const role = String(row[0]).trim();
-    permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[13]), pullOut: toPermissionBoolean(row[14]), forReplacement: toPermissionBoolean(row[15]) };
+    permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[13]), pullOut: toPermissionBoolean(row[14]), forReplacement: toPermissionBoolean(row[15]), repair: toPermissionBoolean(row[16]) };
     pageAccess[role] = { Overview: toPermissionBoolean(row[7]), Messages: toPermissionBoolean(row[8]), 'Unit registry': toPermissionBoolean(row[9]), Trash: toPermissionBoolean(row[10]), Branches: toPermissionBoolean(row[11]), Accounts: toPermissionBoolean(row[12]) };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
-  permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15] };
+  permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15], repair: superAdminDefaults[16] };
   pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
   return jsonResponse({ ok: true, permissions, pageAccess, userPermissions: readUserPermissionOverrides(spreadsheet), roleColors: readRoleColors() });
 }
@@ -344,11 +348,11 @@ function savePermissionSettings(spreadsheet, values) {
   }, {});
   const roleNames = [...defaults.map((row) => row[0]), ...Object.keys(permissions).filter((role) => !defaultsByRole[role])];
   const rows = roleNames.map((role) => {
-    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false];
+    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false, false];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
     const isSuperAdmin = role === 'Super Admin';
-    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement)];
+    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement), isSuperAdmin ? defaultRow[16] : Boolean(rolePermissions.repair)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -651,7 +655,7 @@ function getCodeColumnIndex(headerRow) {
 }
 
 function getTrashHeaders(unitHeaders) {
-  return unitHeaders.concat(['Deleted At', 'Deleted By', 'Expires At']);
+  return unitHeaders.concat(['Expires At', 'Restored At']);
 }
 
 function getUnitRecord(sheet, unitCode) {
@@ -670,7 +674,17 @@ function getUnitRecord(sheet, unitCode) {
 function getTrashSheet(spreadsheet, unitHeaders) {
   const sheet = ensureSheet(spreadsheet, 'Trash');
   const trashHeaders = getTrashHeaders(unitHeaders);
-  sheet.getRange(1, 1, 1, trashHeaders.length).setValues([trashHeaders]);
+  const existing = sheet.getDataRange().getValues();
+  const existingHeaders = existing[0] || [];
+  const needsMigration = trashHeaders.some((header, index) => String(existingHeaders[index] || '').trim().toLowerCase() !== header.toLowerCase());
+  if (needsMigration) {
+    const headerIndexes = new Map(existingHeaders.map((header, index) => [String(header).trim().toLowerCase(), index]));
+    const migratedRows = [trashHeaders, ...existing.slice(1).map((row) => trashHeaders.map((header) => {
+      const sourceIndex = headerIndexes.get(header.toLowerCase());
+      return sourceIndex === undefined ? '' : row[sourceIndex] || '';
+    }))];
+    sheet.getRange(1, 1, migratedRows.length, trashHeaders.length).setValues(migratedRows);
+  }
 
   return sheet;
 }
@@ -702,16 +716,6 @@ function isValidTrashDate(value) {
 }
 
 function getTrashArchiveDateIndexes(row, fallbackDeletedIndex, fallbackExpiresIndex) {
-  const dateIndexes = row.reduce((indexes, value, index) => {
-    if (isValidTrashDate(value)) indexes.push(index);
-    return indexes;
-  }, []);
-  if (dateIndexes.length >= 2) {
-    return {
-      deletedAtIndex: dateIndexes[dateIndexes.length - 2],
-      expiresAtIndex: dateIndexes[dateIndexes.length - 1]
-    };
-  }
   return { deletedAtIndex: fallbackDeletedIndex, expiresAtIndex: fallbackExpiresIndex };
 }
 
@@ -719,29 +723,27 @@ function readTrashRows(spreadsheet) {
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
   ensureUnitDateColumns(unitsSheet);
   const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
-  const trashSheet = getTrashSheet(spreadsheet, unitHeaders);
-  const values = trashSheet.getDataRange().getValues();
-  const headers = values[0] || [];
-  const expectedDeletedAtIndex = unitHeaders.length;
-  const expectedExpiresAtIndex = unitHeaders.length + 2;
-  const now = new Date();
-  const todayManilaDateKey = getManilaDateKey(now);
-  for (let rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
-    const archiveIndexes = getTrashArchiveDateIndexes(values[rowIndex], expectedDeletedAtIndex, expectedExpiresAtIndex);
-    const expiresAt = new Date(values[rowIndex][archiveIndexes.expiresAtIndex]);
-    if (!Number.isNaN(expiresAt.getTime()) && getManilaDateKey(expiresAt) <= todayManilaDateKey) trashSheet.deleteRow(rowIndex + 1);
-  }
-  const current = trashSheet.getDataRange().getValues();
+  const expectedDeletedAtIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const unitData = unitsSheet.getDataRange().getValues();
+  const unitStatusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'status');
   const unitClientIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase().includes('client name'));
   const unitBranchIndex = unitHeaders.findIndex((header) => ['branch location', 'uploaded branch', 'current location'].includes(String(header).trim().toLowerCase()));
-  const rows = current.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== '')).map((row) => {
-    const archiveIndexes = getTrashArchiveDateIndexes(row, expectedDeletedAtIndex, expectedExpiresAtIndex);
+  const rows = unitData.slice(1).filter((row) => (
+    row.some((cell) => String(cell).trim() !== '')
+    && (String(row[unitStatusIndex] || '').trim().toLowerCase() === 'deleted' || Boolean(row[expectedDeletedAtIndex]))
+  )).map((row) => {
+    const record = unitHeaders.reduce((result, header, index) => {
+      result[String(header).trim()] = row[index] === undefined ? '' : row[index];
+      return result;
+    }, {});
     return {
+      ...record,
       unitCode: unitCodeIndex(unitHeaders, row),
       clientName: unitClientIndex === -1 ? '' : row[unitClientIndex] || '',
       branchLocation: unitBranchIndex === -1 ? '' : row[unitBranchIndex] || '',
-      deletedAt: archiveIndexes.deletedAtIndex === -1 ? '' : serializeTrashDate(row[archiveIndexes.deletedAtIndex]),
-      expiresAt: archiveIndexes.expiresAtIndex === -1 ? '' : serializeTrashDate(row[archiveIndexes.expiresAtIndex])
+      deletedAt: expectedDeletedAtIndex === -1 ? '' : serializeTrashDate(row[expectedDeletedAtIndex]),
+      deletedBy: expectedDeletedAtIndex < 0 ? '' : row[expectedDeletedAtIndex + 1] || '',
+      source: 'units'
     };
   });
   return jsonResponse({ ok: true, rows });
@@ -768,50 +770,86 @@ function deleteUnitRow(spreadsheet, unitCode, values) {
     return jsonResponse({ ok: false, error: 'Unit not found' });
   }
 
-  const trashSheet = getTrashSheet(spreadsheet, record.headers);
   const deletedAt = new Date();
-  const expiresAt = getManilaMidnightAfterDays(deletedAt, 30);
-  trashSheet.appendRow(record.values.concat([deletedAt, values.actorName || values.actorRole || 'Unknown', expiresAt]));
-  sheet.deleteRow(record.rowIndex);
+  const deletedAtIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const deletedByIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
+  const statusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  const previousStatusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
+  if (statusIndex >= 0 && String(record.values[statusIndex] || '').trim().toLowerCase() === 'deleted') {
+    return jsonResponse({ ok: true, action: 'deleteUnit', deletedCode: unitCode });
+  }
+  const actorName = String(values.actorName || values.actorRole || 'Unknown').trim();
+  const sourceValues = record.values.slice();
+  if (previousStatusIndex >= 0) sourceValues[previousStatusIndex] = statusIndex < 0 ? '' : sourceValues[statusIndex] || '';
+  if (deletedAtIndex >= 0) sourceValues[deletedAtIndex] = deletedAt;
+  if (deletedByIndex >= 0) sourceValues[deletedByIndex] = actorName;
+  if (statusIndex >= 0) sourceValues[statusIndex] = 'Deleted';
+  sheet.getRange(record.rowIndex, 1, 1, sourceValues.length).setValues([sourceValues]);
   return jsonResponse({ ok: true, action: 'deleteUnit', deletedCode: unitCode });
 }
 
-function restoreUnitRow(spreadsheet, unitCode) {
+function archiveDeletedUnitRow(spreadsheet, unitCode) {
+  const sheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
+  ensureUnitDateColumns(sheet);
+  const record = getUnitRecord(sheet, unitCode);
+  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
+  const statusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  if (statusIndex < 0 || String(record.values[statusIndex] || '').trim().toLowerCase() !== 'deleted') {
+    return jsonResponse({ ok: false, error: 'Only deleted units can be archived' });
+  }
+  const trashSheet = getTrashSheet(spreadsheet, record.headers);
+  const expiresAt = getManilaMidnightAfterDays(new Date(), 30);
+  trashSheet.appendRow(record.values.concat([expiresAt, '']));
+  sheet.deleteRow(record.rowIndex);
+  return jsonResponse({ ok: true, action: 'archiveUnit', archivedCode: unitCode });
+}
+
+function restoreUnitRow(spreadsheet, unitCode, source) {
   const trashSheet = spreadsheet.getSheetByName('Trash');
   const unitsSheet = spreadsheet.getSheetByName('Units') || spreadsheet.getSheets()[0];
-  if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
   ensureUnitDateColumns(unitsSheet);
-  const record = getUnitRecord(trashSheet, unitCode);
-  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
   const unitHeaders = unitsSheet.getDataRange().getValues()[0] || [];
-  const archiveIndexes = getTrashArchiveDateIndexes(record.values, unitHeaders.length, unitHeaders.length + 2);
-  const archiveValueIndexes = new Set([archiveIndexes.deletedAtIndex, archiveIndexes.deletedAtIndex + 1, archiveIndexes.expiresAtIndex]);
+  const statusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'status');
+  const deletedAtIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+  const deletedByIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
+  const previousStatusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
+  if (source === 'units') {
+    const activeRecord = getUnitRecord(unitsSheet, unitCode);
+    if (!activeRecord) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
+    if (statusIndex >= 0) unitsSheet.getRange(activeRecord.rowIndex, statusIndex + 1).setValue(previousStatusIndex >= 0 ? activeRecord.values[previousStatusIndex] || 'For Observation' : 'For Observation');
+    if (deletedAtIndex >= 0) unitsSheet.getRange(activeRecord.rowIndex, deletedAtIndex + 1).clearContent();
+    if (deletedByIndex >= 0) unitsSheet.getRange(activeRecord.rowIndex, deletedByIndex + 1).clearContent();
+    if (previousStatusIndex >= 0) unitsSheet.getRange(activeRecord.rowIndex, previousStatusIndex + 1).clearContent();
+    return jsonResponse({ ok: true, action: 'restoreUnit', restoredCode: unitCode });
+  }
+  if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
+  const migratedTrashSheet = getTrashSheet(spreadsheet, unitsSheet.getDataRange().getValues()[0] || []);
+  const trashData = migratedTrashSheet.getDataRange().getValues();
+  const trashHeaders = trashData[0] || [];
+  const codeIndex = getCodeColumnIndex(trashHeaders);
+  const restoredAtIndex = trashHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'restored at');
+  const archiveIndex = trashData.findIndex((row, index) => index > 0
+    && String(row[codeIndex] || '').trim() === String(unitCode).trim()
+    && (restoredAtIndex < 0 || !row[restoredAtIndex]));
+  const record = archiveIndex < 0 ? null : {
+    headers: trashHeaders,
+    values: trashData[archiveIndex],
+    rowIndex: archiveIndex + 1
+  };
+  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
+  if (getUnitRecord(unitsSheet, unitCode)) return jsonResponse({ ok: false, error: 'A unit with this code already exists' });
+  const expiresAtIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'expires at');
+  const archiveValueIndexes = new Set([deletedAtIndex, deletedAtIndex + 1, previousStatusIndex, expiresAtIndex, restoredAtIndex]);
   const sourceHeaderIndexes = new Map(record.headers.map((header, index) => [String(header).trim().toLowerCase(), index]));
-  const restoredValues = unitHeaders.map((header) => {
+  const restoredValues = unitHeaders.map((header, index) => {
     const sourceIndex = sourceHeaderIndexes.get(String(header).trim().toLowerCase());
+    if (index === statusIndex) return previousStatusIndex >= 0 ? record.values[previousStatusIndex] || 'For Observation' : 'For Observation';
+    if (index === deletedAtIndex || index === deletedByIndex || index === previousStatusIndex) return '';
     return sourceIndex === undefined || archiveValueIndexes.has(sourceIndex) ? '' : record.values[sourceIndex] || '';
   });
   unitsSheet.appendRow(restoredValues);
-  trashSheet.deleteRow(record.rowIndex);
+  migratedTrashSheet.getRange(record.rowIndex, restoredAtIndex + 1).setValue(new Date());
   return jsonResponse({ ok: true, action: 'restoreUnit', restoredCode: unitCode });
-}
-
-function purgeUnitRow(spreadsheet, unitCode) {
-  const trashSheet = spreadsheet.getSheetByName('Trash');
-  if (!trashSheet) return jsonResponse({ ok: false, error: 'Trash is empty' });
-  const record = getUnitRecord(trashSheet, unitCode);
-  if (!record) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
-  trashSheet.deleteRow(record.rowIndex);
-  return jsonResponse({ ok: true, action: 'purgeUnit', purgedCode: unitCode });
-}
-
-function purgeAllTrashRows(spreadsheet) {
-  const trashSheet = spreadsheet.getSheetByName('Trash');
-  if (!trashSheet) return jsonResponse({ ok: true, action: 'purgeAllTrash', purgedCount: 0 });
-
-  const purgedCount = Math.max(0, trashSheet.getLastRow() - 1);
-  if (purgedCount) trashSheet.deleteRows(2, purgedCount);
-  return jsonResponse({ ok: true, action: 'purgeAllTrash', purgedCount });
 }
 
 function deleteBranchRow(spreadsheet, branchName) {
@@ -848,6 +886,7 @@ function updateUnitRow(spreadsheet, values) {
   const data = sheet.getDataRange().getValues();
   const headerRow = data[0] || [];
   const codeIndex = getCodeColumnIndex(headerRow);
+  const statusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'status');
   const targetCode = String(values.originalUnitCode || values.unitCode || '').trim();
 
   if (codeIndex === -1) {
@@ -869,6 +908,10 @@ function updateUnitRow(spreadsheet, values) {
       const currentLocationIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'current location');
       const warehouseDateInIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date sent to warehouse');
       const warehouseDateOutIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date left warehouse');
+      const releasedByIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'released by');
+      const deletedAtIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
+      const deletedByIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
+      const previousStatusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
       const requestedContactInfo = String(values.contactInfo || '').trim();
       if (requestedContactInfo && !isValidContactInfo(requestedContactInfo)) {
         return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
@@ -889,9 +932,20 @@ function updateUnitRow(spreadsheet, values) {
       const isInWarehouse = nextLocation === 'warehouse';
       const existingDateIn = warehouseDateInIndex >= 0 ? data[rowIndex][warehouseDateInIndex] || '' : '';
       const existingDateOut = warehouseDateOutIndex >= 0 ? data[rowIndex][warehouseDateOutIndex] || '' : '';
+      const previousStatus = statusIndex >= 0 ? String(data[rowIndex][statusIndex] || '').trim().toLowerCase() : '';
       const warehouseDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd');
       values.warehouseDateIn = isInWarehouse ? (wasInWarehouse ? existingDateIn || warehouseDate : warehouseDate) : existingDateIn;
       values.warehouseDateOut = isInWarehouse ? '' : (wasInWarehouse ? warehouseDate : existingDateOut);
+      values.releasedBy = String(values.status || '').trim().toLowerCase() === 'released'
+        ? (previousStatus === 'released' && releasedByIndex >= 0 ? data[rowIndex][releasedByIndex] : '') || values.actorName || values.actorRole || 'Unknown'
+        : releasedByIndex >= 0 ? data[rowIndex][releasedByIndex] || '' : '';
+      values.deletedAt = deletedAtIndex >= 0 ? data[rowIndex][deletedAtIndex] || '' : '';
+      values.deletedBy = deletedByIndex >= 0 ? data[rowIndex][deletedByIndex] || '' : '';
+      values.statusBeforeDeletion = previousStatusIndex >= 0 ? data[rowIndex][previousStatusIndex] || '' : '';
+      if (String(values.status || '').trim().toLowerCase() === 'released'
+        && (previousStatus !== 'released' || !String(values.dateReleased || '').trim())) {
+        values.dateReleased = warehouseDate;
+      }
       const rowToWrite = buildRowForAction('units', values);
       const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
       targetRange.setValues([rowToWrite]);
@@ -1180,6 +1234,7 @@ function getHeadersForAction(action) {
         'Date Purchased',
         'Date of Return',
         'Date Released',
+        'Released By',
         'Date Sent to Warehouse',
         'Date Left Warehouse',
         'Warranty',
@@ -1187,7 +1242,10 @@ function getHeadersForAction(action) {
         'Inclusion',
         'Uploaded Branch',
         'Technician Notes',
-        'Urgent'
+        'Urgent',
+        'Deleted At',
+        'Deleted By',
+        'Status Before Deletion'
       ];
   }
 }
@@ -1245,7 +1303,12 @@ function buildRowForAction(action, values) {
         values.currentLocation || values.branchLocation || '',
         values.dateReceived || values.datePurchase || '',
         values.dateReturn || values.returnDate || '',
-        values.dateReleased || '',
+        values.dateReleased || (String(values.status || '').trim().toLowerCase() === 'released'
+          ? Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd')
+          : ''),
+        values.releasedBy || (String(values.status || '').trim().toLowerCase() === 'released'
+          ? values.actorName || values.actorRole || 'Unknown'
+          : ''),
         values.warehouseDateIn || '',
         values.warehouseDateOut || '',
         values.warranty || '',
@@ -1253,7 +1316,10 @@ function buildRowForAction(action, values) {
         values.inclusion || '',
         values.uploadedBranch || values.branchLocation || '',
         values.technicianNotes || '',
-        values.isUrgent || ''
+        values.isUrgent || '',
+        values.deletedAt || '',
+        values.deletedBy || '',
+        values.statusBeforeDeletion || ''
       ];
   }
 }
@@ -1277,6 +1343,10 @@ function migrateUnitSheetSchema(sheet) {
     'date purchased': ['date purchased', 'date received', 'date of purchase'],
     'date of return': ['date of return', 'return date'],
     'date released': ['date released'],
+    'released by': ['released by'],
+    'deleted at': ['deleted at'],
+    'deleted by': ['deleted by'],
+    'status before deletion': ['status before deletion'],
     urgent: ['urgent', 'is urgent', 'urgent flag']
   };
   const normalizedHeaders = sourceHeaders.map((header) => String(header || '').trim().toLowerCase());
@@ -1315,6 +1385,7 @@ function releaseUnitRow(spreadsheet, values) {
   const codeIndex = headers.findIndex((header) => ['code', 'unit code'].includes(String(header).trim().toLowerCase()));
   const statusIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
   let releasedIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'date released');
+  const releasedByIndex = headers.findIndex((header) => String(header).trim().toLowerCase() === 'released by');
 
   if (codeIndex < 0 || statusIndex < 0) return jsonResponse({ ok: false, error: 'Unit columns not found' });
   if (releasedIndex < 0) {
@@ -1329,6 +1400,7 @@ function releaseUnitRow(spreadsheet, values) {
     const releaseDate = String(values.dateReleased || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd')).trim();
     sheet.getRange(rowIndex + 1, statusIndex + 1).setValue('Released');
     sheet.getRange(rowIndex + 1, releasedIndex + 1).setValue(releaseDate);
+    if (releasedByIndex >= 0) sheet.getRange(rowIndex + 1, releasedByIndex + 1).setValue(values.actorName || values.actorRole || 'Unknown');
     return jsonResponse({ ok: true, action: 'releaseUnit', unitCode: targetCode, dateReleased: releaseDate });
   }
 

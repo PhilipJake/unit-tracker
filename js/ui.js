@@ -14,7 +14,7 @@ const UI = {
 };
 
 function renderSummary(units, registeredBranches = []) {
-  const total = units.length;
+  const total = getDashboardRegisteredUnits(units).length;
   const now = new Date();
   const attentionDays = 14;
   const activeStatuses = new Set(['for observation', 'transferred to technical', 'for replacement', 'for release']);
@@ -73,10 +73,20 @@ function normalizeBranchName(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-function getUnitBranchCode(unit, branchCodeByName) {
-  const branchName = unit.uploadedBranch || unit.branch || unit.currentLocation || '';
-  const mappedCode = branchCodeByName[normalizeBranchName(branchName)];
-  return String(mappedCode || branchName || 'Unassigned').trim() || 'Unassigned';
+function getDashboardRegisteredUnits(units) {
+  return units.filter((unit) => normalizeStatus(unit.status) !== 'released');
+}
+
+function getUnitBranchCode(unit, branchCodeByName, knownBranchCodes) {
+  const branchName = String(unit.uploadedBranch || unit.branchLocation || unit.branch || unit.currentLocation || '').trim();
+  const normalizedName = normalizeBranchName(branchName);
+  const mappedCode = branchCodeByName[normalizedName];
+  if (mappedCode) return String(mappedCode).trim().toUpperCase();
+
+  const matchingCode = [...knownBranchCodes]
+    .sort((first, second) => second.length - first.length)
+    .find((code) => normalizedName === code || normalizedName.startsWith(`${code} `));
+  return matchingCode ? matchingCode.toUpperCase() : branchName || 'Unassigned';
 }
 
 function renderBranchCodeChart(units, registeredBranches = []) {
@@ -86,6 +96,7 @@ function renderBranchCodeChart(units, registeredBranches = []) {
   if (!UI.branchCodeChartSection || !UI.branchCodePie || !UI.branchCodeLegend || !chartRoles.includes(currentRole)) return;
 
   UI.branchCodeChartSection.hidden = false;
+  const registeredUnits = getDashboardRegisteredUnits(units);
 
   const branchCodeByName = registeredBranches.reduce((codes, branch) => {
     const branchName = branch.branchName || branch.branchname || branch.name || branch.location || '';
@@ -93,11 +104,15 @@ function renderBranchCodeChart(units, registeredBranches = []) {
     if (branchName && branchCode) {
       codes[normalizeBranchName(branchName)] = String(branchCode).trim();
     }
+    if (branch.location && branchCode) {
+      codes[normalizeBranchName(branch.location)] = String(branchCode).trim();
+    }
     return codes;
   }, {});
+  const knownBranchCodes = new Set(Object.values(branchCodeByName).map(normalizeBranchName).filter(Boolean));
 
-  const branchCounts = units.reduce((counts, unit) => {
-    const branchCode = getUnitBranchCode(unit, branchCodeByName);
+  const branchCounts = registeredUnits.reduce((counts, unit) => {
+    const branchCode = getUnitBranchCode(unit, branchCodeByName, knownBranchCodes);
     counts[branchCode] = (counts[branchCode] || 0) + 1;
     return counts;
   }, {});
@@ -117,7 +132,7 @@ function renderBranchCodeChart(units, registeredBranches = []) {
     ez: '#84cc16',
     '1lr': '#ef4444'
   };
-  const total = units.length;
+  const total = registeredUnits.length;
   UI.branchCodeTotal.textContent = total;
   let offset = 0;
   const segments = entries.map(([branchCode, count], index) => {
@@ -149,10 +164,11 @@ function renderBranchCodeChart(units, registeredBranches = []) {
 function renderActivityChart(units) {
   if (!UI.activityChart || !UI.activityChartSummary) return;
 
-  const today = new Date();
-  const activityDateKeys = units
+  const activityUnits = units.filter((unit) => normalizeStatus(unit.status) !== 'deleted' && !unit.deletedAt);
+  const todayDateKey = getManilaDateKey(new Date()) || new Date().toISOString().slice(0, 10);
+  const activityDateKeys = activityUnits
     .flatMap((unit) => {
-      const dates = [getActivityDateKey({ dateReceived: unit.dateReturn || unit.dateReceived })];
+      const dates = [getActivityDateKey({ dateReturn: unit.dateReturn })];
       if (normalizeStatus(unit.status) === 'released') {
         dates.push(getActivityDateKey({ dateReleased: unit.dateReleased }));
       }
@@ -160,29 +176,24 @@ function renderActivityChart(units) {
     })
     .filter(Boolean)
     .sort();
-  const chartDate = activityDateKeys.length
-    ? new Date(`${activityDateKeys[activityDateKeys.length - 1]}T12:00:00`)
-    : today;
-  const lastDay = new Date(chartDate.getFullYear(), chartDate.getMonth(), chartDate.getDate(), 12);
-  const firstDay = new Date(lastDay.getFullYear(), 0, 1, 12);
-  const dayCount = Math.max(1, Math.floor((lastDay - firstDay) / (24 * 60 * 60 * 1000)) + 1);
-  const days = Array.from({ length: dayCount }, (_, index) => {
-    const date = new Date(firstDay);
-    date.setDate(firstDay.getDate() + index);
-    return typeof getManilaDateKey === 'function'
-      ? getManilaDateKey(date)
-      : date.toISOString().slice(0, 10);
-  });
-  const dayLabels = days.map((day) => new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const latestActivityDateKey = activityDateKeys[activityDateKeys.length - 1] || todayDateKey;
+  const lastDayKey = latestActivityDateKey > todayDateKey ? latestActivityDateKey : todayDateKey;
+  const firstDayKey = activityDateKeys[0] || `${lastDayKey.slice(0, 4)}-01-01`;
+  const firstDayTime = dateKeyToUtcMidnight(firstDayKey);
+  const lastDayTime = dateKeyToUtcMidnight(lastDayKey);
+  const dayCount = Math.max(1, Math.floor((lastDayTime - firstDayTime) / (24 * 60 * 60 * 1000)) + 1);
+  const days = Array.from({ length: dayCount }, (_, index) => new Date(firstDayTime + index * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const includeYear = dayCount > 366;
+  const dayLabels = days.map((day) => formatActivityDateKey(day, { month: 'short', day: 'numeric', ...(includeYear ? { year: '2-digit' } : {}) }));
   if (UI.activityChartPeriod) {
-    UI.activityChartPeriod.textContent = `${firstDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    UI.activityChartPeriod.textContent = `${formatActivityDateKey(firstDayKey, { month: 'short', day: 'numeric', year: 'numeric' })} - ${formatActivityDateKey(lastDayKey, { month: 'short', day: 'numeric', year: 'numeric' })} PHT`;
   }
   const dayIndexes = new Map(days.map((day, index) => [day, index]));
   const received = Array(days.length).fill(0);
   const released = Array(days.length).fill(0);
 
-  units.forEach((unit) => {
-    const receivedDate = getActivityDateKey({ dateReceived: unit.dateReturn || unit.dateReceived });
+  activityUnits.forEach((unit) => {
+    const receivedDate = getActivityDateKey({ dateReturn: unit.dateReturn });
     const releasedDate = getActivityDateKey({ dateReleased: unit.dateReleased });
     const receivedIndex = dayIndexes.get(receivedDate);
     const releasedIndex = dayIndexes.get(releasedDate);
@@ -275,6 +286,11 @@ function renderActivityChart(units) {
       <span><i class="activity-dot" style="background: ${releasedColor};"></i>Released</span>
     `;
   }
+}
+
+function formatActivityDateKey(dateKey, options) {
+  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'Asia/Manila' })
+    .format(new Date(`${dateKey}T12:00:00Z`));
 }
 
 function renderTable(units) {

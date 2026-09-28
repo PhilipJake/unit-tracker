@@ -22,7 +22,7 @@ const DATA = {
   async fetchUnits() {
     const config = window.GS_CONFIG || {};
     const rows = await DATA.fetchSheet({ gid: config.gid || '0' });
-    return applyRoleDataFilter(rows);
+    return applyRoleDataFilter(rows.filter((row) => !row.deletedAt && String(row.status || '').trim().toLowerCase() !== 'deleted'));
   },
 
   async fetchAccounts() {
@@ -205,6 +205,9 @@ function normalizeRow(rawRow) {
   const dateReceived = legacyValue(9, ['date purchased', 'datepurchase', 'date of purchase', 'date received', 'datereceived', 'received date']);
   const dateReturn = legacyValue(10, ['date of return', 'date return', 'datereturn', 'return date', 'returndate']);
   const dateReleased = findValue(row, ['date released', 'datereleased']);
+  const releasedBy = findValue(row, ['released by', 'releasedby']);
+  const deletedAt = findValue(row, ['deleted at', 'deletedat']);
+  const deletedBy = findValue(row, ['deleted by', 'deletedby']);
   const warehouseDateIn = findValue(row, ['date sent to warehouse', 'warehouse date in']);
   const warehouseDateOut = findValue(row, ['date left warehouse', 'warehouse date out']);
   const warranty = legacyValue(11, ['warranty']);
@@ -239,6 +242,9 @@ function normalizeRow(rawRow) {
     dateReceived: dateReceived || '',
     dateReturn: dateReturn || '',
     dateReleased: dateReleased || '',
+    releasedBy: releasedBy || '',
+    deletedAt: deletedAt || '',
+    deletedBy: deletedBy || '',
     warehouseDateIn: warehouseDateIn || '',
     warehouseDateOut: warehouseDateOut || '',
     warranty: warranty || '',

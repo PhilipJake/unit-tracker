@@ -1,7 +1,7 @@
 const builtInRoleHierarchy = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
 let roleHierarchy = [...builtInRoleHierarchy];
-const permissionActions = ['view', 'create', 'edit', 'delete', 'export', 'release', 'warehouse', 'pullOut', 'forReplacement'];
-const permissionActionLabels = { release: 'Released', pullOut: 'Pullout', forReplacement: 'For Replacement' };
+const permissionActions = ['view', 'create', 'edit', 'delete', 'export', 'release', 'warehouse', 'pullOut', 'forReplacement', 'repair'];
+const permissionActionLabels = { release: 'Released', pullOut: 'Pullout', forReplacement: 'For Replacement', repair: 'Repair' };
 const permissionActionDescriptions = {
   view: 'View unit information across this workspace.',
   create: 'Add new units, branches, or accounts.',
@@ -11,7 +11,8 @@ const permissionActionDescriptions = {
   release: 'Move units through For Release and Released.',
   warehouse: 'Open Warehouse and move units in or out.',
   pullOut: 'Open Pullout and move units to Pull Out.',
-  forReplacement: 'Open For Replacement and mark replacements.'
+  forReplacement: 'Open For Replacement and mark replacements.',
+  repair: 'Open For Repair and mark units repaired.'
 };
 const roleSelector = document.getElementById('roleSelector');
 const roleCount = document.getElementById('roleCount');
@@ -307,7 +308,7 @@ function syncRoleHierarchy() {
 }
 
 function createCustomRolePermissions() {
-  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false };
+  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false, repair: false };
 }
 
 function createCustomRolePageAccess() {

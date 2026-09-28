@@ -145,7 +145,7 @@ async function saveBranchTypeDefinitions(definitions) {
 }
 
 function getCustomRolePermissionDefaults() {
-  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false };
+  return { view: true, create: false, edit: false, delete: false, export: false, release: false, warehouse: false, pullOut: false, forReplacement: false, repair: false };
 }
 
 function getCustomRolePageDefaults() {
@@ -159,12 +159,12 @@ function getCurrentPagePath() {
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
-  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true },
-  Administrator: { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true },
-  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true, release: false, warehouse: true, pullOut: true, forReplacement: true },
-  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false, release: false, warehouse: true, pullOut: true, forReplacement: true },
-  Office: { view: true, create: false, edit: false, delete: false, export: true, release: false, warehouse: false, pullOut: false, forReplacement: false },
-  Technician: { view: true, create: true, edit: true, delete: false, export: false, release: true, warehouse: true, pullOut: true, forReplacement: true }
+  'Super Admin': { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true, repair: true },
+  Administrator: { view: true, create: true, edit: true, delete: true, export: true, release: true, warehouse: true, pullOut: true, forReplacement: true, repair: true },
+  'Main Head Admin': { view: true, create: true, edit: true, delete: true, export: true, release: false, warehouse: true, pullOut: true, forReplacement: true, repair: true },
+  'Branch Head Admin': { view: true, create: true, edit: true, delete: false, export: false, release: false, warehouse: true, pullOut: true, forReplacement: true, repair: true },
+  Office: { view: true, create: false, edit: false, delete: false, export: true, release: false, warehouse: false, pullOut: false, forReplacement: false, repair: false },
+  Technician: { view: true, create: true, edit: true, delete: false, export: false, release: true, warehouse: true, pullOut: true, forReplacement: true, repair: true }
 };
 
 const PAGE_ACCESS_OPTIONS = {
@@ -213,7 +213,8 @@ function canAccessUnitView(view, role = getCurrentRole()) {
     released: 'release',
     warehouse: 'warehouse',
     'pull-out': 'pullOut',
-    replaced: 'forReplacement'
+    replaced: 'forReplacement',
+    'for-repair': 'repair'
   };
   const permission = permissionByView[view];
   return !permission || canManageAction(permission, role);

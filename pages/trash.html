@@ -23,6 +23,7 @@
                     <div class="nav-submenu" aria-label="Unit views" hidden>
                     <a class="nav-item nav-subitem" href="units.html?view=for-release">For Release</a>
                     <a class="nav-item nav-subitem" href="units.html?view=released">Released</a>
+                    <a class="nav-item nav-subitem" href="units.html?view=for-repair">For Repair</a>
                     <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
                     <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
                     <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
@@ -52,21 +53,18 @@
                     <div class="heading-block">
                         <div class="eyebrow">Recovery workspace</div>
                         <h1>Trash</h1>
-                        <p>Deleted units stay here for 30 days before permanent removal.</p>
+                        <p>Deleted units are retained here until restored.</p>
                     </div>
                 </div>
 
                 <div class="page-toolbar">
                     <div class="search-box"><input id="trashSearchInput" type="search" placeholder="Search deleted units" aria-label="Search deleted units" /></div>
-                    <div class="page-actions">
-                        <button class="action-btn danger" id="purgeAllTrashBtn" type="button">Delete all permanently</button>
-                    </div>
                 </div>
 
                 <section class="panel table-panel">
                     <div class="table-wrap">
                         <table class="unit-registry-table trash-table">
-                            <thead><tr><th>Code</th><th>Client Name</th><th>Branch</th><th>Deleted At</th><th>Expires At</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>Code</th><th>Client Name</th><th>Branch</th><th>Deleted At</th><th>Deleted By</th><th>Actions</th></tr></thead>
                             <tbody id="trashTableBody"><tr><td colspan="6" class="empty-state">Loading deleted units…</td></tr></tbody>
                         </table>
                     </div>

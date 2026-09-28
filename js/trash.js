@@ -4,7 +4,6 @@ let trashSearchInput = null;
 let trashMessageModalBackdrop = null;
 let trashMessageModalBody = null;
 let trashToast = null;
-let purgeAllTrashBtn = null;
 let trashRows = [];
 let trashToastTimer = null;
 let trashRefreshTimer = null;
@@ -45,19 +44,6 @@ function formatTrashDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'Asia/Manila' }).format(date);
 }
 
-function formatTrashCountdown(value) {
-  if (!value) return '—';
-  const rawValue = String(value).trim();
-  const googleDate = rawValue.match(/^Date\((\d+)\)$/);
-  const date = googleDate ? new Date(Number(googleDate[1])) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  const expirationDateKey = getManilaDateKey(date);
-  const todayDateKey = getManilaDateKey(new Date());
-  const remainingDays = Math.floor((dateKeyToUtcMidnight(expirationDateKey) - dateKeyToUtcMidnight(todayDateKey)) / (24 * 60 * 60 * 1000));
-  if (remainingDays <= 0) return 'Deleting soon';
-  return `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining`;
-}
-
 function branchClass(branch) {
   const normalized = String(branch || '').toLowerCase();
   if (normalized.includes('bnb')) return 'bnb';
@@ -78,7 +64,7 @@ function renderTrashBranch(branch) {
 function renderTrashRows() {
   const searchTerm = String(trashSearchInput.value || '').trim().toLowerCase();
   const rows = trashRows.filter((row) => {
-    const searchable = [row.unitCode, row.clientName, row.branchLocation, row.uploadedBranch, row.currentLocation].join(' ').toLowerCase();
+    const searchable = [row.unitCode, row.clientName, row.branchLocation, row.uploadedBranch, row.currentLocation, row.deletedBy].join(' ').toLowerCase();
     return !searchTerm || searchable.includes(searchTerm);
   });
 
@@ -88,47 +74,33 @@ function renderTrashRows() {
   }
 
   const canRestore = canManageAction('edit');
-  const canPurge = canManageAction('delete');
+  const canArchive = canManageAction('delete');
   trashTableBody.innerHTML = rows.map((row) => `
-    <tr data-unit-code="${escapeHtml(row.unitCode)}">
+    <tr data-unit-code="${escapeHtml(row.unitCode)}" data-source="${escapeHtml(row.source || 'trash')}">
       <td><strong>${escapeHtml(row.unitCode || '—')}</strong></td>
       <td>${escapeHtml(row.clientName || '—')}</td>
       <td><span class="branch-tag ${branchClass(row.branchLocation || row.uploadedBranch || row.currentLocation)}"><span class="center-stack">${renderTrashBranch(row.branchLocation || row.uploadedBranch || row.currentLocation)}</span></span></td>
       <td class="date-column">${escapeHtml(formatTrashDate(row.deletedAt))}</td>
-      <td class="date-column">${escapeHtml(formatTrashCountdown(row.expiresAt))}</td>
+      <td>${escapeHtml(row.deletedBy || '—')}</td>
       <td class="table-actions">
         <button class="restore" type="button" ${canRestore ? '' : 'disabled'}>Restore</button>
-        <button class="purge delete" type="button" ${canPurge ? '' : 'disabled'}><span>Delete</span><span>Permanently</span></button>
+        ${row.source === 'units' ? `<button class="archive" type="button" ${canArchive ? '' : 'disabled'}>Delete Permanently</button>` : ''}
       </td>
     </tr>
   `).join('');
 }
 
-async function updateTrash(action, unitCode) {
+async function updateTrash(action, unitCode, source) {
   const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
   if (!appScriptUrl) throw new Error('Apps Script URL is not configured.');
 
   const response = await fetch(appScriptUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: new URLSearchParams({ action, unitCode, actorRole: getCurrentRole(), actorName: getLoggedInUserName() }).toString()
+    body: new URLSearchParams({ action, unitCode, source, actorRole: getCurrentRole(), actorName: getLoggedInUserName() }).toString()
   });
   const result = await response.json().catch(() => null);
   if (!response.ok || (result && result.ok === false)) throw new Error((result && result.error) || `Request failed with status ${response.status}.`);
-}
-
-async function purgeAllTrash() {
-  const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
-  if (!appScriptUrl) throw new Error('Apps Script URL is not configured.');
-
-  const response = await fetch(appScriptUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: new URLSearchParams({ action: 'purgeAllTrash', actorRole: getCurrentRole(), actorName: getLoggedInUserName() }).toString()
-  });
-  const result = await response.json().catch(() => null);
-  if (!response.ok || (result && result.ok === false)) throw new Error((result && result.error) || `Request failed with status ${response.status}.`);
-  return result;
 }
 
 async function loadTrash() {
@@ -158,44 +130,25 @@ function initTrashPage() {
   trashMessageModalBackdrop = document.getElementById('trashMessageModalBackdrop');
   trashMessageModalBody = document.getElementById('trashMessageModalBody');
   trashToast = document.getElementById('trashToast');
-  purgeAllTrashBtn = document.getElementById('purgeAllTrashBtn');
 
   trashSearchInput.addEventListener('input', renderTrashRows);
   document.getElementById('closeTrashMessageBtn').addEventListener('click', closeTrashMessage);
   document.getElementById('okTrashMessageBtn').addEventListener('click', closeTrashMessage);
-  const canPurge = canManageAction('delete');
-  if (purgeAllTrashBtn) {
-    purgeAllTrashBtn.disabled = !canPurge;
-    purgeAllTrashBtn.addEventListener('click', () => {
-      if (!canPurge) return;
-      if (!trashRows.length) {
-        showTrashToast('There are no deleted units to remove.');
-        return;
-      }
-
-      showAppPopup(`Permanently delete all ${trashRows.length} deleted units? This cannot be undone.`, async () => {
-        try {
-          const result = await purgeAllTrash();
-          showTrashToast(`${result && result.purgedCount ? result.purgedCount : trashRows.length} units permanently deleted.`);
-          await loadTrash();
-        } catch (error) {
-          console.error(error);
-          showTrashMessage(error.message || 'Unable to permanently delete all units.');
-        }
-      });
-    });
-  }
   trashTableBody.addEventListener('click', async (event) => {
     const button = event.target.closest('button');
     const row = button && button.closest('tr');
     if (!button || !row) return;
     const unitCode = row.dataset.unitCode;
-    const action = button.classList.contains('restore') ? 'restoreUnit' : 'purgeUnit';
-    const confirmationMessage = action === 'restoreUnit' ? `Restore unit ${unitCode}?` : `Permanently delete unit ${unitCode}? This cannot be undone.`;
+    const source = row.dataset.source || 'trash';
+    const action = button.classList.contains('archive') ? 'archiveUnit' : 'restoreUnit';
+    if (action === 'restoreUnit' && !button.classList.contains('restore')) return;
+    const confirmationMessage = action === 'restoreUnit'
+      ? `Restore unit ${unitCode}?`
+      : `Move unit ${unitCode} to the recovery archive? Its full row will be copied to the Trash sheet.`;
     showAppPopup(confirmationMessage, async () => {
       try {
-        await updateTrash(action, unitCode);
-        showTrashToast(action === 'restoreUnit' ? 'Unit restored successfully.' : 'Unit permanently deleted.');
+        await updateTrash(action, unitCode, source);
+        showTrashToast(action === 'restoreUnit' ? 'Unit restored successfully.' : 'Unit archived successfully.');
         await loadTrash();
       } catch (error) {
         console.error(error);
