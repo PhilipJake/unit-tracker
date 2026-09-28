@@ -696,8 +696,10 @@ function initNavToggle() {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'nav-toggle';
-    toggle.setAttribute('aria-label', 'Toggle navigation');
+    toggle.setAttribute('aria-label', 'Open navigation');
     toggle.setAttribute('aria-expanded', 'false');
+    if (!nav.id) nav.id = 'primaryNavigation';
+    toggle.setAttribute('aria-controls', nav.id);
     toggle.innerHTML = '<span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>';
 
     sidebar.insertBefore(toggle, nav);
@@ -706,6 +708,7 @@ function initNavToggle() {
       if (window.innerWidth > 760) {
         sidebar.classList.remove('nav-open');
         toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation');
       }
     };
 
@@ -714,6 +717,7 @@ function initNavToggle() {
       event.stopPropagation();
       const isOpen = sidebar.classList.toggle('nav-open');
       toggle.setAttribute('aria-expanded', String(isOpen));
+      toggle.setAttribute('aria-label', `${isOpen ? 'Close' : 'Open'} navigation`);
     });
 
     nav.querySelectorAll('.nav-item').forEach((item) => {
@@ -721,8 +725,18 @@ function initNavToggle() {
         if (window.innerWidth <= 760) {
           sidebar.classList.remove('nav-open');
           toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-label', 'Open navigation');
         }
       });
+    });
+
+    sidebar.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && sidebar.classList.contains('nav-open')) {
+        sidebar.classList.remove('nav-open');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation');
+        toggle.focus();
+      }
     });
 
     window.addEventListener('resize', syncMenuState);
@@ -730,6 +744,7 @@ function initNavToggle() {
       if (window.innerWidth <= 760 && sidebar.classList.contains('nav-open') && !sidebar.contains(event.target)) {
         sidebar.classList.remove('nav-open');
         toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation');
       }
     });
   });

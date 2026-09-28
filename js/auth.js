@@ -149,6 +149,7 @@ if (loginForm) {
     if (loginLoadingScreen) {
       loginLoadingScreen.hidden = false;
       loginLoadingScreen.setAttribute('aria-hidden', 'false');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
     const account = await authenticateAccount(username, password);

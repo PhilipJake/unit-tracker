@@ -101,6 +101,10 @@ button, input, select {
   scrollbar-color: rgba(223, 233, 226, 0.35) transparent;
 }
 
+.nav-toggle {
+  display: none;
+}
+
 .nav #settingsLink {
   position: sticky;
   bottom: 0;
@@ -4156,8 +4160,12 @@ td {
 
   .sidebar.nav-open .nav {
     display: flex;
+    flex: 0 0 100%;
     width: 100%;
     max-width: 100%;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     overflow-x: hidden;
   }
 
