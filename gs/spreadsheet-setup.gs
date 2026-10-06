@@ -26,7 +26,7 @@ function initializeClientUnitTrackerSheets() {
     'Urgent',
     'Deleted At',
     'Deleted By',
-    'Status Before Deletion'
+    'Previous Status'
   ];
 
   const accountsHeaders = [

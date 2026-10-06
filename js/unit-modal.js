@@ -76,8 +76,9 @@ function openUnitModal(mode = 'create', unit = null) {
 
   const statusField = unitForm && unitForm.elements.namedItem('status');
   const diagnoseOption = statusField ? [...statusField.options].find((option) => option.value === 'For Diagnose') : null;
+  const canDiagnose = canSetForDiagnose.includes(localStorage.getItem('unitflowRole'));
   if (diagnoseOption) {
-    diagnoseOption.disabled = !canSetForDiagnose.includes(localStorage.getItem('unitflowRole'));
+    diagnoseOption.disabled = !canDiagnose;
   }
 
   if (mode === 'edit' && unit) {
@@ -113,6 +114,11 @@ function openUnitModal(mode = 'create', unit = null) {
     if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
     unitForm.reset();
+    unitForm.dataset.originalStatus = '';
+    if (statusField) {
+      statusField.required = true;
+      statusField.value = canDiagnose ? 'For Diagnose' : 'Transferred to Technical';
+    }
     syncOtherInclusionField();
     const contactInfoField = unitForm.elements.namedItem('contactInfo');
     if (contactInfoField) contactInfoField.value = contactInfoPrefix;
@@ -203,6 +209,7 @@ function populateUnitForm(unit) {
     uploadedBranch,
     unitPrice: unit.unitPrice || ''
   };
+  unitForm.dataset.originalStatus = String(unit.status || '');
 
   Object.entries(fields).forEach(([key, value]) => {
     const field = unitForm.elements.namedItem(key);
@@ -210,6 +217,11 @@ function populateUnitForm(unit) {
       field.value = value;
     }
   });
+
+  const statusField = unitForm.elements.namedItem('status');
+  if (statusField) {
+    statusField.required = statusField.value !== '';
+  }
 
   const contactInfoField = unitForm.elements.namedItem('contactInfo');
   if (contactInfoField) {
@@ -318,7 +330,7 @@ function normalizeSavedUnitPayload(form) {
     unitBrand: String(raw.unitBrand || '').trim(),
     unitSpecs: String(raw.unitSpecs || '').trim(),
     unitPrice: String(raw.unitPrice || '').trim(),
-    status: String(raw.status || '').trim(),
+    status: String(raw.status || (form.dataset.mode === 'edit' ? form.dataset.originalStatus : '') || '').trim(),
     branchLocation,
     currentLocation,
     dateReceived,
@@ -393,7 +405,12 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
         dateReleased: nextStatus === 'Released' ? cachedUnit.dateReleased || today : cachedUnit.dateReleased || '',
         releasedBy: nextStatus === 'Released' ? getLoggedInUserName() : cachedUnit.releasedBy || '',
         warehouseDateIn: isInWarehouse ? (wasInWarehouse ? cachedUnit.warehouseDateIn || today : today) : cachedUnit.warehouseDateIn || '',
-        warehouseDateOut: isInWarehouse ? '' : (wasInWarehouse ? today : cachedUnit.warehouseDateOut || '')
+        warehouseDateOut: isInWarehouse ? '' : (wasInWarehouse ? today : cachedUnit.warehouseDateOut || ''),
+        previousStatus: normalizeSearchText(nextStatus) === 'for warehouse' && normalizeSearchText(cachedUnit.status) !== 'for warehouse'
+          ? cachedUnit.status
+          : wasInWarehouse && !isInWarehouse && normalizeSearchText(nextStatus) === normalizeSearchText(cachedUnit.previousStatus)
+            ? ''
+            : cachedUnit.previousStatus || ''
       };
     });
     showUnitToast(successMessage);
@@ -809,7 +826,7 @@ function initUnitModal() {
           { action: 'repaired', status: 'For Observation', message: 'Unit returned to Units successfully.' },
           { action: 'replaced', status: 'Replaced', message: 'Unit marked as Replaced.' },
           { action: 'warehouse-transfer', status: 'Warehouse', location: 'Warehouse', message: 'Unit moved to Warehouse successfully.' },
-          { action: 'return-tracking', status: 'For Observation', location: unit.uploadedBranch || unit.branchLocation, message: 'Unit returned to Tracking successfully.' }
+          { action: 'return-tracking', status: unit.previousStatus || 'For Observation', location: unit.uploadedBranch || unit.branchLocation, message: 'Unit returned to Tracking successfully.' }
         ];
         const move = statusMoves.find(({ action }) => button.classList.contains(action));
         if (move) {
@@ -985,7 +1002,7 @@ function renderRegistryTableHeader(view) {
   unitRegistryTableHead.innerHTML = `<tr>${headers.map((header, index) => {
     const warehouseColumnClass = view !== 'warehouse' ? '' : index === 8 ? 'warehouse-days-column' : index === 9 || index === 10 ? 'warehouse-date-column' : '';
     const isDateColumn = header.replace(/<br>/g, ' ').startsWith('Date ');
-    const headerClasses = [isDateColumn ? 'date-column' : '', warehouseColumnClass].filter(Boolean).join(' ');
+    const headerClasses = [isDateColumn ? 'date-column' : '', warehouseColumnClass, header === 'Technical Notes' ? 'technician-notes-column' : ''].filter(Boolean).join(' ');
     return `<th${headerClasses ? ` class="${headerClasses}"` : ''}>${header}</th>`;
   }).join('')}</tr>`;
 }
@@ -1002,7 +1019,6 @@ function renderRegistryTable(rows) {
   const isReleasedView = requestedView === 'released';
   const isWarehouseView = requestedView === 'warehouse';
   renderRegistryTableHeader(requestedView);
-  const monitoringStatuses = new Set(['for observation', 'transferred to technical', 'for diagnose']);
   const filteredRows = rows.map((unit, rowIndex) => ({ unit, rowIndex })).filter(({ unit }) => {
     const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
     const clientName = normalizeSearchText(unit.clientName || '');
@@ -1011,8 +1027,10 @@ function renderRegistryTable(rows) {
     const currentLocation = normalizeSearchText(unit.currentLocation || '');
     const matchesSearch = !searchTerm || unitCode.includes(searchTerm) || clientName.includes(searchTerm);
     const matchesView = requestedView === 'monitoring'
-      ? monitoringStatuses.has(status)
-      : requestedView === 'for-release'
+      ? status !== 'deleted'
+      : requestedView === 'diagnose'
+        ? status === 'for diagnose' || status === 'for diagnosis'
+        : requestedView === 'for-release'
         ? status === 'for release'
         : requestedView === 'released'
           ? status === 'released'
@@ -1060,7 +1078,8 @@ function renderRegistryTable(rows) {
       const daysInWarehouse = computeRunningDays(unit.warehouseDateIn, unit.warehouseDateOut) || '—';
       const problem = unit.unitProblem || unit.problem || '—';
       const status = unit.status || 'Unknown';
-      const isReleased = normalizeSearchText(status) === 'released';
+      const normalizedStatus = normalizeSearchText(status);
+      const isReleased = normalizedStatus === 'released';
       const runningDays = computeRunningDays(unit.dateReturn || unit.dateReceived, isReleased ? unit.dateReleased : '') || '—';
       const branch = unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '—';
       const inclusion = unit.inclusion || '—';
@@ -1073,18 +1092,34 @@ function renderRegistryTable(rows) {
       const canForReplacement = canManageAction('forReplacement', currentRole);
       const canRepair = canManageAction('repair', currentRole);
       const currentLocation = normalizeSearchText(unit.currentLocation || branch);
-      let actionButtons = `<div class="unit-action-row">
+      const baseActionButtons = `<div class="unit-action-row">
               <button class="edit" type="button" ${canEdit ? '' : 'disabled title="Edit permission is disabled"'}>Edit</button>
               <button class="delete" type="button" ${canDelete ? '' : 'disabled title="Delete permission is disabled"'}>Delete</button>
-            </div>
-            <div class="unit-action-row">
+            </div>`;
+      const diagnosisActions = `<div class="unit-action-row">
               <button class="for-release" type="button" ${canEditActions && canRelease ? '' : 'disabled title="Released permission is disabled"'}>For Release</button>
               <button class="for-repair" type="button" ${canEditActions && canRepair ? '' : 'disabled title="Repair permission is disabled"'}>For Repair</button>
             </div>
             <div class="unit-action-row">
               <button class="for-replacement" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>For Replacement</button>
-              <button class="for-warehouse" type="button" ${canEditActions && canWarehouse && status !== 'for warehouse' && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already assigned to the warehouse"'}>For Warehouse</button>
+              <button class="for-warehouse" type="button" ${canEditActions && canWarehouse && normalizedStatus !== 'for warehouse' && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already assigned to the warehouse"'}>For Warehouse</button>
             </div>`;
+      const actionButtonsByStatus = {
+        'for diagnose': diagnosisActions,
+        'for diagnosis': diagnosisActions,
+        'for observation': diagnosisActions,
+        'transferred to technical': diagnosisActions,
+        'for release': `<div class="unit-action-row"><button class="released" type="button" ${canRelease ? '' : 'disabled title="Released permission is disabled"'}>Released</button></div>`,
+        'pull out': `<div class="unit-action-row"><button class="released" type="button" ${canRelease ? '' : 'disabled title="Released permission is disabled"'}>Released</button></div>`,
+        'for repair': `<div class="unit-action-row"><button class="repaired" type="button" ${canEditActions && canRepair ? '' : 'disabled title="Repair permission is disabled"'}>Repaired</button></div>`,
+        'for replacement': `<div class="unit-action-row"><button class="replaced" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>Replaced</button></div>`,
+        'for warehouse': `<div class="unit-action-row"><button class="warehouse-transfer" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Warehouse</button></div>`,
+        warehouse: `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>`
+      };
+      const actionStatus = normalizedStatus === 'for warehouse'
+        ? normalizedStatus
+        : currentLocation === 'warehouse' ? 'warehouse' : normalizedStatus;
+      let actionButtons = `${baseActionButtons}${actionButtonsByStatus[actionStatus] || ''}`;
       if (requestedView === 'for-release' || requestedView === 'pull-out') {
         actionButtons = `<div class="unit-action-row"><button class="released" type="button" ${canRelease ? '' : 'disabled title="Released permission is disabled"'}>Released</button></div>`;
       } else if (requestedView === 'for-repair') {
@@ -1092,9 +1127,9 @@ function renderRegistryTable(rows) {
       } else if (requestedView === 'replaced') {
         actionButtons = `<div class="unit-action-row"><button class="replaced" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>Replaced</button></div>`;
       } else if (isWarehouseView) {
-        actionButtons = status === 'for warehouse'
+        actionButtons = normalizedStatus === 'for warehouse'
           ? `<div class="unit-action-row"><button class="warehouse-transfer" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Warehouse</button></div>`
-          : status === 'warehouse' || currentLocation === 'warehouse'
+          : normalizedStatus === 'warehouse' || currentLocation === 'warehouse'
             ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>`
             : '';
       }
@@ -1121,7 +1156,7 @@ function renderRegistryTable(rows) {
           <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
           <td>${escapeHtml(problem)}</td>
           <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
-          <td class="technician-notes-cell">${escapeHtml(unit.technicianNotes || '—')}</td>
+          <td class="technician-notes-cell technician-notes-column">${escapeHtml(unit.technicianNotes || '—')}</td>
         </tr>
       `;
     })

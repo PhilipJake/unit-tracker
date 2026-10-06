@@ -680,7 +680,8 @@ function getTrashSheet(spreadsheet, unitHeaders) {
   if (needsMigration) {
     const headerIndexes = new Map(existingHeaders.map((header, index) => [String(header).trim().toLowerCase(), index]));
     const migratedRows = [trashHeaders, ...existing.slice(1).map((row) => trashHeaders.map((header) => {
-      const sourceIndex = headerIndexes.get(header.toLowerCase());
+      const sourceIndex = headerIndexes.get(header.toLowerCase())
+        ?? (header.toLowerCase() === 'previous status' ? headerIndexes.get('status before deletion') : undefined);
       return sourceIndex === undefined ? '' : row[sourceIndex] || '';
     }))];
     sheet.getRange(1, 1, migratedRows.length, trashHeaders.length).setValues(migratedRows);
@@ -774,13 +775,15 @@ function deleteUnitRow(spreadsheet, unitCode, values) {
   const deletedAtIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
   const deletedByIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
   const statusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'status');
-  const previousStatusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
+  const previousStatusIndex = record.headers.findIndex((header) => String(header).trim().toLowerCase() === 'previous status');
   if (statusIndex >= 0 && String(record.values[statusIndex] || '').trim().toLowerCase() === 'deleted') {
     return jsonResponse({ ok: true, action: 'deleteUnit', deletedCode: unitCode });
   }
   const actorName = String(values.actorName || values.actorRole || 'Unknown').trim();
   const sourceValues = record.values.slice();
-  if (previousStatusIndex >= 0) sourceValues[previousStatusIndex] = statusIndex < 0 ? '' : sourceValues[statusIndex] || '';
+  if (previousStatusIndex >= 0 && !sourceValues[previousStatusIndex]) {
+    sourceValues[previousStatusIndex] = statusIndex < 0 ? '' : sourceValues[statusIndex] || '';
+  }
   if (deletedAtIndex >= 0) sourceValues[deletedAtIndex] = deletedAt;
   if (deletedByIndex >= 0) sourceValues[deletedByIndex] = actorName;
   if (statusIndex >= 0) sourceValues[statusIndex] = 'Deleted';
@@ -812,7 +815,7 @@ function restoreUnitRow(spreadsheet, unitCode, source) {
   const statusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'status');
   const deletedAtIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
   const deletedByIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
-  const previousStatusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
+  const previousStatusIndex = unitHeaders.findIndex((header) => String(header).trim().toLowerCase() === 'previous status');
   if (source === 'units') {
     const activeRecord = getUnitRecord(unitsSheet, unitCode);
     if (!activeRecord) return jsonResponse({ ok: false, error: 'Deleted unit not found' });
@@ -911,7 +914,7 @@ function updateUnitRow(spreadsheet, values) {
       const releasedByIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'released by');
       const deletedAtIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'deleted at');
       const deletedByIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'deleted by');
-      const previousStatusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'status before deletion');
+      const previousStatusIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'previous status');
       const requestedContactInfo = String(values.contactInfo || '').trim();
       if (requestedContactInfo && !isValidContactInfo(requestedContactInfo)) {
         return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
@@ -933,6 +936,8 @@ function updateUnitRow(spreadsheet, values) {
       const existingDateIn = warehouseDateInIndex >= 0 ? data[rowIndex][warehouseDateInIndex] || '' : '';
       const existingDateOut = warehouseDateOutIndex >= 0 ? data[rowIndex][warehouseDateOutIndex] || '' : '';
       const previousStatus = statusIndex >= 0 ? String(data[rowIndex][statusIndex] || '').trim().toLowerCase() : '';
+      const nextStatus = String(values.status || '').trim().toLowerCase();
+      const savedPreviousStatus = previousStatusIndex >= 0 ? data[rowIndex][previousStatusIndex] || '' : '';
       const warehouseDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Manila', 'yyyy-MM-dd');
       values.warehouseDateIn = isInWarehouse ? (wasInWarehouse ? existingDateIn || warehouseDate : warehouseDate) : existingDateIn;
       values.warehouseDateOut = isInWarehouse ? '' : (wasInWarehouse ? warehouseDate : existingDateOut);
@@ -941,7 +946,11 @@ function updateUnitRow(spreadsheet, values) {
         : releasedByIndex >= 0 ? data[rowIndex][releasedByIndex] || '' : '';
       values.deletedAt = deletedAtIndex >= 0 ? data[rowIndex][deletedAtIndex] || '' : '';
       values.deletedBy = deletedByIndex >= 0 ? data[rowIndex][deletedByIndex] || '' : '';
-      values.statusBeforeDeletion = previousStatusIndex >= 0 ? data[rowIndex][previousStatusIndex] || '' : '';
+      values.previousStatus = nextStatus === 'for warehouse' && previousStatus !== 'for warehouse'
+        ? (statusIndex >= 0 ? data[rowIndex][statusIndex] || '' : '')
+        : wasInWarehouse && !isInWarehouse && nextStatus === String(savedPreviousStatus).trim().toLowerCase()
+          ? ''
+          : savedPreviousStatus;
       if (String(values.status || '').trim().toLowerCase() === 'released'
         && (previousStatus !== 'released' || !String(values.dateReleased || '').trim())) {
         values.dateReleased = warehouseDate;
@@ -1245,7 +1254,7 @@ function getHeadersForAction(action) {
         'Urgent',
         'Deleted At',
         'Deleted By',
-        'Status Before Deletion'
+        'Previous Status'
       ];
   }
 }
@@ -1319,7 +1328,7 @@ function buildRowForAction(action, values) {
         values.isUrgent || '',
         values.deletedAt || '',
         values.deletedBy || '',
-        values.statusBeforeDeletion || ''
+        values.previousStatus || ''
       ];
   }
 }
@@ -1346,7 +1355,7 @@ function migrateUnitSheetSchema(sheet) {
     'released by': ['released by'],
     'deleted at': ['deleted at'],
     'deleted by': ['deleted by'],
-    'status before deletion': ['status before deletion'],
+    'previous status': ['previous status', 'status before deletion'],
     urgent: ['urgent', 'is urgent', 'urgent flag']
   };
   const normalizedHeaders = sourceHeaders.map((header) => String(header || '').trim().toLowerCase());

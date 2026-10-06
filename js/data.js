@@ -208,6 +208,7 @@ function normalizeRow(rawRow) {
   const releasedBy = findValue(row, ['released by', 'releasedby']);
   const deletedAt = findValue(row, ['deleted at', 'deletedat']);
   const deletedBy = findValue(row, ['deleted by', 'deletedby']);
+  const previousStatus = findValue(row, ['previous status', 'status before deletion']);
   const warehouseDateIn = findValue(row, ['date sent to warehouse', 'warehouse date in']);
   const warehouseDateOut = findValue(row, ['date left warehouse', 'warehouse date out']);
   const warranty = legacyValue(11, ['warranty']);
@@ -245,6 +246,7 @@ function normalizeRow(rawRow) {
     releasedBy: releasedBy || '',
     deletedAt: deletedAt || '',
     deletedBy: deletedBy || '',
+    previousStatus: previousStatus || '',
     warehouseDateIn: warehouseDateIn || '',
     warehouseDateOut: warehouseDateOut || '',
     warranty: warranty || '',

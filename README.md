@@ -87,7 +87,7 @@ Super Admins and Administrators can configure page and action permissions by rol
 
 ## Trash
 
-Run `initializeClientUnitTrackerSheets()` in Apps Script to create or migrate the unit and `Trash` sheets. Delete marks a unit as `Deleted`, records `Deleted By`, and keeps its row in `Units`. Trash lets users restore it to its previous status or archive it: Delete Permanently copies the complete row to the `Trash` sheet before removing it from `Units`. Archived rows remain recoverable. Releasing a unit records the user's name in `Released By`.
+Run `initializeClientUnitTrackerSheets()` in Apps Script to create or migrate the unit and `Trash` sheets. `Previous Status` preserves the status to restore when a unit returns from the warehouse or is recovered from Trash. Delete marks a unit as `Deleted`, records `Deleted By`, and keeps its row in `Units`. Trash lets users restore it to its previous status or archive it: Delete Permanently copies the complete row to the `Trash` sheet before removing it from `Units`. Archived rows remain recoverable. Releasing a unit records the user's name in `Released By`.
 
 ## Sample data
 

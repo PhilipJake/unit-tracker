@@ -95,8 +95,17 @@ button, input, select {
   min-height: 0;
   height: auto;
   margin-top: 14px;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.nav-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
   overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
   scrollbar-color: rgba(223, 233, 226, 0.35) transparent;
 }
@@ -106,17 +115,16 @@ button, input, select {
 }
 
 .nav #settingsLink {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 2;
-  margin-top: auto;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: 100%;
   background: var(--sidebar-bg);
 }
 
 .nav #settingsLink.active {
-  background: transparent;
-  box-shadow: none;
+  background: rgba(126, 211, 161, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(126, 211, 161, 0.2);
 }
 
 .nav-label {
@@ -1368,6 +1376,11 @@ td {
   overflow-wrap: anywhere;
 }
 
+.unit-registry-table .technician-notes-column {
+  width: 170px;
+  min-width: 170px;
+}
+
 .unit-registry-table td:nth-child(1),
 .unit-registry-table td:nth-child(2),
 .unit-registry-table td:nth-child(3),
@@ -2401,6 +2414,7 @@ td {
 .table-actions .for-release,
 .table-actions .for-repair,
 .table-actions .for-warehouse,
+.table-actions .warehouse-transfer,
 .table-actions .for-replacement,
 .table-actions .replaced,
 .table-actions .warehouse,
@@ -2412,6 +2426,7 @@ td {
 .table-actions .for-release { background: #fff0ce; color: #85570b; }
 .table-actions .for-repair { background: #e3edff; color: #254d86; }
 .table-actions .for-warehouse { background: #d9f2ec; color: #17685c; }
+.table-actions .warehouse-transfer { background: #d9f2ec; color: #17685c; }
 .table-actions .for-replacement { background: #fce7d7; color: #984b17; }
 .table-actions .replaced { background: #dff3e7; color: #286443; }
 .table-actions .warehouse { background: #d9f2ec; color: #17685c; }
@@ -2421,6 +2436,7 @@ td {
 .table-actions .for-release:hover:not(:disabled) { background: #f5c542; color: #473400; transform: translateY(-1px); }
 .table-actions .for-repair:hover:not(:disabled) { background: #9bbcff; color: #16365f; transform: translateY(-1px); }
 .table-actions .for-warehouse:hover:not(:disabled) { background: #3ac2a7; color: #073e35; transform: translateY(-1px); }
+.table-actions .warehouse-transfer:hover:not(:disabled) { background: #3ac2a7; color: #073e35; transform: translateY(-1px); }
 .table-actions .for-replacement:hover:not(:disabled) { background: #f08a52; color: #4a210c; transform: translateY(-1px); }
 .table-actions .replaced:hover:not(:disabled) { background: #52c77c; color: #123d25; transform: translateY(-1px); }
 .table-actions .warehouse:hover:not(:disabled) { background: #3ac2a7; color: #073e35; transform: translateY(-1px); }
@@ -3888,6 +3904,10 @@ td {
   color: var(--muted);
 }
 
+.required-indicator {
+  color: var(--red-text);
+}
+
 .field-group > label:has(.recipient-copy-toggle) { display: flex; align-items: center; justify-content: space-between; }
 .recipient-copy-toggle { display: inline-flex; gap: 8px; text-transform: none; letter-spacing: 0; }
 .recipient-copy-button { padding: 0; border: 0; background: transparent; color: var(--green-text); font: inherit; cursor: pointer; }
@@ -4163,13 +4183,18 @@ td {
     flex: 0 0 100%;
     width: 100%;
     max-width: 100%;
+    max-height: calc(100vh - 70px);
     margin-top: 10px;
     padding-top: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     overflow-x: hidden;
   }
 
-  .nav::-webkit-scrollbar {
+  .nav-scroll {
+    padding-right: 0;
+  }
+
+  .nav-scroll::-webkit-scrollbar {
     display: none;
   }
 
@@ -4184,13 +4209,6 @@ td {
     padding: 10px 11px;
     white-space: normal;
     font-size: 0.9rem;
-  }
-
-  .nav #settingsLink {
-    position: static;
-    bottom: auto;
-    margin-top: 0;
-    background: transparent;
   }
 
   .workspace {
