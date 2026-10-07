@@ -27,7 +27,7 @@ const DATA = {
 
   async fetchAccounts() {
     const config = window.GS_CONFIG || {};
-    return DATA.fetchSheet({ gid: config.accountsGid || config.gid || '0' });
+    return DATA.fetchSheet({ gid: config.accountsGid || config.gid || '0', includeAllRows: true });
   },
 
   async fetchBranches() {

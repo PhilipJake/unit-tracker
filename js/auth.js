@@ -86,35 +86,42 @@ async function authenticateAccount(username, password) {
   const config = window.GS_CONFIG || {};
   const hasValidConfig = config.sheetId && config.sheetId !== 'PASTE_YOUR_GOOGLE_SHEET_ID_HERE';
 
-  if (hasValidConfig && typeof DATA !== 'undefined' && DATA.fetchAccounts) {
+  if (hasValidConfig) {
+    if (typeof DATA === 'undefined' || !DATA.fetchAccounts) {
+      throw new Error('Account lookup is unavailable.');
+    }
+
+    let rows;
     try {
-      const rows = await DATA.fetchAccounts();
-      const account = rows.find((row) => {
-        const sheetUsername = String(row.username || row.userName || row.accountusername || '').trim().toLowerCase();
-        const sheetPassword = String(row.password || row.pass || row.userpassword || '').trim();
-        return sheetUsername === username && sheetPassword === password;
-      });
-
-      if (account) {
-        const status = String(account.status || account.accountStatus || '').trim().toLowerCase();
-        if (status === 'inactive' || status === 'disabled' || status === 'deactivated') {
-          return null;
-        }
-
-        const role = String(account.accountType || account.accounttype || account.role || account.userType || '').trim();
-        const fullName = String(account.fullName || account.fullname || account.name || account.username || '').trim();
-        const assignedBranch = String(account.branch || account.branchLocation || account.branchName || account.location || '').trim();
-        return {
-          username,
-          password,
-          role: role || 'User',
-          fullName: fullName || username,
-          branch: assignedBranch
-        };
-      }
+      rows = await DATA.fetchAccounts();
     } catch (error) {
       console.error('Account sheet authentication failed:', error);
+      throw new Error('Unable to verify your account. Check your connection and try again.');
     }
+
+    const account = rows.find((row) => {
+      const sheetUsername = String(row.username || row.userName || row.accountusername || '').trim().toLowerCase();
+      const sheetPassword = String(row.password || row.pass || row.userpassword || '').trim();
+      return sheetUsername === username && sheetPassword === password;
+    });
+
+    if (!account) return null;
+
+    const status = String(account.status || account.accountStatus || '').trim().toLowerCase();
+    if (['inactive', 'disabled', 'deactivated'].includes(status)) {
+      return null;
+    }
+
+    const role = String(account.accountType || account.accounttype || account.role || account.userType || '').trim();
+    const fullName = String(account.fullName || account.fullname || account.name || account.username || '').trim();
+    const assignedBranch = String(account.branch || account.branchLocation || account.branchName || account.location || '').trim();
+    return {
+      username,
+      password,
+      role: role || 'User',
+      fullName: fullName || username,
+      branch: assignedBranch
+    };
   }
 
   const fallbackAccount = fallbackAccounts[username];
@@ -146,22 +153,27 @@ if (loginForm) {
 
     const submitButton = loginForm.querySelector('button[type="submit"]');
     submitButton.disabled = true;
+
+    let account;
+    try {
+      account = await authenticateAccount(username, password);
+    } catch (error) {
+      submitButton.disabled = false;
+      showAppPopup(error.message || 'Unable to verify your account. Please try again.');
+      return;
+    }
+
+    if (!account) {
+      submitButton.disabled = false;
+      showAppPopup('Invalid username or password.');
+      return;
+    }
+
+    const loadingStartedAt = performance.now();
     if (loginLoadingScreen) {
       loginLoadingScreen.hidden = false;
       loginLoadingScreen.setAttribute('aria-hidden', 'false');
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }
-
-    const account = await authenticateAccount(username, password);
-
-    if (!account) {
-      if (loginLoadingScreen) {
-        loginLoadingScreen.hidden = true;
-        loginLoadingScreen.setAttribute('aria-hidden', 'true');
-      }
-      submitButton.disabled = false;
-      showAppPopup('Invalid username or password.');
-      return;
     }
 
     localStorage.setItem('unitflowRole', account.role);
@@ -184,6 +196,12 @@ if (loginForm) {
       } catch (error) {
         console.warn('Unable to load saved permissions during login:', error);
       }
+    }
+
+    const minimumLoadingTime = 650;
+    const remainingLoadingTime = minimumLoadingTime - (performance.now() - loadingStartedAt);
+    if (remainingLoadingTime > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingLoadingTime));
     }
 
     window.location.href = resolveAppPath('index.html');
