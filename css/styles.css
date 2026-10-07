@@ -1816,11 +1816,13 @@ td {
 
 .login-loading-radar::before {
   position: absolute;
+  top: 50%;
+  left: 50%;
   width: 50%;
-  height: 50%;
-  border-top: 1px solid #4effbb;
+  height: 1px;
+  background: #4effbb;
   content: "";
-  transform-origin: bottom right;
+  transform-origin: left center;
   animation: login-radar-sweep 2.4s linear infinite;
 }
 
