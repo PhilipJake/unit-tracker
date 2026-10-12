@@ -108,46 +108,22 @@
           </div>
         </div>
 
-        <section class="panel table-panel">
-          <div class="table-wrap">
-            <table class="unit-registry-table">
-              <thead id="unitRegistryTableHead">
-                <tr>
-                  <th>Actions</th>
-                  <th>Branch Location</th>
-                  <th>Client Name</th>
-                  <th>Contact Info</th>
-                  <th>Code</th>
-                  <th>Current Location</th>
-                  <th>Status</th>
-                  <th>Warranty</th>
-                  <th>Unit Brand</th>
-                  <th>Unit Specs</th>
-                  <th>Unit Price</th>
-                  <th>Date Purchased</th>
-                  <th>Date of Return</th>
-                  <th>Date Released</th>
-                  <th>Running Days</th>
-                  <th>Unit Problem</th>
-                  <th>Inclusion</th>
-                  <th>Technical Notes</th>
-                </tr>
-              </thead>
-              <tbody id="unitRegistryTableBody">
-                <tr>
-                  <td colspan="18" class="empty-state">Loading live spreadsheet data…</td>
-                </tr>
-              </tbody>
-            </table>
+        <section class="panel unit-card-panel">
+          <div class="unit-card-grid" id="unitCardGrid" aria-live="polite" aria-label="Client unit records">
+            <div class="empty-state">Loading live spreadsheet data…</div>
           </div>
         </section>
       </main>
     </div>
 
     <div class="modal-backdrop" id="unitModalBackdrop" aria-hidden="true">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unitModalTitle">
+      <div class="modal unit-editor-modal" role="dialog" aria-modal="true" aria-labelledby="unitModalTitle">
         <div class="modal-header">
-          <h3 id="unitModalTitle">Add Unit</h3>
+          <div class="unit-editor-heading">
+            <span class="unit-details-eyebrow">UNIT REGISTRY</span>
+            <h3 id="unitModalTitle">Add Unit</h3>
+            <p id="unitModalDescription">Add client and equipment details to the registry.</p>
+          </div>
           <button class="modal-close" id="closeUnitModalBtn" aria-label="Close modal">×</button>
         </div>
 
@@ -249,9 +225,12 @@
               <textarea id="technicianNotes" name="technicianNotes" rows="3" placeholder="Add notes for this unit"></textarea>
             </div>
 
+          </div>
+
+          <div class="unit-form-options">
             <div class="field-group urgent-field">
-              <label class="checkbox-label" for="isUrgent" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;">
-                <input id="isUrgent" name="isUrgent" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" />
+              <label class="checkbox-label" for="isUrgent">
+                <input id="isUrgent" name="isUrgent" type="checkbox" />
                 Flag as URGENT
               </label>
               <small class="field-help">Once flagged, this cannot be unchecked while editing the unit.</small>
@@ -259,15 +238,15 @@
 
             <div class="field-group inclusions-field">
               <label>Inclusions</label>
-              <div class="inclusion-checklist" style="display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 0.7rem 0.8rem; border: 1px solid #dfe3eb; border-radius: 10px; background: white;">
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Charger" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Charger</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Laptop Bag" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Laptop Bag</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Mouse" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Mouse</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Mousepad" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Mousepad</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Earphones" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Earphones</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="Laptop Table" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Laptop Table</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" name="inclusionOption" value="SmartWatch" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> SmartWatch</label>
-                <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.95rem;"><input type="checkbox" id="otherInclusionOption" name="inclusionOption" value="Other" style="width: 16px; height: 16px; accent-color: var(--primary, #1f7a5c);" /> Other</label>
+              <div class="inclusion-checklist">
+                <label><input type="checkbox" name="inclusionOption" value="Charger" /> Charger</label>
+                <label><input type="checkbox" name="inclusionOption" value="Laptop Bag" /> Laptop Bag</label>
+                <label><input type="checkbox" name="inclusionOption" value="Mouse" /> Mouse</label>
+                <label><input type="checkbox" name="inclusionOption" value="Mousepad" /> Mousepad</label>
+                <label><input type="checkbox" name="inclusionOption" value="Earphones" /> Earphones</label>
+                <label><input type="checkbox" name="inclusionOption" value="Laptop Table" /> Laptop Table</label>
+                <label><input type="checkbox" name="inclusionOption" value="SmartWatch" /> SmartWatch</label>
+                <label><input type="checkbox" id="otherInclusionOption" name="inclusionOption" value="Other" /> Other</label>
               </div>
               <input id="otherInclusionText" name="otherInclusionText" type="text" placeholder="Specify other inclusion" hidden />
               <input type="hidden" id="inclusion" name="inclusion" value="" />
@@ -296,6 +275,13 @@
     </div>
 
     <div class="message-toast" id="unitToast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="modal-backdrop unit-details-backdrop" id="unitDetailsBackdrop" aria-hidden="true">
+      <section class="unit-details-modal" role="dialog" aria-modal="true" aria-labelledby="unitDetailsTitle" tabindex="-1">
+        <button class="unit-details-close" id="closeUnitDetailsBtn" type="button" aria-label="Close unit details">×</button>
+        <div id="unitDetailsContent"></div>
+      </section>
+    </div>
 
     <template id="trashViewTemplate">
       <main class="content">

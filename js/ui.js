@@ -13,6 +13,9 @@ const UI = {
   activityChartLegend: document.getElementById('activityChartLegend')
 };
 
+const activityChartVisibility = { received: true, released: true };
+let activityChartUnits = [];
+
 function renderSummary(units, registeredBranches = []) {
   const total = getDashboardRegisteredUnits(units).length;
   const now = new Date();
@@ -164,6 +167,7 @@ function renderBranchCodeChart(units, registeredBranches = []) {
 function renderActivityChart(units) {
   if (!UI.activityChart || !UI.activityChartSummary) return;
 
+  activityChartUnits = units;
   const activityUnits = units.filter((unit) => normalizeStatus(unit.status) !== 'deleted' && !unit.deletedAt);
   const todayDateKey = getManilaDateKey(new Date()) || new Date().toISOString().slice(0, 10);
   const activityDateKeys = activityUnits
@@ -205,6 +209,8 @@ function renderActivityChart(units) {
       released[releasedIndex] += 1;
     }
   });
+  const receivedByDay = [...received];
+  const releasedByDay = [...released];
   received.forEach((value, index) => {
     if (index > 0) received[index] += received[index - 1];
   });
@@ -255,21 +261,95 @@ function renderActivityChart(units) {
   const receivedColor = '#3f78b5';
   const releasedColor = '#d87932';
   const activityLines = `
-    <path class="activity-line" style="stroke: ${receivedColor};" d="${pathFor(received)}" />
-    <path class="activity-line" style="stroke: ${releasedColor};" d="${pathFor(released)}" />
-    ${circles(received, receivedColor)}
-    ${circles(released, releasedColor)}
+    <g class="activity-series received" style="display: ${activityChartVisibility.received ? '' : 'none'}">
+      <path class="activity-line" style="stroke: ${receivedColor};" d="${pathFor(received)}" />
+      ${circles(received, receivedColor)}
+    </g>
+    <g class="activity-series released" style="display: ${activityChartVisibility.released ? '' : 'none'}">
+      <path class="activity-line" style="stroke: ${releasedColor};" d="${pathFor(released)}" />
+      ${circles(released, releasedColor)}
+    </g>
   `;
 
   UI.activityChart.innerHTML = `
-    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="none" aria-hidden="true">
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="none" role="img" aria-label="Cumulative received and released units over time">
       <g class="activity-grid">${gridLines}</g>
       <line class="activity-axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${chartWidth - padding.right}" y2="${padding.top + plotHeight}" />
       <g class="activity-scale-labels">${scaleLabels}</g>
       ${activityLines}
       <g class="activity-labels">${labels}</g>
+      <g class="activity-focus" visibility="hidden" aria-hidden="true">
+        <line class="activity-focus-line" y1="${padding.top}" y2="${padding.top + plotHeight}" />
+        <circle class="activity-focus-point received" r="5" />
+        <circle class="activity-focus-point released" r="5" />
+      </g>
+      <rect class="activity-interaction-overlay" x="${padding.left}" y="${padding.top}" width="${plotWidth}" height="${plotHeight}" tabindex="0" role="slider" aria-label="Explore activity by date" aria-valuemin="0" aria-valuemax="${days.length - 1}" aria-valuenow="${days.length - 1}" aria-valuetext="${formatActivityDateKey(lastDayKey, { month: 'long', day: 'numeric', year: 'numeric' })}" />
     </svg>
+    <div class="activity-chart-tooltip" role="tooltip" aria-live="off" hidden></div>
   `;
+
+  const svg = UI.activityChart.querySelector('svg');
+  const overlay = UI.activityChart.querySelector('.activity-interaction-overlay');
+  const focusGroup = UI.activityChart.querySelector('.activity-focus');
+  const focusLine = UI.activityChart.querySelector('.activity-focus-line');
+  const receivedFocusPoint = UI.activityChart.querySelector('.activity-focus-point.received');
+  const releasedFocusPoint = UI.activityChart.querySelector('.activity-focus-point.released');
+  const tooltip = UI.activityChart.querySelector('.activity-chart-tooltip');
+  const updateFocus = (index) => {
+    const safeIndex = Math.max(0, Math.min(days.length - 1, index));
+    const receivedPosition = point(received[safeIndex], safeIndex);
+    const releasedPosition = point(released[safeIndex], safeIndex);
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = receivedPosition.x;
+    svgPoint.y = receivedPosition.y;
+    const receivedClientX = svgPoint.matrixTransform(svg.getScreenCTM()).x;
+    const chartBounds = UI.activityChart.getBoundingClientRect();
+    const tooltipLeft = Math.max(8, Math.min(chartBounds.width - 188, receivedClientX - chartBounds.left + 10));
+
+    focusGroup.setAttribute('visibility', 'visible');
+    focusLine.setAttribute('x1', receivedPosition.x);
+    focusLine.setAttribute('x2', receivedPosition.x);
+    receivedFocusPoint.setAttribute('cx', receivedPosition.x);
+    receivedFocusPoint.setAttribute('cy', receivedPosition.y);
+    releasedFocusPoint.setAttribute('cx', releasedPosition.x);
+    releasedFocusPoint.setAttribute('cy', releasedPosition.y);
+    receivedFocusPoint.style.display = activityChartVisibility.received ? '' : 'none';
+    releasedFocusPoint.style.display = activityChartVisibility.released ? '' : 'none';
+    overlay.setAttribute('aria-valuenow', String(safeIndex));
+    overlay.setAttribute('aria-valuetext', `${formatActivityDateKey(days[safeIndex], { month: 'long', day: 'numeric', year: 'numeric' })}: ${received[safeIndex]} received total, ${released[safeIndex]} released total`);
+    tooltip.hidden = false;
+    tooltip.style.left = `${tooltipLeft}px`;
+    tooltip.textContent = `${formatActivityDateKey(days[safeIndex], { month: 'short', day: 'numeric', year: 'numeric' })} · Received ${receivedByDay[safeIndex]} (${received[safeIndex]} total) · Released ${releasedByDay[safeIndex]} (${released[safeIndex]} total)`;
+  };
+  const indexFromPointer = (event) => {
+    const bounds = svg.getBoundingClientRect();
+    const viewBoxX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
+    return Math.round(((viewBoxX - padding.left) / plotWidth) * (days.length - 1));
+  };
+  overlay.addEventListener('pointermove', (event) => updateFocus(indexFromPointer(event)));
+  overlay.addEventListener('pointerdown', (event) => updateFocus(indexFromPointer(event)));
+  overlay.addEventListener('pointerleave', () => {
+    if (document.activeElement !== overlay) {
+      focusGroup.setAttribute('visibility', 'hidden');
+      tooltip.hidden = true;
+    }
+  });
+  overlay.addEventListener('focus', () => updateFocus(Number(overlay.getAttribute('aria-valuenow'))));
+  overlay.addEventListener('blur', () => {
+    focusGroup.setAttribute('visibility', 'hidden');
+    tooltip.hidden = true;
+  });
+  overlay.addEventListener('keydown', (event) => {
+    const currentIndex = Number(overlay.getAttribute('aria-valuenow'));
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') nextIndex -= 1;
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') nextIndex += 1;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = days.length - 1;
+    else return;
+    event.preventDefault();
+    updateFocus(nextIndex);
+  });
 
   const receivedTotal = received[received.length - 1] || 0;
   const releasedTotal = released[released.length - 1] || 0;
@@ -282,9 +362,20 @@ function renderActivityChart(units) {
   `;
   if (UI.activityChartLegend) {
     UI.activityChartLegend.innerHTML = `
-      <span><i class="activity-dot" style="background: ${receivedColor};"></i>Received</span>
-      <span><i class="activity-dot" style="background: ${releasedColor};"></i>Released</span>
+      <button class="activity-legend-toggle ${activityChartVisibility.received ? '' : 'is-hidden'}" type="button" data-series="received" aria-pressed="${activityChartVisibility.received}">
+        <i class="activity-dot" style="background: ${receivedColor};"></i>Received
+      </button>
+      <button class="activity-legend-toggle ${activityChartVisibility.released ? '' : 'is-hidden'}" type="button" data-series="released" aria-pressed="${activityChartVisibility.released}">
+        <i class="activity-dot" style="background: ${releasedColor};"></i>Released
+      </button>
     `;
+    UI.activityChartLegend.querySelectorAll('.activity-legend-toggle').forEach((button) => {
+      button.addEventListener('click', () => {
+        const series = button.dataset.series;
+        activityChartVisibility[series] = !activityChartVisibility[series];
+        renderActivityChart(activityChartUnits);
+      });
+    });
   }
 }
 

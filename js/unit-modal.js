@@ -4,9 +4,12 @@ const closeBtn = document.getElementById('closeUnitModalBtn');
 const cancelBtn = document.getElementById('cancelUnitModalBtn');
 const unitForm = document.getElementById('unitForm');
 const unitSubmitButton = document.getElementById('saveUnitButton');
-const unitRegistryTableBody = document.getElementById('unitRegistryTableBody');
-const unitRegistryTableHead = document.getElementById('unitRegistryTableHead');
+const unitCardGrid = document.getElementById('unitCardGrid');
 const unitModalTitle = document.getElementById('unitModalTitle');
+const unitModalDescription = document.getElementById('unitModalDescription');
+const unitDetailsBackdrop = document.getElementById('unitDetailsBackdrop');
+const unitDetailsContent = document.getElementById('unitDetailsContent');
+const closeUnitDetailsBtn = document.getElementById('closeUnitDetailsBtn');
 const messageModalBackdrop = document.getElementById('messageModalBackdrop');
 const messageModalBody = document.getElementById('messageModalBody');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
@@ -21,7 +24,6 @@ const urgentField = document.getElementById('isUrgent');
 const dateReleasedField = document.getElementById('dateReleased');
 const otherInclusionOption = document.getElementById('otherInclusionOption');
 const otherInclusionText = document.getElementById('otherInclusionText');
-const unitRegistryTableWrap = document.querySelector('.table-wrap');
 const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
 let activeEditRowIndex = null;
@@ -32,6 +34,7 @@ let unitsMainView = null;
 let trashMainView = null;
 let trashSupportNodes = [];
 let unitToastTimer = null;
+let unitDetailsReturnFocus = null;
 const contactInfoPrefix = '+63 ';
 const canSetForDiagnose = ['Super Admin', 'Administrator', 'Technician'];
 
@@ -63,6 +66,109 @@ function closePopupMessage() {
   messageModalBackdrop.setAttribute('aria-hidden', 'true');
 }
 
+function openUnitDetails(unit, trigger) {
+  if (!unitDetailsBackdrop || !unitDetailsContent) return;
+
+  const unitCode = unit.unitCode || unit.code || '—';
+  const clientName = unit.clientName || 'Unnamed client';
+  const status = unit.status || 'Unknown';
+  const branch = unit.uploadedBranch || unit.branchLocation || '—';
+  const isUrgent = ['true', '1', 'yes', 'urgent'].includes(String(unit.isUrgent || unit.urgent || '').trim().toLowerCase());
+  const fields = [
+    ['Client & contact', [
+      ['Client name', clientName],
+      ['Contact information', unit.contactInfo],
+      ['Priority', isUrgent ? 'Urgent' : 'Standard']
+    ]],
+    ['Unit details', [
+      ['Unit code', unitCode],
+      ['Status', status],
+      ['Branch location', branch],
+      ['Current location', unit.currentLocation || branch],
+      ['Unit brand', unit.unitBrand || unit.unitBrandName || unit.brand],
+      ['Unit specifications', unit.specs || unit.unitSpecs],
+      ['Unit price', unit.unitPrice ? formatCurrency(unit.unitPrice) : '—'],
+      ['Warranty', unit.warranty]
+    ]],
+    ['Service & history', [
+      ['Date purchased', formatDateDisplay(unit.dateReceived || unit.datePurchase || '')],
+      ['Date of return', formatDateDisplay(unit.dateReturn || '')],
+      ['Date released', formatDateDisplay(unit.dateReleased || '')],
+      ['Released by', unit.releasedBy],
+      ['Running days', computeRunningDays(unit.dateReturn || unit.dateReceived, normalizeSearchText(status) === 'released' ? unit.dateReleased : '')],
+      ['Previous status', unit.previousStatus],
+      ['Date sent to warehouse', formatWarehouseDateDisplay(unit.warehouseDateIn)],
+      ['Date left warehouse', formatWarehouseDateDisplay(unit.warehouseDateOut)],
+      ['Days in warehouse', computeRunningDays(unit.warehouseDateIn, unit.warehouseDateOut)]
+    ]],
+    ['Notes & inclusions', [
+      ['Unit problem', unit.unitProblem || unit.problem],
+      ['Inclusions', unit.inclusion],
+      ['Technical notes', unit.technicianNotes]
+    ]]
+  ];
+
+  if (unit.deletedAt || unit.deletedBy) {
+    fields.push(['Recovery record', [
+      ['Deleted at', formatDateDisplay(unit.deletedAt)],
+      ['Deleted by', unit.deletedBy]
+    ]]);
+  }
+
+  const sections = fields.map(([title, items]) => {
+    const visibleItems = items.filter(([, value]) => String(value ?? '').trim() && String(value).trim() !== '—');
+    if (!visibleItems.length) return '';
+    const sectionClass = {
+      'Client & contact': 'unit-detail-client',
+      'Unit details': 'unit-detail-unit',
+      'Service & history': 'unit-detail-service',
+      'Notes & inclusions': 'unit-detail-notes',
+      'Recovery record': 'unit-detail-recovery'
+    }[title] || '';
+    return `<section class="unit-detail-section ${sectionClass}">
+      <h3>${escapeHtml(title)}</h3>
+      <dl>${visibleItems.map(([label, value]) => `<div class="unit-detail-field"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>
+    </section>`;
+  });
+
+  unitDetailsContent.innerHTML = `
+    <header class="unit-details-heading">
+      <div class="unit-details-avatar" aria-hidden="true">${escapeHtml(String(clientName).trim().charAt(0).toUpperCase() || 'U')}</div>
+      <div class="unit-details-identity">
+        <span class="unit-details-eyebrow">UNIT PROFILE</span>
+        <h2 id="unitDetailsTitle">${escapeHtml(clientName)}</h2>
+        <span class="unit-details-code">Unit ${escapeHtml(unitCode)}</span>
+      </div>
+      <span class="badge ${statusClass(status)}"><span class="center-stack">${escapeHtml(status)}</span></span>
+    </header>
+    <div class="unit-details-sections">
+      <div class="unit-details-column">${sections[0] || ''}${sections[2] || ''}</div>
+      <div class="unit-details-column">${sections[1] || ''}</div>
+    </div>
+    <div class="unit-details-bottom${sections[4] ? ' has-recovery' : ''}">
+      ${sections[3] || ''}
+      ${sections[4] || ''}
+    </div>
+    <footer class="unit-details-footer">
+      <span>Client unit record</span>
+      <button class="action-btn primary" type="button" data-close-unit-details>Close</button>
+    </footer>`;
+
+  unitDetailsReturnFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
+  unitDetailsBackdrop.classList.add('visible');
+  unitDetailsBackdrop.setAttribute('aria-hidden', 'false');
+  unitDetailsBackdrop.querySelector('.unit-details-modal').focus();
+}
+
+function closeUnitDetails() {
+  if (!unitDetailsBackdrop) return;
+  unitDetailsBackdrop.classList.remove('visible');
+  unitDetailsBackdrop.setAttribute('aria-hidden', 'true');
+  if (unitDetailsReturnFocus instanceof HTMLElement && unitDetailsReturnFocus.isConnected) {
+    unitDetailsReturnFocus.focus();
+  }
+}
+
 function showUnitToast(message) {
   if (!unitToast) return;
   unitToast.textContent = message;
@@ -85,6 +191,7 @@ function openUnitModal(mode = 'create', unit = null) {
     activeEditCode = String(unit.unitCode || unit.code || '').trim();
     unitForm.dataset.mode = 'edit';
     if (unitModalTitle) unitModalTitle.textContent = 'Edit Unit';
+    if (unitModalDescription) unitModalDescription.textContent = 'Update client, equipment, and service information.';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Update Unit';
     populateUnitForm(unit);
 
@@ -112,6 +219,7 @@ function openUnitModal(mode = 'create', unit = null) {
     activeEditCode = '';
     unitForm.dataset.mode = 'create';
     if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
+    if (unitModalDescription) unitModalDescription.textContent = 'Add client and equipment details to the registry.';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
     unitForm.reset();
     unitForm.dataset.originalStatus = '';
@@ -159,6 +267,7 @@ function closeUnitModal() {
     unitForm.reset();
   }
   if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
+  if (unitModalDescription) unitModalDescription.textContent = 'Add client and equipment details to the registry.';
   if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
 }
 
@@ -414,7 +523,7 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
       };
     });
     showUnitToast(successMessage);
-    renderRegistryTable(registryRowsCache);
+    renderUnitCards(registryRowsCache);
     return true;
   } catch (error) {
     console.error('Unit status transfer failed:', error);
@@ -531,7 +640,7 @@ function showUnitsView() {
   const breadcrumb = document.querySelector('.breadcrumb');
   if (breadcrumb) breadcrumb.innerHTML = 'Workspace <span>/</span> Units';
   document.title = 'Units';
-  if (registryRowsLoaded) renderRegistryTable(registryRowsCache);
+  if (registryRowsLoaded) renderUnitCards(registryRowsCache);
   else loadRegistryUnits();
 }
 
@@ -559,7 +668,7 @@ function syncRegistryViewLinks() {
 
 function initRegistryViewNavigation() {
   const viewLinks = document.querySelectorAll('[data-unit-menu] .nav-group-header > .nav-item[href], [data-unit-menu] .nav-submenu a[href]');
-  if (!unitRegistryTableBody || !viewLinks.length) return;
+  if (!unitCardGrid || !viewLinks.length) return;
 
   const renderCurrentView = () => {
     syncRegistryViewLinks();
@@ -600,6 +709,18 @@ function initUnitModal() {
 
   if (cancelBtn) {
     cancelBtn.addEventListener('click', closeUnitModal);
+  }
+
+  if (closeUnitDetailsBtn) {
+    closeUnitDetailsBtn.addEventListener('click', closeUnitDetails);
+  }
+
+  if (unitDetailsBackdrop) {
+    unitDetailsBackdrop.addEventListener('click', (event) => {
+      if (event.target === unitDetailsBackdrop || event.target.closest('[data-close-unit-details]')) {
+        closeUnitDetails();
+      }
+    });
   }
 
   if (closeMessageModalBtn) {
@@ -662,7 +783,7 @@ function initUnitModal() {
   if (unitSearchInput) {
     unitSearchInput.addEventListener('input', () => {
       syncUnitSearchClearButton();
-      renderRegistryTable(registryRowsCache);
+      renderUnitCards(registryRowsCache);
     });
   }
 
@@ -670,7 +791,7 @@ function initUnitModal() {
     clearUnitSearchButton.addEventListener('click', () => {
       unitSearchInput.value = '';
       syncUnitSearchClearButton();
-      renderRegistryTable(registryRowsCache);
+      renderUnitCards(registryRowsCache);
       unitSearchInput.focus();
     });
   }
@@ -681,13 +802,13 @@ function initUnitModal() {
       ? requestedStatus
       : 'all';
     unitStatusFilter.addEventListener('change', () => {
-      renderRegistryTable(registryRowsCache);
+      renderUnitCards(registryRowsCache);
     });
   }
 
   if (unitBranchFilter) {
     unitBranchFilter.addEventListener('change', () => {
-      renderRegistryTable(registryRowsCache);
+      renderUnitCards(registryRowsCache);
     });
   }
 
@@ -771,18 +892,29 @@ function initUnitModal() {
   }
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && unitDetailsBackdrop && unitDetailsBackdrop.classList.contains('visible')) {
+      closeUnitDetails();
+      return;
+    }
     if (event.key === 'Escape' && backdrop && backdrop.classList.contains('visible')) {
       closeUnitModal();
     }
   });
 
-  if (unitRegistryTableBody) {
-    unitRegistryTableBody.addEventListener('click', async (event) => {
+  if (unitCardGrid) {
+    unitCardGrid.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
-      if (!button) return;
+      const row = (button || event.target).closest('[data-unit-code]');
+      if (!row) return;
 
-      const row = button.closest('tr');
-      const unitCode = (row && row.dataset.unitCode) ? row.dataset.unitCode : (row && row.cells && row.cells[0] ? row.cells[0].textContent.trim() : '');
+      const selectedRowIndex = Number(row.dataset.rowIndex);
+      const unit = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0 ? registryRowsCache[selectedRowIndex] : null;
+      if (!button || button.hasAttribute('data-open-unit')) {
+        if (unit) openUnitDetails(unit, button || row);
+        return;
+      }
+
+      const unitCode = row.dataset.unitCode || '';
 
       if (!unitCode || !row) return;
 
@@ -805,7 +937,6 @@ function initUnitModal() {
         if (button.classList.contains('released') && !canManageAction('release', currentRole)) return;
 
         const rows = await DATA.fetchUnits();
-        const selectedRowIndex = Number(row.dataset.rowIndex);
         const unit = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0
           ? rows[selectedRowIndex]
           : rows.find((item) => String(item.unitCode || item.code || '').trim().toLowerCase() === unitCode.toLowerCase());
@@ -837,7 +968,7 @@ function initUnitModal() {
               url.searchParams.set('view', 'monitoring');
               window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
               syncRegistryViewLinks();
-              renderRegistryTable(registryRowsCache);
+              renderUnitCards(registryRowsCache);
             }
           });
         }
@@ -846,7 +977,6 @@ function initUnitModal() {
 
       if (button.classList.contains('edit')) {
         const rows = await DATA.fetchUnits();
-        const selectedRowIndex = Number(row.dataset.rowIndex);
         const unit = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0
           ? rows[selectedRowIndex]
           : rows.find((item) => String(item.unitCode || '').trim() === unitCode) || rows.find((item) => String(item.code || '').trim() === unitCode) || rows.find((item) => String(item.unitCode || item.code || '').trim().toLowerCase() === unitCode.toLowerCase());
@@ -884,7 +1014,7 @@ function initUnitModal() {
                 : cachedUnit
             ));
             showUnitToast('Unit released successfully.');
-            renderRegistryTable(registryRowsCache);
+            renderUnitCards(registryRowsCache);
           } catch (error) {
             console.error('Release unit failed:', error);
             showPopupMessage('Release failed. Please confirm the Apps Script URL is correct.');
@@ -937,17 +1067,17 @@ function initUnitModal() {
 }
 
 async function loadRegistryUnits() {
-  if (!unitRegistryTableBody) return;
+  if (!unitCardGrid) return;
 
   try {
     const rows = await DATA.fetchUnits();
     registryRowsCache = Array.isArray(rows) ? rows : [];
     registryRowsLoaded = true;
-    renderRegistryTable(registryRowsCache);
+    renderUnitCards(registryRowsCache);
   } catch (error) {
     console.error(error);
     registryRowsLoaded = true;
-    unitRegistryTableBody.innerHTML = '<tr><td colspan="18" class="empty-state">Unable to load live spreadsheet data.</td></tr>';
+    unitCardGrid.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
   }
 }
 
@@ -959,7 +1089,7 @@ function scheduleRegistryMidnightRefresh() {
   const delayMs = Math.max(1000, nextMidnightUtc - now.getTime());
 
   setTimeout(() => {
-    renderRegistryTable(registryRowsCache);
+    renderUnitCards(registryRowsCache);
     scheduleRegistryMidnightRefresh();
   }, delayMs);
 }
@@ -990,25 +1120,8 @@ function syncUnitBranchFilterOptions(rows) {
   unitBranchFilter.value = branches.some((branch) => branch === selectedBranch) ? selectedBranch : 'all';
 }
 
-function renderRegistryTableHeader(view) {
-  if (!unitRegistryTableHead) return;
-
-  const headers = view === 'released'
-    ? ['Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Released By', 'Warranty', 'Unit Brand', 'Unit Specs', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
-    : view === 'warehouse'
-      ? ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Days in Warehouse', 'Date Sent to<br>Warehouse', 'Date Left<br>Warehouse', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes']
-      : ['Actions', 'Branch Location', 'Client Name', 'Contact Info', 'Code', 'Current Location', 'Status', 'Warranty', 'Unit Brand', 'Unit Specs', 'Unit Price', 'Date Purchased', 'Date of Return', 'Date Released', 'Running Days', 'Unit Problem', 'Inclusions', 'Technical Notes'];
-
-  unitRegistryTableHead.innerHTML = `<tr>${headers.map((header, index) => {
-    const warehouseColumnClass = view !== 'warehouse' ? '' : index === 8 ? 'warehouse-days-column' : index === 9 || index === 10 ? 'warehouse-date-column' : '';
-    const isDateColumn = header.replace(/<br>/g, ' ').startsWith('Date ');
-    const headerClasses = [isDateColumn ? 'date-column' : '', warehouseColumnClass, header === 'Technical Notes' ? 'technician-notes-column' : ''].filter(Boolean).join(' ');
-    return `<th${headerClasses ? ` class="${headerClasses}"` : ''}>${header}</th>`;
-  }).join('')}</tr>`;
-}
-
-function renderRegistryTable(rows) {
-  if (!unitRegistryTableBody) return;
+function renderUnitCards(rows) {
+  if (!unitCardGrid) return;
 
   syncUnitSearchClearButton();
   syncUnitBranchFilterOptions(rows);
@@ -1018,7 +1131,6 @@ function renderRegistryTable(rows) {
   const requestedView = normalizeSearchText(new URLSearchParams(window.location.search).get('view') || 'monitoring');
   const isReleasedView = requestedView === 'released';
   const isWarehouseView = requestedView === 'warehouse';
-  renderRegistryTableHeader(requestedView);
   const filteredRows = rows.map((unit, rowIndex) => ({ unit, rowIndex })).filter(({ unit }) => {
     const unitCode = normalizeSearchText(unit.unitCode || unit.code || '');
     const clientName = normalizeSearchText(unit.clientName || '');
@@ -1048,42 +1160,23 @@ function renderRegistryTable(rows) {
     return matchesSearch && matchesView && matchesStatus && matchesBranch;
   });
 
-  if (unitRegistryTableWrap) {
-    unitRegistryTableWrap.classList.toggle('is-scrollable', rows.length > 5);
-  }
-
   if (!filteredRows.length) {
-    const columnCount = isReleasedView ? 17 : isWarehouseView ? 21 : 18;
-    unitRegistryTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="empty-state">No matching units found.</td></tr>`;
+    unitCardGrid.innerHTML = '<div class="empty-state">No matching units found.</div>';
     return;
   }
 
   const currentRole = localStorage.getItem('unitflowRole');
 
-  unitRegistryTableBody.innerHTML = filteredRows
+  unitCardGrid.innerHTML = filteredRows
     .map(({ unit, rowIndex }) => {
       const code = unit.unitCode || '—';
       const specs = unit.specs || '—';
-      const price = unit.unitPrice || '—';
       const brand = unit.unitBrand || unit.unitBrandName || unit.brand || '—';
       const client = unit.clientName || '—';
       const isUnitUrgent = ['true', '1', 'yes', 'urgent'].includes(String(unit.isUrgent || unit.urgent || '').trim().toLowerCase());
-      const contactInfo = unit.contactInfo || '—';
-      const warranty = unit.warranty || '—';
-      const datePurchase = formatDateDisplay(unit.dateReceived || unit.datePurchase || '');
-      const dateReturn = formatDateDisplay(unit.dateReturn || '');
-      const dateReleased = formatDateDisplay(unit.dateReleased || '');
-      const warehouseDateIn = formatWarehouseDateDisplay(unit.warehouseDateIn || '');
-      const warehouseDateOut = formatWarehouseDateDisplay(unit.warehouseDateOut || '');
-      const daysInWarehouse = computeRunningDays(unit.warehouseDateIn, unit.warehouseDateOut) || '—';
-      const problem = unit.unitProblem || unit.problem || '—';
       const status = unit.status || 'Unknown';
       const normalizedStatus = normalizeSearchText(status);
-      const isReleased = normalizedStatus === 'released';
-      const runningDays = computeRunningDays(unit.dateReturn || unit.dateReceived, isReleased ? unit.dateReleased : '') || '—';
       const branch = unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '—';
-      const inclusion = unit.inclusion || '—';
-      const isOfficeRole = currentRole === 'Office';
       const canEdit = canManageAction('edit', currentRole);
       const canDelete = canManageAction('delete', currentRole);
       const canRelease = canManageAction('release', currentRole);
@@ -1133,31 +1226,29 @@ function renderRegistryTable(rows) {
             ? `<div class="unit-action-row"><button class="return-tracking" type="button" ${canEditActions && canWarehouse ? '' : 'disabled title="Warehouse permission is disabled"'}>Return to Tracking</button></div>`
             : '';
       }
-      const actionCell = isReleasedView ? '' : `<td class="table-actions"><div class="unit-registry-actions">${actionButtons}</div></td>`;
+      const actionCell = isReleasedView ? '' : `<div class="unit-record-actions"><div class="table-actions unit-registry-actions">${actionButtons}</div></div>`;
 
       return `
-        <tr data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
+        <article class="unit-record-card${isUnitUrgent ? ' is-urgent' : ''}" data-unit-code="${escapeHtml(code)}" data-row-index="${rowIndex}">
+          <button class="unit-record-card-main" type="button" data-open-unit aria-label="View details for ${escapeHtml(client)}, unit ${escapeHtml(code)}">
+            <span class="unit-record-card-heading">
+              <span class="unit-record-avatar" aria-hidden="true">${escapeHtml(String(client).trim().charAt(0).toUpperCase() || 'U')}</span>
+              <span class="unit-record-identity">
+                <span class="unit-record-client">${escapeHtml(client)}</span>
+                <span class="unit-record-code">${escapeHtml(code)}</span>
+              </span>
+              <span class="badge ${statusClass(status)}">${escapeHtml(status)}</span>
+            </span>
+            <span class="unit-record-specs">${escapeHtml(brand)} <span aria-hidden="true">·</span> ${escapeHtml(specs)}</span>
+            <span class="unit-record-facts">
+              <span><small>Branch</small><strong>${escapeHtml(branch)}</strong></span>
+              <span><small>Current location</small><strong>${escapeHtml(unit.currentLocation || branch || '—')}</strong></span>
+            </span>
+            ${isUnitUrgent ? '<span class="unit-record-urgent">Urgent attention</span>' : ''}
+            <span class="unit-record-open-label">View full record <span aria-hidden="true">→</span></span>
+          </button>
           ${actionCell}
-          <td><span class="branch-tag ${branchClass(branch)}"><span class="center-stack">${renderBranchLocation(branch)}</span></span></td>
-          <td class="unit-client-cell">${escapeHtml(client)}${isUnitUrgent ? '<span class="urgent-indicator" aria-label="Urgent unit">URGENT</span>' : ''}</td>
-          <td>${escapeHtml(contactInfo)}</td>
-          <td><span class="center-stack">${renderStackedText(code)}</span></td>
-          <td><span class="center-stack">${renderStackedText(unit.currentLocation || branch || '—')}</span></td>
-          <td><span class="badge ${statusClass(status)}"><span class="center-stack">${renderStackedText(status)}</span></span></td>
-          ${isReleasedView ? `<td>${escapeHtml(unit.releasedBy || '—')}</td>` : ''}
-          <td><span class="center-stack">${renderStackedText(warranty)}</span></td>
-          ${isWarehouseView ? `<td class="unit-running-days-cell warehouse-days-column"><span class="center-stack">${renderStackedText(daysInWarehouse)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateIn)}</span></td><td class="date-column warehouse-date-column"><span class="center-stack">${renderStackedText(warehouseDateOut)}</span></td>` : ''}
-          <td class="unit-brand-cell">${escapeHtml(brand)}</td>
-          <td>${escapeHtml(specs)}</td>
-          ${isReleasedView ? '' : `<td><span class="center-stack">${renderStackedText(price ? formatCurrency(price) : '—')}</span></td>`}
-          <td class="date-column"><span class="center-stack">${renderStackedText(datePurchase)}</span></td>
-          <td class="date-column"><span class="center-stack">${renderStackedText(dateReturn)}</span></td>
-          <td class="date-column"><span class="center-stack">${renderStackedText(dateReleased)}</span></td>
-          <td class="unit-running-days-cell"><span class="center-stack">${renderStackedText(runningDays)}</span></td>
-          <td>${escapeHtml(problem)}</td>
-          <td><span class="center-stack">${renderInclusionText(inclusion)}</span></td>
-          <td class="technician-notes-cell technician-notes-column">${escapeHtml(unit.technicianNotes || '—')}</td>
-        </tr>
+        </article>
       `;
     })
     .join('');
