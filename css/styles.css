@@ -700,7 +700,7 @@ button, input, select {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 0 0 8px 8px;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   line-height: 1.6;
   outline: 0;
