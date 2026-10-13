@@ -921,13 +921,15 @@ function initUnitModal() {
       const currentRole = localStorage.getItem('unitflowRole');
       if (button.classList.contains('edit') && !canManageAction('edit', currentRole)) return;
       if (button.classList.contains('delete') && !canManageAction('delete', currentRole)) return;
-      const workflowActions = ['for-release', 'for-warehouse', 'for-replacement', 'for-repair', 'released', 'replaced', 'repaired', 'warehouse-transfer', 'return-tracking'];
+      const workflowActions = ['for-release', 'for-warehouse', 'for-replacement', 'for-repair', 'pull-out', 'released', 'replaced', 'repaired', 'warehouse-transfer', 'return-tracking'];
       if (workflowActions.some((action) => button.classList.contains(action))) {
         const canEditWorkflow = canManageAction('edit', currentRole);
         if ((button.classList.contains('for-warehouse') || button.classList.contains('warehouse-transfer') || button.classList.contains('return-tracking'))
           && (!canEditWorkflow || !canManageAction('warehouse', currentRole))) return;
         if (button.classList.contains('for-release')
           && (!canEditWorkflow || !canManageAction('release', currentRole))) return;
+        if (button.classList.contains('pull-out')
+          && (!canEditWorkflow || !canManageAction('pullOut', currentRole))) return;
         if (button.classList.contains('for-replacement')
           && (!canEditWorkflow || !canManageAction('forReplacement', currentRole))) return;
         if ((button.classList.contains('for-repair') || button.classList.contains('repaired'))
@@ -950,6 +952,7 @@ function initUnitModal() {
 
         const statusMoves = [
           { action: 'for-release', status: 'For Release', message: 'Unit moved to For Release successfully.' },
+          { action: 'pull-out', status: 'Pull Out', message: 'Unit moved to Pull Out successfully.' },
           { action: 'for-warehouse', status: 'For Warehouse', message: 'Unit moved to For Warehouse successfully.' },
           { action: 'for-replacement', status: 'For Replacement', message: 'Unit moved to For Replacement successfully.' },
           { action: 'for-repair', status: 'For Repair', message: 'Unit moved to For Repair successfully.' },
@@ -1182,6 +1185,7 @@ function renderUnitCards(rows) {
       const canRelease = canManageAction('release', currentRole);
       const canEditActions = canManageAction('edit', currentRole);
       const canWarehouse = canManageAction('warehouse', currentRole);
+      const canPullOut = canManageAction('pullOut', currentRole);
       const canForReplacement = canManageAction('forReplacement', currentRole);
       const canRepair = canManageAction('repair', currentRole);
       const currentLocation = normalizeSearchText(unit.currentLocation || branch);
@@ -1196,6 +1200,9 @@ function renderUnitCards(rows) {
             <div class="unit-action-row">
               <button class="for-replacement" type="button" ${canEditActions && canForReplacement ? '' : 'disabled title="For Replacement permission is disabled"'}>For Replacement</button>
               <button class="for-warehouse" type="button" ${canEditActions && canWarehouse && normalizedStatus !== 'for warehouse' && currentLocation !== 'warehouse' ? '' : 'disabled title="Warehouse permission is disabled or unit is already assigned to the warehouse"'}>For Warehouse</button>
+            </div>
+            <div class="unit-action-row">
+              <button class="pull-out" type="button" ${canEditActions && canPullOut ? '' : 'disabled title="Pullout permission is disabled"'}>Pull Out</button>
             </div>`;
       const actionButtonsByStatus = {
         'for diagnose': diagnosisActions,
