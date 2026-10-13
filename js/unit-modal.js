@@ -7,6 +7,7 @@ const unitSubmitButton = document.getElementById('saveUnitButton');
 const unitCardGrid = document.getElementById('unitCardGrid');
 const unitModalTitle = document.getElementById('unitModalTitle');
 const unitModalDescription = document.getElementById('unitModalDescription');
+const unitEditorAvatar = document.getElementById('unitEditorAvatar');
 const unitDetailsBackdrop = document.getElementById('unitDetailsBackdrop');
 const unitDetailsContent = document.getElementById('unitDetailsContent');
 const closeUnitDetailsBtn = document.getElementById('closeUnitDetailsBtn');
@@ -194,6 +195,7 @@ function openUnitModal(mode = 'create', unit = null) {
     if (unitModalDescription) unitModalDescription.textContent = 'Update client, equipment, and service information.';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Update Unit';
     populateUnitForm(unit);
+    if (unitEditorAvatar) unitEditorAvatar.textContent = String(unit.clientName || '').trim().charAt(0).toUpperCase() || 'U';
 
     const unitPriceField = unitForm.elements.namedItem('unitPrice');
     if (unitPriceField) {
@@ -218,10 +220,11 @@ function openUnitModal(mode = 'create', unit = null) {
   } else {
     activeEditCode = '';
     unitForm.dataset.mode = 'create';
-    if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
+    if (unitModalTitle) unitModalTitle.textContent = 'Register a New Unit';
     if (unitModalDescription) unitModalDescription.textContent = 'Add client and equipment details to the registry.';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
     unitForm.reset();
+    if (unitEditorAvatar) unitEditorAvatar.textContent = 'U';
     unitForm.dataset.originalStatus = '';
     if (statusField) {
       statusField.required = true;
@@ -266,9 +269,10 @@ function closeUnitModal() {
     unitForm.dataset.mode = 'create';
     unitForm.reset();
   }
-  if (unitModalTitle) unitModalTitle.textContent = 'Add Unit';
+  if (unitModalTitle) unitModalTitle.textContent = 'Register a New Unit';
   if (unitModalDescription) unitModalDescription.textContent = 'Add client and equipment details to the registry.';
   if (unitSubmitButton) unitSubmitButton.textContent = 'Save Unit';
+  if (unitEditorAvatar) unitEditorAvatar.textContent = 'U';
 }
 
 function populateUnitForm(unit) {

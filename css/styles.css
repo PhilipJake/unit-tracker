@@ -4437,58 +4437,69 @@ tbody tr:hover td {
 }
 
 .unit-editor-modal {
-  width: min(1040px, 100%);
-  padding: 26px 28px 22px;
+  width: min(820px, 100%);
+  padding: 30px;
   border-radius: 22px;
-  background: var(--panel-bg);
-  box-shadow: 0 28px 80px rgba(8, 20, 13, 0.26);
-}
-
-.unit-editor-modal .modal-header {
-  align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 17px;
-  border-bottom: 1px solid var(--line);
-}
-
-.unit-editor-heading {
-  display: grid;
-  gap: 5px;
-}
-
-.unit-editor-heading h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 1.55rem;
-  letter-spacing: -0.04em;
-}
-
-.unit-editor-heading p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.4;
-}
-
-.unit-editor-modal .modal-close {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--panel-alt);
-  font-size: 1.7rem;
 }
 
 .unit-editor-modal .unit-form {
-  gap: 17px;
+  gap: 0;
 }
 
-.unit-editor-modal .form-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 15px 14px;
+.unit-editor-header {
+  position: relative;
+  padding-right: 52px;
+}
+
+.unit-editor-header .unit-details-identity {
+  gap: 5px;
+}
+
+.unit-editor-header .unit-details-identity h2 {
+  font-size: 1.5rem;
+}
+
+.unit-editor-header .unit-details-identity p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.unit-editor-header .unit-details-close {
+  top: 0;
+  right: 0;
+}
+
+.unit-editor-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+  padding-top: 20px;
+}
+
+.unit-editor-client {
+  grid-column: 1;
+}
+
+.unit-editor-unit {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.unit-editor-service {
+  grid-column: 1;
+}
+
+.unit-editor-notes {
+  grid-column: 1 / -1;
+}
+
+.unit-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
 }
 
 .unit-editor-modal .field-group {
@@ -4528,6 +4539,7 @@ tbody tr:hover td {
   color: var(--muted);
 }
 
+.unit-editor-modal .unit-editor-wide,
 .unit-editor-modal .technician-notes-field {
   grid-column: 1 / -1;
 }
@@ -4535,12 +4547,6 @@ tbody tr:hover td {
 .unit-editor-modal .technician-notes-field textarea {
   min-height: 76px;
   resize: vertical;
-}
-
-.unit-form-options {
-  display: grid;
-  grid-template-columns: minmax(210px, 0.7fr) minmax(0, 1.3fr);
-  gap: 14px;
 }
 
 .unit-editor-modal .urgent-field,
@@ -4553,6 +4559,7 @@ tbody tr:hover td {
 }
 
 .unit-editor-modal .urgent-field {
+  grid-column: 1 / -1;
   align-content: start;
   gap: 9px;
 }
@@ -4582,8 +4589,7 @@ tbody tr:hover td {
 }
 
 .unit-editor-modal .inclusions-field {
-  grid-column: auto;
-  grid-row: auto;
+  grid-column: 1 / -1;
   gap: 10px;
 }
 
@@ -4610,36 +4616,50 @@ tbody tr:hover td {
   font-weight: 600;
 }
 
-.unit-editor-modal .modal-actions {
-  margin-top: 0;
-  padding-top: 15px;
-  border-top: 1px solid var(--line);
+.unit-editor-modal .unit-editor-actions {
+  margin-top: 20px;
 }
 
-.unit-editor-modal .modal-actions .action-btn {
+.unit-editor-modal .unit-editor-actions .action-btn {
   min-width: 112px;
   min-height: 40px;
   border-radius: 9px;
 }
 
-@media (max-width: 1100px) {
-  .unit-editor-modal .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 760px) {
   .unit-editor-modal {
-    padding: 20px 18px 16px;
+    padding: 22px 18px;
   }
 
-  .unit-editor-modal .form-grid,
-  .unit-form-options {
+  .unit-editor-header {
+    align-items: flex-start;
+  }
+
+  .unit-editor-header .unit-details-identity h2 {
+    font-size: 1.2rem;
+  }
+
+  .unit-editor-sections {
     grid-template-columns: 1fr;
   }
 
-  .unit-editor-modal .technician-notes-field {
-    grid-column: auto;
+  .unit-editor-client,
+  .unit-editor-unit,
+  .unit-editor-service,
+  .unit-editor-notes {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .unit-editor-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .unit-editor-modal .unit-editor-wide,
+  .unit-editor-modal .technician-notes-field,
+  .unit-editor-modal .urgent-field,
+  .unit-editor-modal .inclusions-field {
+    grid-column: 1;
   }
 }
 
