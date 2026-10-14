@@ -65,8 +65,7 @@ Then visit:
 
 ## Notes
 
-- The app polls the Google Sheet every 15 seconds by default.
-- You can change the refresh interval in `gs/config.js`.
+- The overview and unit registry automatically poll the Google Sheet every 15 seconds by default, so changes made by other users appear without refreshing the page. The interval can be changed in `gs/config.js`.
 - The app expects the sheet to be exported as CSV and the first sheet/tab to be used by default.
 
 ## Messaging

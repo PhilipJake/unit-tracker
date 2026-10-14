@@ -31,6 +31,8 @@ let activeEditRowIndex = null;
 let pendingConfirmAction = null;
 let registryRowsCache = [];
 let registryRowsLoaded = false;
+let registryLoadInProgress = false;
+let registryRefreshTimer = null;
 let unitsMainView = null;
 let trashMainView = null;
 let trashSupportNodes = [];
@@ -645,7 +647,7 @@ function showUnitsView() {
   if (breadcrumb) breadcrumb.innerHTML = 'Workspace <span>/</span> Units';
   document.title = 'Units';
   if (registryRowsLoaded) renderUnitCards(registryRowsCache);
-  else loadRegistryUnits();
+  loadRegistryUnits();
 }
 
 function syncRegistryViewLinks() {
@@ -1070,11 +1072,13 @@ function initUnitModal() {
     loadRegistryUnits();
   }
 
+  startRegistryPolling();
   scheduleRegistryMidnightRefresh();
 }
 
 async function loadRegistryUnits() {
-  if (!unitCardGrid) return;
+  if (!unitCardGrid || registryLoadInProgress) return;
+  registryLoadInProgress = true;
 
   try {
     const rows = await DATA.fetchUnits();
@@ -1083,9 +1087,29 @@ async function loadRegistryUnits() {
     renderUnitCards(registryRowsCache);
   } catch (error) {
     console.error(error);
-    registryRowsLoaded = true;
-    unitCardGrid.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
+    if (!registryRowsLoaded) {
+      registryRowsLoaded = true;
+      unitCardGrid.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
+    }
+  } finally {
+    registryLoadInProgress = false;
   }
+}
+
+function startRegistryPolling() {
+  if (!unitCardGrid || registryRefreshTimer) return;
+
+  const intervalMs = Number(window.GS_CONFIG?.refreshMs) || 15000;
+  registryRefreshTimer = window.setInterval(() => {
+    if (document.hidden || new URLSearchParams(window.location.search).get('view') === 'trash') return;
+    loadRegistryUnits();
+  }, intervalMs);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && new URLSearchParams(window.location.search).get('view') !== 'trash') {
+      loadRegistryUnits();
+    }
+  });
 }
 
 function scheduleRegistryMidnightRefresh() {
