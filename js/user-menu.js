@@ -89,7 +89,8 @@ function normalizeBranchTypeDefinitions(definitions) {
       code,
       fullName: String(definition.fullName || '').trim(),
       color: normalizeHexColor(definition.color, defaultType ? defaultType.color : DEFAULT_CUSTOM_ROLE_COLOR),
-      appleProducts: Boolean(definition.appleProducts)
+      appleProducts: Boolean(definition.appleProducts),
+      unitRegistry: definition.unitRegistry === undefined ? true : Boolean(definition.unitRegistry)
     });
     return result;
   }, []);
@@ -305,6 +306,39 @@ function canAccessAppleProducts(role = getCurrentRole()) {
   return Boolean(assignedBranch && enabledBranches.includes(assignedBranch));
 }
 
+function getEnabledUnitRegistryBranches() {
+  try {
+    const branches = JSON.parse(localStorage.getItem('unitflowUnitRegistryBranches') || '[]');
+    return Array.isArray(branches) ? branches.map((branch) => String(branch || '').trim().toLowerCase()).filter(Boolean) : [];
+  } catch (error) {
+    console.error('Unable to read Unit Registry branch assignments:', error);
+    return [];
+  }
+}
+
+function canAccessUnitRegistryBranch(role = getCurrentRole()) {
+  const enabledBranches = getEnabledUnitRegistryBranches();
+  if (isPermissionManager(role)) return enabledBranches.length > 0;
+  const assignedBranch = String(localStorage.getItem('unitflowBranch') || '').trim().toLowerCase();
+  return Boolean(assignedBranch && enabledBranches.includes(assignedBranch));
+}
+
+async function refreshUnitRegistryBranches() {
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl) return;
+  try {
+    const response = await fetch(`${config.appScriptUrl}?action=applebranches`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok || result.ok === false || !Array.isArray(result.unitRegistryBranches)) {
+      throw new Error(result.error || 'Unit Registry branches could not be loaded');
+    }
+    localStorage.setItem('unitflowUnitRegistryBranches', JSON.stringify(result.unitRegistryBranches));
+    applyRoleRestrictions();
+  } catch (error) {
+    console.warn('Unable to refresh Unit Registry branches; keeping the Units navigation hidden until branch access can be verified:', error);
+  }
+}
+
 function ensureAppleProductsNavigationLink() {
   const navScroll = document.querySelector('.nav-scroll');
   if (!navScroll || navScroll.querySelector('[data-apple-products-nav]')) return;
@@ -325,6 +359,7 @@ window.refreshAppleProductsNavigation = () => {
   ensureAppleProductsNavigationLink();
   applyRoleRestrictions();
 };
+window.refreshUnitRegistryNavigation = () => applyRoleRestrictions();
 
 function resolveRoutePath(targetPath) {
   const cleaned = String(targetPath || '').replace(/^\.\//, '').replace(/^\.\.\//, '');
@@ -358,6 +393,13 @@ function applyRoleRestrictions() {
     settingsLink.style.display = canAccessSettings ? '' : 'none';
     settingsLink.setAttribute('aria-hidden', String(!canAccessSettings));
   }
+
+  const canAccessUnitRegistryPage = allowedPages.some((page) => page.endsWith('pages/units.html') || page.endsWith('units.html'));
+  document.querySelectorAll('[data-unit-menu]').forEach((menu) => {
+    const canShowMenu = canAccessUnitRegistryPage && canAccessUnitRegistryBranch(role);
+    menu.hidden = !canShowMenu;
+    menu.setAttribute('aria-hidden', String(!canShowMenu));
+  });
 
   const viewAllUnitsLink = document.getElementById('viewAllUnitsLink');
   if (viewAllUnitsLink) {
@@ -528,6 +570,7 @@ function logoutUser() {
   localStorage.removeItem('unitflowFullName');
   localStorage.removeItem('unitflowBranch');
   localStorage.removeItem('unitflowAppleProductBranches');
+  localStorage.removeItem('unitflowUnitRegistryBranches');
   window.location.href = resolveRoutePath('pages/login.html');
 }
 
@@ -834,6 +877,7 @@ function initUserMenu() {
 
   initNavToggle();
   applyRoleRestrictions();
+  refreshUnitRegistryBranches();
   updateMessageNavCount();
   const refreshMs = Number((window.GS_CONFIG && window.GS_CONFIG.refreshMs) || 15000);
   window.setInterval(updateMessageNavCount, Math.max(5000, refreshMs));

@@ -167,6 +167,10 @@ button, input, select {
   position: relative;
 }
 
+.nav-group[hidden] {
+  display: none;
+}
+
 .nav-group-header .nav-item {
   padding-right: 48px;
 }

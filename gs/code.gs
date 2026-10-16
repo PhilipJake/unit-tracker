@@ -12,7 +12,13 @@ function doGet(e) {
   }
 
   if (action === 'applebranches') {
-    return jsonResponse({ ok: true, branches: readAppleProductBranches(SpreadsheetApp.openById(SPREADSHEET_ID)) });
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const branchFeatures = readBranchFeatureAssignments(spreadsheet);
+    return jsonResponse({
+      ok: true,
+      branches: branchFeatures.appleProducts,
+      unitRegistryBranches: branchFeatures.unitRegistry
+    });
   }
 
   if (action === 'appleproducts') {
@@ -315,28 +321,43 @@ function readPermissionSettings(spreadsheet) {
   const superAdminDefaults = defaults[0];
   permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15], repair: superAdminDefaults[16] };
   pageAccess['Super Admin'] = { ...(pageAccess['Super Admin'] || {}), Phones: true };
+  const branchFeatures = readBranchFeatureAssignments(spreadsheet);
   return jsonResponse({
     ok: true,
     permissions,
     pageAccess,
     userPermissions: readUserPermissionOverrides(spreadsheet),
     roleColors: readRoleColors(),
-    appleBranches: readAppleProductBranches(spreadsheet)
+    appleBranches: branchFeatures.appleProducts,
+    unitRegistryBranches: branchFeatures.unitRegistry
   });
 }
 
 function readAppleProductBranches(spreadsheet) {
+  return readBranchFeatureAssignments(spreadsheet).appleProducts;
+}
+
+function readUnitRegistryBranches(spreadsheet) {
+  return readBranchFeatureAssignments(spreadsheet).unitRegistry;
+}
+
+function readBranchFeatureAssignments(spreadsheet) {
   const branchTypeSheet = ensureBranchTypeSheet(spreadsheet);
   const branchTypeData = branchTypeSheet.getDataRange().getValues();
   const typeHeaders = (branchTypeData[0] || []).map((header) => String(header || '').trim().toLowerCase());
   const typeCodeIndex = typeHeaders.indexOf('shortcut');
+  if (typeCodeIndex < 0) return { appleProducts: [], unitRegistry: [] };
   const appleProductsIndex = typeHeaders.indexOf('apple products');
-  if (typeCodeIndex < 0 || appleProductsIndex < 0) return [];
-  const enabledTypes = new Set(branchTypeData.slice(1)
-    .filter((row) => toPermissionBoolean(row[appleProductsIndex]))
+  const unitRegistryIndex = typeHeaders.indexOf('unit registry');
+  const enabledTypeCodes = (featureIndex) => new Set(branchTypeData.slice(1)
+    .filter((row) => featureIndex >= 0 && toPermissionBoolean(row[featureIndex]))
     .map((row) => String(row[typeCodeIndex] || '').trim().toUpperCase())
     .filter(Boolean));
-  if (!enabledTypes.size) return [];
+  const appleProductTypes = enabledTypeCodes(appleProductsIndex);
+  const unitRegistryTypes = enabledTypeCodes(unitRegistryIndex);
+  if (!appleProductTypes.size && !unitRegistryTypes.size) {
+    return { appleProducts: [], unitRegistry: [] };
+  }
 
   const branchesSheet = ensureSheet(spreadsheet, 'Branches');
   const branchData = branchesSheet.getDataRange().getValues();
@@ -344,17 +365,21 @@ function readAppleProductBranches(spreadsheet) {
   const branchNameIndex = branchHeaders.findIndex((header) => ['branch name', 'branch'].includes(header));
   const branchTypeIndex = branchHeaders.findIndex((header) => ['branch type', 'branch code', 'type', 'code'].includes(header));
   const statusIndex = branchHeaders.indexOf('status');
-  if (branchNameIndex < 0) return [];
-  return [...new Set(branchData.slice(1)
-    .filter((row) => {
-      const name = String(row[branchNameIndex] || '').trim();
-      const status = statusIndex < 0 ? 'active' : String(row[statusIndex] || 'Active').trim().toLowerCase();
-      const type = branchTypeIndex < 0
-        ? name.split(/\s+/)[0]
-        : (String(row[branchTypeIndex] || '').trim() || name.split(/\s+/)[0]);
-      return name && !['inactive', 'disabled', 'deactivated'].includes(status) && enabledTypes.has(type.toUpperCase());
-    })
-    .map((row) => String(row[branchNameIndex] || '').trim()))];
+  if (branchNameIndex < 0) return { appleProducts: [], unitRegistry: [] };
+  const appleProducts = new Set();
+  const unitRegistry = new Set();
+  branchData.slice(1).forEach((row) => {
+    const name = String(row[branchNameIndex] || '').trim();
+    const status = statusIndex < 0 ? 'active' : String(row[statusIndex] || 'Active').trim().toLowerCase();
+    const type = branchTypeIndex < 0
+      ? name.split(/\s+/)[0]
+      : (String(row[branchTypeIndex] || '').trim() || name.split(/\s+/)[0]);
+    if (!name || ['inactive', 'disabled', 'deactivated'].includes(status)) return;
+    const normalizedType = type.toUpperCase();
+    if (appleProductTypes.has(normalizedType)) appleProducts.add(name);
+    if (unitRegistryTypes.has(normalizedType)) unitRegistry.add(name);
+  });
+  return { appleProducts: [...appleProducts], unitRegistry: [...unitRegistry] };
 }
 
 function readAppleProductRows(spreadsheet, branchFilter) {
@@ -533,20 +558,29 @@ function savePermissionSettings(spreadsheet, values) {
 
 function ensureBranchTypeSheet(spreadsheet) {
   const sheet = spreadsheet.getSheetByName('Branch Types') || spreadsheet.insertSheet('Branch Types');
-  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 4).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products']]);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 5).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products', 'Unit Registry']]);
   const width = Math.max(3, sheet.getLastColumn());
   const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
   const normalizedHeaders = headers.map((header) => String(header || '').trim().toLowerCase());
   if (!normalizedHeaders.includes('color')) sheet.getRange(1, 3).setValue('Color');
   if (!normalizedHeaders.includes('apple products')) sheet.getRange(1, Math.max(3, sheet.getLastColumn()) + 1).setValue('Apple Products');
+  if (!normalizedHeaders.includes('unit registry')) {
+    const unitRegistryColumn = Math.max(3, sheet.getLastColumn()) + 1;
+    sheet.getRange(1, unitRegistryColumn).setValue('Unit Registry');
+    if (sheet.getLastRow() > 1) {
+      const existingTypeCount = sheet.getLastRow() - 1;
+      sheet.getRange(2, unitRegistryColumn, existingTypeCount, 1)
+        .setValues(Array.from({ length: existingTypeCount }, () => [true]));
+    }
+  }
   const properties = PropertiesService.getScriptProperties();
   if (properties.getProperty('BRANCH_TYPES_INITIALIZED') !== 'true') {
     const hasTypes = sheet.getLastRow() > 1 && sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().some((row) => String(row[0] || '').trim());
     if (!hasTypes) {
-      sheet.getRange(2, 1, 3, 4).setValues([
-        ['BNB', 'Bytes and Bots Gadget Center', '#21A675', false],
-        ['EZ', '', '#3388CC', false],
-        ['1LR', '', '#E3A83D', false]
+      sheet.getRange(2, 1, 3, 5).setValues([
+        ['BNB', 'Bytes and Bots Gadget Center', '#21A675', false, true],
+        ['EZ', '', '#3388CC', false, true],
+        ['1LR', '', '#E3A83D', false, true]
       ]);
     }
     properties.setProperty('BRANCH_TYPES_INITIALIZED', 'true');
@@ -563,13 +597,15 @@ function readBranchTypeSettings(spreadsheet) {
   const fullNameIndex = headers.indexOf('full codename');
   const colorIndex = headers.indexOf('color');
   const appleProductsIndex = headers.indexOf('apple products');
+  const unitRegistryIndex = headers.indexOf('unit registry');
   const branchTypes = rows
     .filter((row) => shortcutIndex >= 0 && String(row[shortcutIndex] || '').trim())
     .map((row) => ({
       code: String(row[shortcutIndex]).trim().toUpperCase(),
       fullName: fullNameIndex < 0 ? '' : String(row[fullNameIndex] || '').trim(),
       color: colorIndex < 0 ? '' : String(row[colorIndex] || '').trim(),
-      appleProducts: appleProductsIndex >= 0 && toPermissionBoolean(row[appleProductsIndex])
+      appleProducts: appleProductsIndex >= 0 && toPermissionBoolean(row[appleProductsIndex]),
+      unitRegistry: unitRegistryIndex < 0 || toPermissionBoolean(row[unitRegistryIndex])
     }));
   return jsonResponse({ ok: true, branchTypes });
 }
@@ -595,13 +631,13 @@ function saveBranchTypeSettings(spreadsheet, values) {
     seenCodes.add(code);
     const color = String(type.color || '').trim().toUpperCase();
     if (!/^#[0-9A-F]{6}$/.test(color)) return jsonResponse({ ok: false, error: 'Branch type colors must be six-digit hex values.' });
-    rows.push([code, String(type.fullName || '').trim(), color, Boolean(type.appleProducts)]);
+    rows.push([code, String(type.fullName || '').trim(), color, Boolean(type.appleProducts), type.unitRegistry !== false]);
   }
 
   const sheet = ensureBranchTypeSheet(spreadsheet);
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, 4).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products']]);
-  if (rows.length) sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+  sheet.getRange(1, 1, 1, 5).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products', 'Unit Registry']]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, 5).setValues(rows);
   sheet.setFrozenRows(1);
   PropertiesService.getScriptProperties().setProperty('BRANCH_TYPES_INITIALIZED', 'true');
   return jsonResponse({ ok: true, action: 'saveBranchTypes' });

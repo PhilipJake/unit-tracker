@@ -87,6 +87,8 @@ Super Admins and Administrators can configure page and action permissions by rol
 
 Super Admins and Administrators can enable Apple Products for a branch type using the checkbox in Settings → Branch Types. Every branch using an enabled shortcut can use the Phones registry, which is the default landing page for accounts assigned to those branches. The registry stores records in `AppleProducts` with `Status` immediately after `Contact Info` and `Branch` after `IMEI`, so records remain associated with the selected branch. Run `initializeClientUnitTrackerSheets()` to create the sheet, or let the Apps Script create it when the registry is first opened. Redeploy the Apps Script web app after updating `gs/code.gs`.
 
+Super Admins and Administrators can also enable Unit Registry per branch type in Settings → Branch Types. The Units navigation and submenu are hidden for branches whose type does not have Unit Registry enabled. Existing branch types are migrated with Unit Registry enabled to preserve current access; disable it for Apple Products-only types as needed. Redeploy the Apps Script web app after updating `gs/code.gs`.
+
 The Phones registry displays Apple Product records in responsive cards. Users with Create/Edit permissions can register phones or use a card's Edit action to update a record.
 
 ## Trash

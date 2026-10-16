@@ -189,6 +189,9 @@ if (loginForm) {
           if (Array.isArray(result.appleBranches)) {
             localStorage.setItem('unitflowAppleProductBranches', JSON.stringify(result.appleBranches));
           }
+          if (Array.isArray(result.unitRegistryBranches)) {
+            localStorage.setItem('unitflowUnitRegistryBranches', JSON.stringify(result.unitRegistryBranches));
+          }
         })
         .catch((error) => {
           console.warn('Unable to load saved permissions during login:', error);

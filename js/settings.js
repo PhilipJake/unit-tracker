@@ -75,6 +75,7 @@ const deleteBranchTypeButton = document.getElementById('deleteBranchTypeButton')
 const saveBranchTypeButton = document.getElementById('saveBranchTypeButton');
 const branchTypeSaveStatus = document.getElementById('branchTypeSaveStatus');
 const branchTypeAppleProducts = document.getElementById('branchTypeAppleProducts');
+const branchTypeUnitRegistry = document.getElementById('branchTypeUnitRegistry');
 let managedAccounts = [];
 let roleAssignments = [];
 let userPermissionOverrides = {};
@@ -168,6 +169,8 @@ function renderSelectedBranchType() {
   branchTypeFullName.disabled = !definition;
   branchTypeAppleProducts.checked = Boolean(definition && definition.appleProducts);
   branchTypeAppleProducts.disabled = !definition;
+  branchTypeUnitRegistry.checked = Boolean(definition && definition.unitRegistry !== false);
+  branchTypeUnitRegistry.disabled = !definition;
   renderBranchTypeColorControl(definition);
   deleteBranchTypeButton.hidden = !definition;
   saveBranchTypeButton.disabled = !definition;
@@ -206,7 +209,7 @@ function createBranchType(code) {
     branchTypeCreateError.textContent = 'A branch type with that shortcut already exists.';
     return;
   }
-  branchTypeDefinitions.push({ code: normalizedCode, fullName: '', color: DEFAULT_CUSTOM_ROLE_COLOR, appleProducts: false });
+  branchTypeDefinitions.push({ code: normalizedCode, fullName: '', color: DEFAULT_CUSTOM_ROLE_COLOR, appleProducts: false, unitRegistry: false });
   branchTypeDefinitionsChanged = true;
   selectedBranchType = normalizedCode;
   closeBranchTypeCreateForm();
@@ -242,13 +245,15 @@ function captureSelectedBranchType() {
   const fullName = String(branchTypeFullName.value || '').trim();
   const color = normalizeHexColor(branchTypeColor.value);
   const appleProducts = branchTypeAppleProducts.checked;
-  if (definition.code !== code || definition.fullName !== fullName || definition.color !== color || definition.appleProducts !== appleProducts) {
+  const unitRegistry = branchTypeUnitRegistry.checked;
+  if (definition.code !== code || definition.fullName !== fullName || definition.color !== color || definition.appleProducts !== appleProducts || definition.unitRegistry !== unitRegistry) {
     branchTypeDefinitionsChanged = true;
   }
   definition.code = code;
   definition.fullName = fullName;
   definition.color = color;
   definition.appleProducts = appleProducts;
+  definition.unitRegistry = unitRegistry;
   selectedBranchType = code;
   return true;
 }
@@ -317,7 +322,11 @@ async function refreshAppleProductBranches() {
       throw new Error(result.error || 'Apple Product branches could not be loaded.');
     }
     localStorage.setItem('unitflowAppleProductBranches', JSON.stringify(result.branches));
+    if (Array.isArray(result.unitRegistryBranches)) {
+      localStorage.setItem('unitflowUnitRegistryBranches', JSON.stringify(result.unitRegistryBranches));
+    }
     if (typeof window.refreshAppleProductsNavigation === 'function') window.refreshAppleProductsNavigation();
+    if (typeof window.refreshUnitRegistryNavigation === 'function') window.refreshUnitRegistryNavigation();
   } catch (error) {
     console.error('Unable to load Apple Product branches:', error);
   }
