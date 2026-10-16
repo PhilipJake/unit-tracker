@@ -12,6 +12,7 @@ const toggleAccountPasswordVisibilityButton = document.getElementById('toggleAcc
 const accountTypeSelect = document.getElementById('accountTypeSelect');
 const accountModalTitle = document.getElementById('accountModalTitle');
 const saveAccountButton = document.getElementById('saveAccountButton');
+const accountRoleLoadStatus = document.getElementById('accountRoleLoadStatus');
 const accountPreviewAvatar = document.getElementById('accountPreviewAvatar');
 const accountPreviewName = document.getElementById('accountPreviewName');
 const accountPreviewRole = document.getElementById('accountPreviewRole');
@@ -27,6 +28,7 @@ const okMessageModalBtn = document.getElementById('okMessageModalBtn');
 let activeEditUsername = '';
 let pendingConfirmAction = null;
 let loadedAccounts = [];
+let accountRolesLoaded = false;
 const builtInAccountRoleOrder = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'];
 
 function showPopupMessage(message, onConfirm = null) {
@@ -70,7 +72,7 @@ function getAllowedAccountTypesForRole() {
 }
 
 function applyAccountTypeOptions() {
-  if (!accountTypeSelect) return;
+  if (!accountTypeSelect || !accountRolesLoaded) return;
 
   const allowedTypes = getAllowedAccountTypesForRole();
   const existingTypes = new Set(Array.from(accountTypeSelect.options).map((option) => option.value));
@@ -90,6 +92,33 @@ function applyAccountTypeOptions() {
 
   if (!allowedTypes.includes(currentValue)) {
     accountTypeSelect.value = '';
+  }
+}
+
+async function loadAccountRoleOptions() {
+  if (!accountTypeSelect) return;
+  accountTypeSelect.disabled = true;
+  accountTypeSelect.replaceChildren(new Option('Select Account Type', ''));
+  if (saveAccountButton) saveAccountButton.disabled = true;
+  if (accountRoleLoadStatus) {
+    accountRoleLoadStatus.hidden = true;
+    accountRoleLoadStatus.textContent = '';
+  }
+
+  try {
+    const settings = await DATA.fetchPermissionSettings();
+    localStorage.setItem('unitflowRolePermissions', JSON.stringify(settings.permissions));
+    accountRolesLoaded = true;
+    applyAccountTypeOptions();
+    accountTypeSelect.disabled = false;
+    if (saveAccountButton) saveAccountButton.disabled = false;
+  } catch (error) {
+    console.error('Unable to load account roles from Google Sheets:', error);
+    accountTypeSelect.replaceChildren(new Option('Roles unavailable', ''));
+    if (accountRoleLoadStatus) {
+      accountRoleLoadStatus.textContent = 'Could not load roles from the database. Refresh the page or check the Apps Script connection.';
+      accountRoleLoadStatus.hidden = false;
+    }
   }
 }
 
@@ -673,7 +702,7 @@ if (accountRoleFilter) accountRoleFilter.addEventListener('change', renderAccoun
 if (accountStatusFilter) accountStatusFilter.addEventListener('change', renderAccountsDirectory);
 
 document.addEventListener('DOMContentLoaded', () => {
-  applyAccountTypeOptions();
   applyAccountStatusOptions();
+  loadAccountRoleOptions();
   loadAccounts();
 });

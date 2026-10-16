@@ -6193,6 +6193,51 @@ html[data-theme="dark"] .auth-page {
   fill: #d87932;
 }
 
+.apple-products-type-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 520px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+.apple-products-type-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.apple-products-type-option small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.apple-products-type-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--green-text);
+}
+
+.apple-product-modal {
+  width: min(900px, 100%);
+}
+
+.apple-product-modal .field-group textarea {
+  min-height: 84px;
+}
+
+.form-error {
+  min-height: 1.2em;
+  margin: 10px 0 0;
+  color: var(--red-text);
+  font-size: 0.84rem;
+}
+
 .activity-chart-tooltip {
   position: absolute;
   z-index: 1;

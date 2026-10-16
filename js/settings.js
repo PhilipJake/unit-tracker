@@ -74,6 +74,7 @@ const cancelCreateBranchTypeButton = document.getElementById('cancelCreateBranch
 const deleteBranchTypeButton = document.getElementById('deleteBranchTypeButton');
 const saveBranchTypeButton = document.getElementById('saveBranchTypeButton');
 const branchTypeSaveStatus = document.getElementById('branchTypeSaveStatus');
+const branchTypeAppleProducts = document.getElementById('branchTypeAppleProducts');
 let managedAccounts = [];
 let roleAssignments = [];
 let userPermissionOverrides = {};
@@ -98,7 +99,7 @@ function setSettingsView(view) {
   branchTypesSettingsTab.setAttribute('aria-selected', String(showBranchTypes));
   settingsViewTitle.textContent = showBranchTypes ? 'Branch Types' : 'Roles';
   settingsViewDescription.textContent = showBranchTypes
-    ? 'Manage the shortcuts and full names used by branches.'
+    ? 'Manage the shortcuts, names, and Apple Products access used by branches.'
     : 'Manage workspace permissions by role or member.';
 }
 
@@ -165,6 +166,8 @@ function renderSelectedBranchType() {
   branchTypeShortcut.disabled = !definition;
   branchTypeFullName.value = definition ? definition.fullName : '';
   branchTypeFullName.disabled = !definition;
+  branchTypeAppleProducts.checked = Boolean(definition && definition.appleProducts);
+  branchTypeAppleProducts.disabled = !definition;
   renderBranchTypeColorControl(definition);
   deleteBranchTypeButton.hidden = !definition;
   saveBranchTypeButton.disabled = !definition;
@@ -203,7 +206,7 @@ function createBranchType(code) {
     branchTypeCreateError.textContent = 'A branch type with that shortcut already exists.';
     return;
   }
-  branchTypeDefinitions.push({ code: normalizedCode, fullName: '', color: DEFAULT_CUSTOM_ROLE_COLOR });
+  branchTypeDefinitions.push({ code: normalizedCode, fullName: '', color: DEFAULT_CUSTOM_ROLE_COLOR, appleProducts: false });
   branchTypeDefinitionsChanged = true;
   selectedBranchType = normalizedCode;
   closeBranchTypeCreateForm();
@@ -238,10 +241,14 @@ function captureSelectedBranchType() {
   }
   const fullName = String(branchTypeFullName.value || '').trim();
   const color = normalizeHexColor(branchTypeColor.value);
-  if (definition.code !== code || definition.fullName !== fullName || definition.color !== color) branchTypeDefinitionsChanged = true;
+  const appleProducts = branchTypeAppleProducts.checked;
+  if (definition.code !== code || definition.fullName !== fullName || definition.color !== color || definition.appleProducts !== appleProducts) {
+    branchTypeDefinitionsChanged = true;
+  }
   definition.code = code;
   definition.fullName = fullName;
   definition.color = color;
+  definition.appleProducts = appleProducts;
   selectedBranchType = code;
   return true;
 }
@@ -250,6 +257,7 @@ async function saveSelectedBranchType() {
   if (!captureSelectedBranchType()) return;
   try {
     const synced = await saveBranchTypeDefinitions(branchTypeDefinitions);
+    if (synced) await refreshAppleProductBranches();
     branchTypeSaveStatus.textContent = synced ? 'Branch type saved.' : 'Saved in this browser. Configure Apps Script to share it.';
     branchTypeSaveStatus.dataset.state = synced ? 'success' : 'notice';
     showSettingsToast(synced ? 'Changes Saved Successfully' : 'Changes saved in this browser only');
@@ -299,6 +307,22 @@ function getBranchRecordType(branch) {
   return String(branch.branchCode || branch.branchcode || branch.branchType || branch.branchtype || branch.type || name.split(/\s+/)[0] || '').trim();
 }
 
+async function refreshAppleProductBranches() {
+  const config = window.GS_CONFIG || {};
+  if (!config.appScriptUrl) return;
+  try {
+    const response = await fetch(`${config.appScriptUrl}?action=applebranches`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok || result.ok === false || !Array.isArray(result.branches)) {
+      throw new Error(result.error || 'Apple Product branches could not be loaded.');
+    }
+    localStorage.setItem('unitflowAppleProductBranches', JSON.stringify(result.branches));
+    if (typeof window.refreshAppleProductsNavigation === 'function') window.refreshAppleProductsNavigation();
+  } catch (error) {
+    console.error('Unable to load Apple Product branches:', error);
+  }
+}
+
 function syncRoleHierarchy() {
   const customRoles = [...new Set([...Object.keys(rolePermissionsState), ...Object.keys(pageAccessState)])]
     .filter((role) => !builtInRoleHierarchy.includes(role))
@@ -312,7 +336,7 @@ function createCustomRolePermissions() {
 }
 
 function createCustomRolePageAccess() {
-  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false };
+  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
 }
 
 function cloneDefaultPermissions() {
@@ -722,6 +746,9 @@ async function loadPermissionsFromServer() {
     roleColorsState = setRoleColors(result.roleColors || roleColorsState);
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));
+    if (Array.isArray(result.appleBranches)) {
+      localStorage.setItem('unitflowAppleProductBranches', JSON.stringify(result.appleBranches));
+    }
     rolePermissionsState = getRolePermissions();
     pageAccessState = getPageAccess();
     syncRoleHierarchy();
@@ -738,7 +765,8 @@ async function loadManagedBranches() {
     managedBranchesLoaded = true;
   } catch (error) {
     managedBranches = [];
-    console.warn('Unable to load branches for branch type management:', error);
+    managedBranchesLoaded = true;
+    console.warn('Unable to load branches for settings:', error);
   }
 }
 
@@ -849,6 +877,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   loadPermissionsFromServer();
   loadManagedBranches();
+  refreshAppleProductBranches();
   loadBranchTypeDefinitions().then((definitions) => {
     if (branchTypeDefinitionsChanged) return;
     branchTypeDefinitions = definitions.length ? definitions : getBranchTypeDefinitions();

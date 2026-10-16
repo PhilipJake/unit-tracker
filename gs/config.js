@@ -6,11 +6,12 @@ window.GS_CONFIG = {
   messagesGid: '1885130683',
   accountsGid: '1062318246',
   branchesGid: '2092505862',
+  appleProductsGid: '1990492824',
   refreshMs: 15000,
   sheetName: 'Units',
   accountsSheetName: 'Accounts',
   branchesSheetName: 'Branches',
-  appScriptUrl: 'https://script.google.com/macros/s/AKfycbwCipcsW9q5zN1Ya77EiECbGZ8s5kUPc9eZaE1fUGE1fDcrDw_87GKIXYHDu41xEqBgIQ/exec'
+  appScriptUrl: 'https://script.google.com/macros/s/AKfycbxm-74MRBTq_h3ZtbLF9kCYns6PJpMCvtoKs0u1nGZr6SBa4JH8r9auHuBDF1VpUkZ6QA/exec'
 };
 
 window.GS_CONFIG.sheetUrl = `https://docs.google.com/spreadsheets/d/${window.GS_CONFIG.sheetId}/export?format=csv&gid=${window.GS_CONFIG.gid}`;

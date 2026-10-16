@@ -50,6 +50,10 @@
           <span class="nav-icon">⎇</span>
           Branches
         </a>
+        <a class="nav-item" href="phones.html" data-apple-products-nav="true">
+          <span class="nav-icon" aria-hidden="true">📱</span>
+          Phones
+        </a>
         <a class="nav-item active" href="accounts.html">
           <span class="nav-icon">◉</span>
           Accounts
@@ -144,14 +148,9 @@
               <div class="field-group">
                 <label for="accountTypeSelect">Account type</label>
                 <select id="accountTypeSelect" name="accountTypeSelect" required>
-                  <option value="">Select account type</option>
-                  <option value="Super Admin">Super Admin</option>
-                  <option value="Administrator">Administrator</option>
-                  <option value="Main Head Admin">Main Head Admin</option>
-                  <option value="Branch Head Admin">Branch Head Admin</option>
-                  <option value="Office">Office</option>
-                  <option value="Technician">Technician</option>
+                  <option value="">Select Account Type</option>
                 </select>
+                <small id="accountRoleLoadStatus" class="form-error" role="status" hidden></small>
               </div>
               <div class="field-group">
                 <label for="accountBranch">Branch</label>

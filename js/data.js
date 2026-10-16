@@ -30,9 +30,81 @@ const DATA = {
     return DATA.fetchSheet({ gid: config.accountsGid || config.gid || '0', includeAllRows: true });
   },
 
+  async fetchPermissionSettings() {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(`${config.appScriptUrl}?action=permissions`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Permission request failed with status ${response.status}.`);
+    const result = await response.json();
+    if (result.ok === false || !result.permissions || typeof result.permissions !== 'object') {
+      throw new Error(result.error || 'Account roles could not be loaded.');
+    }
+    return result;
+  },
+
   async fetchBranches() {
     const config = window.GS_CONFIG || {};
     return DATA.fetchSheet({ gid: config.branchesGid || config.gid || '0', includeAllRows: true });
+  },
+
+  async fetchAppleProducts(branch = '') {
+    const config = window.GS_CONFIG || {};
+    if (!config.appleProductsGid) throw new Error('Apple Products sheet GID is not configured.');
+    const rows = await DATA.fetchSheet({ gid: config.appleProductsGid, includeAllRows: true });
+    const requestedBranch = String(branch || '').trim().toLowerCase();
+    return rows.filter((row) => {
+      const rowBranch = String(row.Branch || row.branch || '').trim().toLowerCase();
+      return !requestedBranch || rowBranch === requestedBranch;
+    });
+  },
+
+  async fetchAppleProductBranches() {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(`${config.appScriptUrl}?action=applebranches`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Apple Product branches request failed with status ${response.status}.`);
+    const result = await response.json();
+    if (result.ok === false || !Array.isArray(result.branches)) {
+      throw new Error(result.error || 'Apple Product branches could not be loaded.');
+    }
+    return result.branches;
+  },
+
+  async createAppleProduct(product) {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(config.appScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ action: 'appleproducts', ...product }).toString()
+    });
+    const result = await response.json();
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || `Apple Product save failed with status ${response.status}.`);
+    }
+    return result;
+  },
+
+  async updateAppleProduct(original, product, actor = {}) {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(config.appScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        action: 'updateappleproduct',
+        originalCode: original.code,
+        originalBranch: original.branch,
+        actorRole: actor.actorRole || '',
+        actorBranch: actor.actorBranch || '',
+        ...product
+      }).toString()
+    });
+    const result = await response.json();
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || `Apple Product update failed with status ${response.status}.`);
+    }
+    return result;
   },
 
   async fetchMessages() {

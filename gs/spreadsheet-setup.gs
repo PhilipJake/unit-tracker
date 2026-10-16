@@ -48,12 +48,31 @@ function initializeClientUnitTrackerSheets() {
   ];
 
   const trashHeaders = unitsHeaders.concat(['Expires At', 'Restored At']);
+  const appleProductHeaders = [
+    'Code',
+    'Client Name',
+    'Address',
+    'Contact Info',
+    'Status',
+    'Serial Number',
+    'IMEI',
+    'Branch',
+    'Date of Purchase',
+    'Date of Return',
+    'Date Transferred to Warehouse',
+    'Date Left Warehouse',
+    'Complaint'
+  ];
 
   const unitsSheet = ensureSheet(spreadsheet, 'Units', unitsHeaders);
   migrateUnitSheetSchema(unitsSheet);
   const accountsSheet = ensureSheet(spreadsheet, 'Accounts', accountsHeaders);
   const branchesSheet = ensureSheet(spreadsheet, 'Branches', branchesHeaders);
   const trashSheet = ensureSheet(spreadsheet, 'Trash', trashHeaders);
+  const appleProductsSheet = ensureSheet(spreadsheet, 'AppleProducts', appleProductHeaders);
+  if (typeof migrateAppleProductSheetSchema === 'function') {
+    migrateAppleProductSheetSchema(appleProductsSheet);
+  }
   seedDemoAccounts(accountsSheet);
   seedDemoBranches(branchesSheet);
 
@@ -66,12 +85,15 @@ function initializeClientUnitTrackerSheets() {
     accountsGid: accountsSheet.getSheetId(),
     branchesSheet: branchesSheet.getName(),
     branchesGid: branchesSheet.getSheetId(),
+    appleProductsSheet: appleProductsSheet.getName(),
+    appleProductsGid: appleProductsSheet.getSheetId(),
     trashGid: trashSheet.getSheetId(),
     config: {
       sheetId: spreadsheet.getId(),
       gid: unitsSheet.getSheetId(),
       accountsGid: accountsSheet.getSheetId(),
-      branchesGid: branchesSheet.getSheetId()
+      branchesGid: branchesSheet.getSheetId(),
+      appleProductsGid: appleProductsSheet.getSheetId()
     }
   };
 }

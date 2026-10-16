@@ -50,6 +50,10 @@
           <span class="nav-icon">⎇</span>
           Branches
         </a>
+        <a class="nav-item" href="phones.html" data-apple-products-nav="true">
+          <span class="nav-icon" aria-hidden="true">📱</span>
+          Phones
+        </a>
         <a class="nav-item" href="accounts.html">
           <span class="nav-icon">◉</span>
           Accounts
@@ -93,9 +97,8 @@
 
           <select id="unitStatusFilter" class="toolbar-select" aria-label="Filter units by status">
             <option value="all">All monitoring statuses</option>
-            <option>For Observation</option>
+            <option>For Diagnosis</option>
             <option>Transferred to Technical</option>
-            <option>For Diagnose</option>
           </select>
 
           <select id="unitBranchFilter" class="toolbar-select" aria-label="Filter units by branch">
@@ -206,11 +209,8 @@
                 <div class="field-group">
                   <label for="status">Status <span class="required-indicator" aria-hidden="true">*</span></label>
                   <select id="status" name="status" required>
-                    <option selected>For Diagnose</option>
+                    <option selected>For Diagnosis</option>
                     <option>Transferred to Technical</option>
-                    <option>For Replacement</option>
-                    <option>For Repair</option>
-                    <option>For Warehouse</option>
                   </select>
                 </div>
                 <div class="field-group">

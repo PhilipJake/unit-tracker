@@ -138,6 +138,19 @@ async function authenticateAccount(username, password) {
   };
 }
 
+function isAppleProductBranch(branch) {
+  const assignedBranch = String(branch || '').trim().toLowerCase();
+  if (!assignedBranch) return false;
+  try {
+    const enabledBranches = JSON.parse(localStorage.getItem('unitflowAppleProductBranches') || '[]');
+    return Array.isArray(enabledBranches)
+      && enabledBranches.some((enabledBranch) => String(enabledBranch || '').trim().toLowerCase() === assignedBranch);
+  } catch (error) {
+    console.warn('Unable to determine the Apple Products landing page:', error);
+    return false;
+  }
+}
+
 if (loginForm) {
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -154,26 +167,55 @@ if (loginForm) {
     const submitButton = loginForm.querySelector('button[type="submit"]');
     submitButton.disabled = true;
 
+    const loadingStartedAt = performance.now();
+    const config = window.GS_CONFIG || {};
+    if (loginLoadingScreen) {
+      loginLoadingScreen.hidden = false;
+      loginLoadingScreen.setAttribute('aria-hidden', 'false');
+      if (loginLoadingStatus) loginLoadingStatus.innerHTML = 'Checking your account<span>...</span>';
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
+    const permissionsPromise = config.appScriptUrl
+      ? fetch(`${config.appScriptUrl}?action=permissions`, { cache: 'no-store' })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) {
+            throw new Error(result.error || 'Permission load failed');
+          }
+          localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
+          localStorage.setItem('unitflowPageAccess', JSON.stringify(result.pageAccess));
+          localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(result.userPermissions || {}));
+          if (Array.isArray(result.appleBranches)) {
+            localStorage.setItem('unitflowAppleProductBranches', JSON.stringify(result.appleBranches));
+          }
+        })
+        .catch((error) => {
+          console.warn('Unable to load saved permissions during login:', error);
+        })
+      : Promise.resolve();
+
     let account;
     try {
       account = await authenticateAccount(username, password);
     } catch (error) {
+      if (loginLoadingScreen) {
+        loginLoadingScreen.hidden = true;
+        loginLoadingScreen.setAttribute('aria-hidden', 'true');
+      }
       submitButton.disabled = false;
       showAppPopup(error.message || 'Unable to verify your account. Please try again.');
       return;
     }
 
     if (!account) {
+      if (loginLoadingScreen) {
+        loginLoadingScreen.hidden = true;
+        loginLoadingScreen.setAttribute('aria-hidden', 'true');
+      }
       submitButton.disabled = false;
       showAppPopup('Invalid username or password.');
       return;
-    }
-
-    const loadingStartedAt = performance.now();
-    if (loginLoadingScreen) {
-      loginLoadingScreen.hidden = false;
-      loginLoadingScreen.setAttribute('aria-hidden', 'false');
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
     localStorage.setItem('unitflowRole', account.role);
@@ -181,29 +223,16 @@ if (loginForm) {
     localStorage.setItem('unitflowFullName', account.fullName || username);
     localStorage.setItem('unitflowBranch', account.branch || '');
 
-    const config = window.GS_CONFIG || {};
-    if (config.appScriptUrl) {
-      try {
-        if (loginLoadingStatus) loginLoadingStatus.innerHTML = 'Syncing access profile<span>...</span>';
-        const response = await fetch(`${config.appScriptUrl}?action=permissions`, { cache: 'no-store' });
-        const result = await response.json();
-        if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) {
-          throw new Error(result.error || 'Permission load failed');
-        }
-        localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
-        localStorage.setItem('unitflowPageAccess', JSON.stringify(result.pageAccess));
-        localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(result.userPermissions || {}));
-      } catch (error) {
-        console.warn('Unable to load saved permissions during login:', error);
-      }
-    }
+    if (loginLoadingStatus) loginLoadingStatus.innerHTML = 'Syncing access profile<span>...</span>';
+    await permissionsPromise;
 
-    const minimumLoadingTime = 650;
+    const minimumLoadingTime = 250;
     const remainingLoadingTime = minimumLoadingTime - (performance.now() - loadingStartedAt);
     if (remainingLoadingTime > 0) {
       await new Promise((resolve) => setTimeout(resolve, remainingLoadingTime));
     }
 
-    window.location.href = resolveAppPath('index.html');
+    const landingPage = isAppleProductBranch(account.branch) ? 'pages/phones.html' : 'index.html';
+    window.location.href = resolveAppPath(landingPage);
   });
 }

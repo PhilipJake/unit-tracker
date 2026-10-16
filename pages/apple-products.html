@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Apple Products | Unitflow</title>
+    <link rel="icon" type="image/svg+xml" href="../images/favicon.svg" />
+    <script src="../js/theme-init.js"></script>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">U</div><span>unitflow</span></div>
+      <nav class="nav">
+        <div class="nav-scroll">
+          <div class="nav-label">Workspace</div>
+          <a class="nav-item" href="../index.html"><span class="nav-icon">▣</span>Dashboard</a>
+          <a class="nav-item" href="messages.html"><span class="nav-icon">✉</span>Messages</a>
+          <div class="nav-group" data-unit-menu>
+            <div class="nav-group-header">
+              <a class="nav-item" href="units.html?view=monitoring"><span class="nav-icon">▤</span>Units</a>
+              <button class="nav-collapse-btn" type="button" data-unit-menu-toggle aria-expanded="false" aria-label="Expand Units menu" title="Expand Units menu"></button>
+            </div>
+            <div class="nav-submenu" aria-label="Unit views" hidden>
+              <a class="nav-item nav-subitem" href="units.html?view=diagnose">Diagnose</a>
+              <a class="nav-item nav-subitem" href="units.html?view=for-release">For Release</a>
+              <a class="nav-item nav-subitem" href="units.html?view=released">Released</a>
+              <a class="nav-item nav-subitem" href="units.html?view=for-repair">For Repair</a>
+              <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
+              <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
+              <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
+            </div>
+          </div>
+          <a class="nav-item" href="branches.html"><span class="nav-icon">⎇</span>Branches</a>
+          <a class="nav-item active" href="phones.html" data-apple-products-nav="true" aria-current="page"><span class="nav-icon" aria-hidden="true">📱</span>Phones</a>
+          <a class="nav-item" href="accounts.html"><span class="nav-icon">◉</span>Accounts</a>
+        </div>
+        <a class="nav-item" id="settingsLink" href="settings.html"><span class="nav-icon">⚙</span>Settings</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Apple Products</div>
+        <div class="topbar-right">
+          <div class="sync-pill"><span class="dot live"></span><span id="appleProductsSyncStatus">Loading</span></div>
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false"><div class="user-avatar">U</div><span id="topbarUserName">User</span></button>
+            <div class="user-dropdown" id="userDropdown" hidden><button type="button" id="logoutButton">Logout</button></div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content apple-products-content">
+        <div class="header-row">
+          <div class="heading-block">
+            <div class="eyebrow">Branch registry</div>
+            <h1>Apple Products</h1>
+            <p>Track Apple products, returns, and warehouse transfers by branch.</p>
+          </div>
+          <button class="action-btn primary" id="addAppleProductButton" type="button">Add Apple Product</button>
+        </div>
+
+        <div class="page-toolbar">
+          <div class="search-box">
+            <input id="appleProductSearch" type="search" placeholder="Search Apple Products" aria-label="Search Apple Products" />
+          </div>
+          <select class="toolbar-select" id="appleProductBranchFilter" aria-label="Filter by branch"></select>
+          <span id="appleProductCount" class="result-count"></span>
+        </div>
+
+        <section class="panel table-panel">
+          <div class="table-wrap">
+            <table class="unit-registry-table apple-products-table">
+              <thead>
+                <tr>
+                  <th>Code</th><th>Client Name</th><th>Address</th><th>Contact Info</th>
+                  <th>Serial Number</th><th>IMEI</th><th>Branch</th><th>Date of Purchase</th>
+                  <th>Date of Return</th><th>Date Transferred to Warehouse</th><th>Date Left Warehouse</th><th>Complaint</th>
+                </tr>
+              </thead>
+              <tbody id="appleProductsTableBody"><tr><td colspan="12" class="empty-state">Loading Apple Products…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="appleProductModalBackdrop" aria-hidden="true">
+      <section class="modal account-create-modal apple-product-modal" role="dialog" aria-modal="true" aria-labelledby="appleProductModalTitle">
+        <div class="modal-header">
+          <div><h2 id="appleProductModalTitle">Add Apple Product</h2><p>Enter the product and client details.</p></div>
+          <button class="modal-close" id="closeAppleProductModalButton" type="button" aria-label="Close form">×</button>
+        </div>
+        <form id="appleProductForm" class="modal-body">
+          <div class="form-grid">
+            <div class="field-group"><label for="appleProductCode">Code</label><input id="appleProductCode" name="code" required></div>
+            <div class="field-group"><label for="appleProductClientName">Client Name</label><input id="appleProductClientName" name="clientName" required></div>
+            <div class="field-group"><label for="appleProductAddress">Address</label><input id="appleProductAddress" name="address"></div>
+            <div class="field-group"><label for="appleProductContact">Contact Info</label><input id="appleProductContact" name="contactInfo"></div>
+            <div class="field-group"><label for="appleProductSerial">Serial Number</label><input id="appleProductSerial" name="serialNumber"></div>
+            <div class="field-group"><label for="appleProductImei">IMEI</label><input id="appleProductImei" name="imei"></div>
+            <div class="field-group"><label for="appleProductBranch">Branch</label><select id="appleProductBranch" name="branch" required></select></div>
+            <div class="field-group"><label for="appleProductPurchaseDate">Date of Purchase</label><input id="appleProductPurchaseDate" name="dateOfPurchase" type="date"></div>
+            <div class="field-group"><label for="appleProductReturnDate">Date of Return</label><input id="appleProductReturnDate" name="dateOfReturn" type="date"></div>
+            <div class="field-group"><label for="appleProductWarehouseIn">Date Transferred to Warehouse</label><input id="appleProductWarehouseIn" name="dateTransferredToWarehouse" type="date"></div>
+            <div class="field-group"><label for="appleProductWarehouseOut">Date Left Warehouse</label><input id="appleProductWarehouseOut" name="dateLeftWarehouse" type="date"></div>
+            <div class="field-group"><label for="appleProductComplaint">Complaint</label><textarea id="appleProductComplaint" name="complaint" rows="3"></textarea></div>
+          </div>
+          <p class="form-error" id="appleProductFormError" role="alert"></p>
+          <div class="modal-actions">
+            <button class="action-btn" id="cancelAppleProductButton" type="button">Cancel</button>
+            <button class="action-btn primary" id="saveAppleProductButton" type="submit">Save Apple Product</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/apple-products.js"></script>
+  </body>
+</html>

@@ -88,7 +88,8 @@ function normalizeBranchTypeDefinitions(definitions) {
     result.push({
       code,
       fullName: String(definition.fullName || '').trim(),
-      color: normalizeHexColor(definition.color, defaultType ? defaultType.color : DEFAULT_CUSTOM_ROLE_COLOR)
+      color: normalizeHexColor(definition.color, defaultType ? defaultType.color : DEFAULT_CUSTOM_ROLE_COLOR),
+      appleProducts: Boolean(definition.appleProducts)
     });
     return result;
   }, []);
@@ -149,13 +150,13 @@ function getCustomRolePermissionDefaults() {
 }
 
 function getCustomRolePageDefaults() {
-  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false };
+  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
 }
 
 function getCurrentPagePath() {
   const currentPath = window.location.pathname;
   const normalized = currentPath.split('/').pop();
-  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('units.html') ? 'pages/units.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : '../index.html';
+  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('units.html') ? 'pages/units.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : currentPath.endsWith('phones.html') ? 'pages/phones.html' : currentPath.endsWith('apple-products.html') ? 'pages/phones.html' : '../index.html';
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
@@ -173,16 +174,17 @@ const PAGE_ACCESS_OPTIONS = {
   'Unit registry': 'pages/units.html',
   Trash: 'pages/trash.html',
   Branches: 'pages/branches.html',
-  Accounts: 'pages/accounts.html'
+  Accounts: 'pages/accounts.html',
+  Phones: 'pages/phones.html'
 };
 
 const DEFAULT_PAGE_ACCESS = {
   'Super Admin': Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
   Administrator: Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
-  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true },
-  'Branch Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Branches: false, Accounts: false },
-  Office: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true },
-  Technician: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false }
+  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
+  'Branch Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true },
+  Office: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
+  Technician: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true }
 };
 
 function getRolePermissions() {
@@ -277,7 +279,7 @@ function isAllowedPage(targetHref, allowedPages) {
 function getAllowedPagesForRole(role) {
   const pageAccess = getEffectivePageAccess(role)[role] || DEFAULT_PAGE_ACCESS.Technician;
   const pages = Object.entries(PAGE_ACCESS_OPTIONS)
-    .filter(([page]) => pageAccess[page])
+    .filter(([page]) => pageAccess[page] && (page !== 'Phones' || canAccessAppleProducts(role)))
     .map(([, path]) => path);
 
   if (isPermissionManager(role)) {
@@ -286,6 +288,43 @@ function getAllowedPagesForRole(role) {
 
   return pages;
 }
+
+function getEnabledAppleProductBranches() {
+  try {
+    const branches = JSON.parse(localStorage.getItem('unitflowAppleProductBranches') || '[]');
+    return Array.isArray(branches) ? branches.map((branch) => String(branch || '').trim().toLowerCase()).filter(Boolean) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function canAccessAppleProducts(role = getCurrentRole()) {
+  const enabledBranches = getEnabledAppleProductBranches();
+  if (isPermissionManager(role)) return enabledBranches.length > 0;
+  const assignedBranch = String(localStorage.getItem('unitflowBranch') || '').trim().toLowerCase();
+  return Boolean(assignedBranch && enabledBranches.includes(assignedBranch));
+}
+
+function ensureAppleProductsNavigationLink() {
+  const navScroll = document.querySelector('.nav-scroll');
+  if (!navScroll || navScroll.querySelector('[data-apple-products-nav]')) return;
+  const link = document.createElement('a');
+  link.className = 'nav-item';
+  link.href = resolveRoutePath('pages/phones.html');
+  link.dataset.appleProductsNav = 'true';
+  const isCurrentPage = window.location.pathname.endsWith('phones.html');
+  link.classList.toggle('active', isCurrentPage);
+  if (isCurrentPage) link.setAttribute('aria-current', 'page');
+  link.innerHTML = '<span class="nav-icon" aria-hidden="true">📱</span>Phones';
+  const branchLink = navScroll.querySelector('a[href$="branches.html"]');
+  if (branchLink) branchLink.after(link);
+  else navScroll.append(link);
+}
+
+window.refreshAppleProductsNavigation = () => {
+  ensureAppleProductsNavigationLink();
+  applyRoleRestrictions();
+};
 
 function resolveRoutePath(targetPath) {
   const cleaned = String(targetPath || '').replace(/^\.\//, '').replace(/^\.\.\//, '');
@@ -300,6 +339,7 @@ function resolveRoutePath(targetPath) {
 }
 
 function applyRoleRestrictions() {
+  ensureAppleProductsNavigationLink();
   const role = getCurrentRole();
   const allowedPages = getAllowedPagesForRole(role);
   const currentPagePath = getCurrentPagePath();
@@ -487,6 +527,7 @@ function logoutUser() {
   localStorage.removeItem('unitflowUser');
   localStorage.removeItem('unitflowFullName');
   localStorage.removeItem('unitflowBranch');
+  localStorage.removeItem('unitflowAppleProductBranches');
   window.location.href = resolveRoutePath('pages/login.html');
 }
 

@@ -184,7 +184,7 @@ function openUnitModal(mode = 'create', unit = null) {
   if (!backdrop) return;
 
   const statusField = unitForm && unitForm.elements.namedItem('status');
-  const diagnoseOption = statusField ? [...statusField.options].find((option) => option.value === 'For Diagnose') : null;
+  const diagnoseOption = statusField ? [...statusField.options].find((option) => option.value === 'For Diagnosis') : null;
   const canDiagnose = canSetForDiagnose.includes(localStorage.getItem('unitflowRole'));
   if (diagnoseOption) {
     diagnoseOption.disabled = !canDiagnose;
@@ -230,7 +230,7 @@ function openUnitModal(mode = 'create', unit = null) {
     unitForm.dataset.originalStatus = '';
     if (statusField) {
       statusField.required = true;
-      statusField.value = canDiagnose ? 'For Diagnose' : 'Transferred to Technical';
+      statusField.value = canDiagnose ? 'For Diagnosis' : 'Transferred to Technical';
     }
     syncOtherInclusionField();
     const contactInfoField = unitForm.elements.namedItem('contactInfo');
@@ -572,8 +572,8 @@ async function saveUnitToSheet(event) {
   }
 
   const payload = normalizeSavedUnitPayload(form);
-  if (payload.status === 'For Diagnose' && !canSetForDiagnose.includes(role)) {
-    showPopupMessage('Only Super Admin, Administrator, and Technician roles can set For Diagnose.');
+  if (payload.status === 'For Diagnosis' && !canSetForDiagnose.includes(role)) {
+    showPopupMessage('Only Super Admin, Administrator, and Technician roles can set For Diagnosis.');
     return;
   }
   const requestAction = form.dataset.mode === 'edit' ? 'updateUnit' : 'units';

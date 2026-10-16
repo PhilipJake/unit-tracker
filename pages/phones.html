@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phones | Unitflow</title>
+    <link rel="icon" type="image/svg+xml" href="../images/favicon.svg" />
+    <script src="../js/theme-init.js"></script>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">U</div><span>unitflow</span></div>
+      <nav class="nav">
+        <div class="nav-scroll">
+          <div class="nav-label">Workspace</div>
+          <a class="nav-item" href="../index.html"><span class="nav-icon">▣</span>Dashboard</a>
+          <a class="nav-item" href="messages.html"><span class="nav-icon">✉</span>Messages</a>
+          <div class="nav-group" data-unit-menu>
+            <div class="nav-group-header">
+              <a class="nav-item" href="units.html?view=monitoring"><span class="nav-icon">▤</span>Units</a>
+              <button class="nav-collapse-btn" type="button" data-unit-menu-toggle aria-expanded="false" aria-label="Expand Units menu" title="Expand Units menu"></button>
+            </div>
+            <div class="nav-submenu" aria-label="Unit views" hidden>
+              <a class="nav-item nav-subitem" href="units.html?view=diagnose">Diagnose</a>
+              <a class="nav-item nav-subitem" href="units.html?view=for-release">For Release</a>
+              <a class="nav-item nav-subitem" href="units.html?view=released">Released</a>
+              <a class="nav-item nav-subitem" href="units.html?view=for-repair">For Repair</a>
+              <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
+              <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
+              <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
+            </div>
+          </div>
+          <a class="nav-item" href="branches.html"><span class="nav-icon">⎇</span>Branches</a>
+          <a class="nav-item active" href="phones.html" data-apple-products-nav="true" aria-current="page"><span class="nav-icon" aria-hidden="true">📱</span>Phones</a>
+          <a class="nav-item" href="accounts.html"><span class="nav-icon">◉</span>Accounts</a>
+        </div>
+        <a class="nav-item" id="settingsLink" href="settings.html"><span class="nav-icon">⚙</span>Settings</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Phones</div>
+        <div class="topbar-right">
+          <div class="sync-pill"><span class="dot live"></span><span id="appleProductsSyncStatus">Loading</span></div>
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false"><div class="user-avatar">U</div><span id="topbarUserName">User</span></button>
+            <div class="user-dropdown" id="userDropdown" hidden><button type="button" id="logoutButton">Logout</button></div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content apple-products-content">
+        <div class="header-row">
+          <div class="heading-block">
+            <div class="eyebrow">Branch registry</div>
+            <h1>Phones</h1>
+            <p>Track Apple phones, returns, and warehouse transfers by branch.</p>
+          </div>
+          <button class="action-btn primary" id="addAppleProductButton" type="button">Add Phone</button>
+        </div>
+
+        <div class="page-toolbar">
+          <div class="search-box">
+            <input id="appleProductSearch" type="search" placeholder="Search phones" aria-label="Search phones" />
+          </div>
+          <select class="toolbar-select" id="appleProductBranchFilter" aria-label="Filter by branch"></select>
+          <span id="appleProductCount" class="result-count"></span>
+        </div>
+
+        <section class="panel unit-card-panel">
+          <div class="unit-card-grid" id="appleProductCardGrid" aria-live="polite" aria-label="Phone records">
+            <div class="empty-state">Loading phones…</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="appleProductModalBackdrop" aria-hidden="true">
+      <section class="modal unit-details-modal unit-editor-modal apple-product-modal" role="dialog" aria-modal="true" aria-labelledby="appleProductModalTitle">
+        <header class="unit-details-heading unit-editor-header">
+          <div class="unit-details-avatar" id="appleProductEditorAvatar" aria-hidden="true">P</div>
+          <div class="unit-details-identity">
+            <span class="unit-details-eyebrow">PHONE REGISTRY</span>
+            <h2 id="appleProductModalTitle">Add Phone</h2>
+            <p id="appleProductModalDescription">Enter the phone and client details.</p>
+          </div>
+          <button class="unit-details-close" id="closeAppleProductModalButton" type="button" aria-label="Close form">×</button>
+        </header>
+        <form id="appleProductForm" class="unit-form">
+          <div class="unit-editor-sections">
+            <section class="unit-detail-section unit-editor-client">
+              <h3>Client &amp; contact</h3>
+              <div class="unit-editor-fields">
+                <div class="field-group"><label for="appleProductClientName">Client Name</label><input id="appleProductClientName" name="clientName" required></div>
+                <div class="field-group"><label for="appleProductContact">Contact Info</label><input id="appleProductContact" name="contactInfo"></div>
+                <div class="field-group unit-editor-wide"><label for="appleProductAddress">Address</label><input id="appleProductAddress" name="address"></div>
+              </div>
+            </section>
+            <section class="unit-detail-section unit-editor-unit">
+              <h3>Phone details</h3>
+              <div class="unit-editor-fields">
+                <div class="field-group"><label for="appleProductCode">Code</label><input id="appleProductCode" name="code" required></div>
+                <div class="field-group"><label for="appleProductStatus">Status</label><input id="appleProductStatus" name="status"></div>
+                <div class="field-group"><label for="appleProductSerial">Serial Number</label><input id="appleProductSerial" name="serialNumber"></div>
+                <div class="field-group"><label for="appleProductImei">IMEI</label><input id="appleProductImei" name="imei"></div>
+                <div class="field-group unit-editor-wide"><label for="appleProductBranch">Branch</label><select id="appleProductBranch" name="branch" required></select></div>
+              </div>
+            </section>
+            <section class="unit-detail-section unit-editor-service">
+              <h3>Purchase &amp; returns</h3>
+              <div class="unit-editor-fields">
+                <div class="field-group"><label for="appleProductPurchaseDate">Date of Purchase</label><input id="appleProductPurchaseDate" name="dateOfPurchase" type="date"></div>
+                <div class="field-group"><label for="appleProductReturnDate">Date of Return</label><input id="appleProductReturnDate" name="dateOfReturn" type="date"></div>
+                <div class="field-group"><label for="appleProductWarehouseIn">Date Transferred to Warehouse</label><input id="appleProductWarehouseIn" name="dateTransferredToWarehouse" type="date"></div>
+                <div class="field-group"><label for="appleProductWarehouseOut">Date Left Warehouse</label><input id="appleProductWarehouseOut" name="dateLeftWarehouse" type="date"></div>
+              </div>
+            </section>
+            <section class="unit-detail-section unit-editor-notes">
+              <h3>Complaint</h3>
+              <div class="unit-editor-fields">
+                <div class="field-group unit-editor-wide">
+                  <label for="appleProductComplaint">Complaint</label>
+                  <textarea id="appleProductComplaint" name="complaint" rows="3"></textarea>
+                </div>
+              </div>
+            </section>
+          </div>
+          <p class="form-error" id="appleProductFormError" role="alert"></p>
+          <div class="modal-actions unit-editor-actions">
+            <button class="action-btn" id="cancelAppleProductButton" type="button">Cancel</button>
+            <button class="action-btn primary" id="saveAppleProductButton" type="submit">Save Phone</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop unit-details-backdrop" id="appleProductDetailsBackdrop" aria-hidden="true">
+      <section class="unit-details-modal" role="dialog" aria-modal="true" aria-labelledby="appleProductDetailsTitle" tabindex="-1">
+        <button class="unit-details-close" id="closeAppleProductDetailsButton" type="button" aria-label="Close phone details">×</button>
+        <div id="appleProductDetailsContent"></div>
+      </section>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/apple-products.js"></script>
+  </body>
+</html>

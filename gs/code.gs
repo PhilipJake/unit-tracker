@@ -11,6 +11,16 @@ function doGet(e) {
     return readBranchTypeSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
   }
 
+  if (action === 'applebranches') {
+    return jsonResponse({ ok: true, branches: readAppleProductBranches(SpreadsheetApp.openById(SPREADSHEET_ID)) });
+  }
+
+  if (action === 'appleproducts') {
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    migrateAppleProductSheetSchema(ensureSheet(spreadsheet, 'AppleProducts'));
+    return readAppleProductRows(spreadsheet, e.parameter.branch);
+  }
+
   if (action === 'userpreferences') {
     const result = readUserPreferences(SpreadsheetApp.openById(SPREADSHEET_ID), e.parameter.username);
     const callback = String(e.parameter.callback || '');
@@ -93,6 +103,10 @@ function doPost(e) {
     return updateUnitRow(spreadsheet, values);
   }
 
+  if (action === 'updateappleproduct') {
+    return updateAppleProductRow(spreadsheet, values);
+  }
+
   if (action === 'releaseunit') {
     return releaseUnitRow(spreadsheet, values);
   }
@@ -124,10 +138,23 @@ function doPost(e) {
     sheetName = 'Branches';
   } else if (action === 'messages') {
     sheetName = 'Messages';
+  } else if (action === 'appleproducts') {
+    sheetName = 'AppleProducts';
   }
 
   const sheet = ensureSheet(spreadsheet, sheetName);
   if (action === 'units') ensureUnitDateColumns(sheet);
+  if (action === 'appleproducts') migrateAppleProductSheetSchema(sheet);
+  if (action === 'appleproducts') {
+    const branch = String(values.branch || '').trim();
+    const enabledBranches = readAppleProductBranches(spreadsheet);
+    if (!String(values.code || '').trim() || !String(values.clientName || '').trim()) {
+      return jsonResponse({ ok: false, error: 'Code and Client Name are required.' });
+    }
+    if (!enabledBranches.some((name) => name.toLowerCase() === branch.toLowerCase())) {
+      return jsonResponse({ ok: false, error: 'Apple Products are not enabled for this branch.' });
+    }
+  }
   if (action === 'accounts' && isAdministratorCreatingSuperAdmin(values)) {
     return jsonResponse({ ok: false, error: 'Administrator cannot create a Super Admin account' });
   }
@@ -142,8 +169,8 @@ function doPost(e) {
   if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
     return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
   }
-  if (action === 'units' && String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
-    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
+  if (action === 'units' && String(values.status || '').trim() === 'For Diagnosis' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnosis' });
   }
   if (action === 'messages') {
     values.attachments = uploadMessageAttachments(values.attachments || '[]');
@@ -176,17 +203,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement', 'Repair'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement', 'Repair', 'Phones'];
 }
 
 function getDefaultPermissionRows() {
   return [
-    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false, false],
-    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true, true],
-    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true, true],
-    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true, true]
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false, false, true],
+    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true, true, true],
+    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true, true, true],
+    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true, true, true]
   ];
 }
 
@@ -269,14 +296,143 @@ function readPermissionSettings(spreadsheet) {
   rows.forEach((row) => {
     const role = String(row[0]).trim();
     permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[13]), pullOut: toPermissionBoolean(row[14]), forReplacement: toPermissionBoolean(row[15]), repair: toPermissionBoolean(row[16]) };
-    pageAccess[role] = { Overview: toPermissionBoolean(row[7]), Messages: toPermissionBoolean(row[8]), 'Unit registry': toPermissionBoolean(row[9]), Trash: toPermissionBoolean(row[10]), Branches: toPermissionBoolean(row[11]), Accounts: toPermissionBoolean(row[12]) };
+    const savedPhonesAccess = row[17];
+    const legacyPhonesDefault = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'].includes(role);
+    pageAccess[role] = {
+      Overview: toPermissionBoolean(row[7]),
+      Messages: toPermissionBoolean(row[8]),
+      'Unit registry': toPermissionBoolean(row[9]),
+      Trash: toPermissionBoolean(row[10]),
+      Branches: toPermissionBoolean(row[11]),
+      Accounts: toPermissionBoolean(row[12]),
+      Phones: String(savedPhonesAccess === undefined ? '' : savedPhonesAccess).trim() === ''
+        ? legacyPhonesDefault
+        : toPermissionBoolean(savedPhonesAccess)
+    };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
   permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15], repair: superAdminDefaults[16] };
-  pageAccess['Super Admin'] = pageAccess['Super Admin'] || { Overview: true, Messages: true, 'Unit registry': true, Trash: true, Branches: true, Accounts: true };
-  return jsonResponse({ ok: true, permissions, pageAccess, userPermissions: readUserPermissionOverrides(spreadsheet), roleColors: readRoleColors() });
+  pageAccess['Super Admin'] = { ...(pageAccess['Super Admin'] || {}), Phones: true };
+  return jsonResponse({
+    ok: true,
+    permissions,
+    pageAccess,
+    userPermissions: readUserPermissionOverrides(spreadsheet),
+    roleColors: readRoleColors(),
+    appleBranches: readAppleProductBranches(spreadsheet)
+  });
+}
+
+function readAppleProductBranches(spreadsheet) {
+  const branchTypeSheet = ensureBranchTypeSheet(spreadsheet);
+  const branchTypeData = branchTypeSheet.getDataRange().getValues();
+  const typeHeaders = (branchTypeData[0] || []).map((header) => String(header || '').trim().toLowerCase());
+  const typeCodeIndex = typeHeaders.indexOf('shortcut');
+  const appleProductsIndex = typeHeaders.indexOf('apple products');
+  if (typeCodeIndex < 0 || appleProductsIndex < 0) return [];
+  const enabledTypes = new Set(branchTypeData.slice(1)
+    .filter((row) => toPermissionBoolean(row[appleProductsIndex]))
+    .map((row) => String(row[typeCodeIndex] || '').trim().toUpperCase())
+    .filter(Boolean));
+  if (!enabledTypes.size) return [];
+
+  const branchesSheet = ensureSheet(spreadsheet, 'Branches');
+  const branchData = branchesSheet.getDataRange().getValues();
+  const branchHeaders = (branchData[0] || []).map((header) => String(header || '').trim().toLowerCase());
+  const branchNameIndex = branchHeaders.findIndex((header) => ['branch name', 'branch'].includes(header));
+  const branchTypeIndex = branchHeaders.findIndex((header) => ['branch type', 'branch code', 'type', 'code'].includes(header));
+  const statusIndex = branchHeaders.indexOf('status');
+  if (branchNameIndex < 0) return [];
+  return [...new Set(branchData.slice(1)
+    .filter((row) => {
+      const name = String(row[branchNameIndex] || '').trim();
+      const status = statusIndex < 0 ? 'active' : String(row[statusIndex] || 'Active').trim().toLowerCase();
+      const type = branchTypeIndex < 0
+        ? name.split(/\s+/)[0]
+        : (String(row[branchTypeIndex] || '').trim() || name.split(/\s+/)[0]);
+      return name && !['inactive', 'disabled', 'deactivated'].includes(status) && enabledTypes.has(type.toUpperCase());
+    })
+    .map((row) => String(row[branchNameIndex] || '').trim()))];
+}
+
+function readAppleProductRows(spreadsheet, branchFilter) {
+  const sheet = ensureSheet(spreadsheet, 'AppleProducts');
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift() || [];
+  const requestedBranch = String(branchFilter || '').trim().toLowerCase();
+  const branchIndex = headers.findIndex((header) => String(header || '').trim().toLowerCase() === 'branch');
+  const rows = data
+    .filter((row) => row.some((cell) => String(cell).trim() !== ''))
+    .map((row) => headers.reduce((record, header, index) => {
+      record[String(header).trim()] = row[index] === undefined ? '' : row[index];
+      return record;
+    }, {}))
+    .filter((row) => !requestedBranch || (branchIndex >= 0 && String(row[String(headers[branchIndex]).trim()] || '').trim().toLowerCase() === requestedBranch));
+  return jsonResponse({ ok: true, rows });
+}
+
+function updateAppleProductRow(spreadsheet, values) {
+  const sheet = ensureSheet(spreadsheet, 'AppleProducts');
+  migrateAppleProductSheetSchema(sheet);
+  const headers = getHeadersForAction('appleproducts');
+  const data = sheet.getDataRange().getValues();
+  const headerRow = data[0] || [];
+  const codeIndex = headerRow.findIndex((header) => String(header || '').trim().toLowerCase() === 'code');
+  const branchIndex = headerRow.findIndex((header) => String(header || '').trim().toLowerCase() === 'branch');
+  const originalCode = String(values.originalCode || '').trim();
+  const originalBranch = String(values.originalBranch || '').trim();
+  const nextCode = String(values.code || '').trim();
+  const nextBranch = String(values.branch || '').trim();
+  const actorRole = String(values.actorRole || '').trim();
+  const actorBranch = String(values.actorBranch || '').trim();
+
+  if (!originalCode || !originalBranch || !nextCode || !String(values.clientName || '').trim()) {
+    return jsonResponse({ ok: false, error: 'Original Code, Original Branch, Code, and Client Name are required.' });
+  }
+  const enabledBranches = readAppleProductBranches(spreadsheet);
+  if (!enabledBranches.some((branch) => branch.toLowerCase() === nextBranch.toLowerCase())) {
+    return jsonResponse({ ok: false, error: 'Apple Products are not enabled for this branch.' });
+  }
+  const isManager = ['Super Admin', 'Administrator'].includes(actorRole);
+  if (!isManager && (
+    !actorBranch
+    || actorBranch.toLowerCase() !== originalBranch.toLowerCase()
+    || actorBranch.toLowerCase() !== nextBranch.toLowerCase()
+  )) {
+    return jsonResponse({ ok: false, error: 'You can only edit Apple Products in your assigned branch.' });
+  }
+  if (codeIndex < 0 || branchIndex < 0) {
+    return jsonResponse({ ok: false, error: 'Code or Branch column not found in AppleProducts.' });
+  }
+
+  const matchingRows = [];
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+    if (
+      String(data[rowIndex][codeIndex] || '').trim().toLowerCase() === originalCode.toLowerCase()
+      && String(data[rowIndex][branchIndex] || '').trim().toLowerCase() === originalBranch.toLowerCase()
+    ) {
+      matchingRows.push(rowIndex + 1);
+    }
+  }
+  if (matchingRows.length !== 1) {
+    return jsonResponse({
+      ok: false,
+      error: matchingRows.length ? 'More than one matching Apple Product was found; the record was not changed.' : 'Apple Product was not found.'
+    });
+  }
+  const duplicateCode = data.some((row, rowIndex) => rowIndex > 0
+    && rowIndex + 1 !== matchingRows[0]
+    && String(row[codeIndex] || '').trim().toLowerCase() === nextCode.toLowerCase()
+    && String(row[branchIndex] || '').trim().toLowerCase() === nextBranch.toLowerCase());
+  if (duplicateCode) {
+    return jsonResponse({ ok: false, error: 'That Code is already in use for this branch.' });
+  }
+
+  const updatedRow = buildRowForAction('appleproducts', values);
+  sheet.getRange(matchingRows[0], 1, 1, headers.length).setValues([updatedRow]);
+  return jsonResponse({ ok: true, action: 'updateAppleProduct', updated: updatedRow });
 }
 
 function readRoleColors() {
@@ -348,11 +504,11 @@ function savePermissionSettings(spreadsheet, values) {
   }, {});
   const roleNames = [...defaults.map((row) => row[0]), ...Object.keys(permissions).filter((role) => !defaultsByRole[role])];
   const rows = roleNames.map((role) => {
-    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false, false];
+    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false, false, false];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
     const isSuperAdmin = role === 'Super Admin';
-    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement), isSuperAdmin ? defaultRow[16] : Boolean(rolePermissions.repair)];
+    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement), isSuperAdmin ? defaultRow[16] : Boolean(rolePermissions.repair), isSuperAdmin ? defaultRow[17] : Boolean(roleAccess.Phones)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);
@@ -377,17 +533,20 @@ function savePermissionSettings(spreadsheet, values) {
 
 function ensureBranchTypeSheet(spreadsheet) {
   const sheet = spreadsheet.getSheetByName('Branch Types') || spreadsheet.insertSheet('Branch Types');
-  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 3).setValues([['Shortcut', 'Full CodeName', 'Color']]);
-  const headers = sheet.getRange(1, 1, 1, Math.max(3, sheet.getLastColumn())).getValues()[0];
-  if (!headers.some((header) => String(header).trim().toLowerCase() === 'color')) sheet.getRange(1, 3).setValue('Color');
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, 4).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products']]);
+  const width = Math.max(3, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
+  const normalizedHeaders = headers.map((header) => String(header || '').trim().toLowerCase());
+  if (!normalizedHeaders.includes('color')) sheet.getRange(1, 3).setValue('Color');
+  if (!normalizedHeaders.includes('apple products')) sheet.getRange(1, Math.max(3, sheet.getLastColumn()) + 1).setValue('Apple Products');
   const properties = PropertiesService.getScriptProperties();
   if (properties.getProperty('BRANCH_TYPES_INITIALIZED') !== 'true') {
     const hasTypes = sheet.getLastRow() > 1 && sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().some((row) => String(row[0] || '').trim());
     if (!hasTypes) {
-      sheet.getRange(2, 1, 3, 3).setValues([
-        ['BNB', 'Bytes and Bots Gadget Center', '#21A675'],
-        ['EZ', '', '#3388CC'],
-        ['1LR', '', '#E3A83D']
+      sheet.getRange(2, 1, 3, 4).setValues([
+        ['BNB', 'Bytes and Bots Gadget Center', '#21A675', false],
+        ['EZ', '', '#3388CC', false],
+        ['1LR', '', '#E3A83D', false]
       ]);
     }
     properties.setProperty('BRANCH_TYPES_INITIALIZED', 'true');
@@ -399,9 +558,19 @@ function ensureBranchTypeSheet(spreadsheet) {
 function readBranchTypeSettings(spreadsheet) {
   const sheet = ensureBranchTypeSheet(spreadsheet);
   const rows = sheet.getDataRange().getValues().slice(1);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map((header) => String(header || '').trim().toLowerCase());
+  const shortcutIndex = headers.indexOf('shortcut');
+  const fullNameIndex = headers.indexOf('full codename');
+  const colorIndex = headers.indexOf('color');
+  const appleProductsIndex = headers.indexOf('apple products');
   const branchTypes = rows
-    .filter((row) => String(row[0] || '').trim())
-    .map((row) => ({ code: String(row[0]).trim().toUpperCase(), fullName: String(row[1] || '').trim(), color: String(row[2] || '').trim() }));
+    .filter((row) => shortcutIndex >= 0 && String(row[shortcutIndex] || '').trim())
+    .map((row) => ({
+      code: String(row[shortcutIndex]).trim().toUpperCase(),
+      fullName: fullNameIndex < 0 ? '' : String(row[fullNameIndex] || '').trim(),
+      color: colorIndex < 0 ? '' : String(row[colorIndex] || '').trim(),
+      appleProducts: appleProductsIndex >= 0 && toPermissionBoolean(row[appleProductsIndex])
+    }));
   return jsonResponse({ ok: true, branchTypes });
 }
 
@@ -426,13 +595,13 @@ function saveBranchTypeSettings(spreadsheet, values) {
     seenCodes.add(code);
     const color = String(type.color || '').trim().toUpperCase();
     if (!/^#[0-9A-F]{6}$/.test(color)) return jsonResponse({ ok: false, error: 'Branch type colors must be six-digit hex values.' });
-    rows.push([code, String(type.fullName || '').trim(), color]);
+    rows.push([code, String(type.fullName || '').trim(), color, Boolean(type.appleProducts)]);
   }
 
   const sheet = ensureBranchTypeSheet(spreadsheet);
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, 3).setValues([['Shortcut', 'Full CodeName', 'Color']]);
-  if (rows.length) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+  sheet.getRange(1, 1, 1, 4).setValues([['Shortcut', 'Full CodeName', 'Color', 'Apple Products']]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, 4).setValues(rows);
   sheet.setFrozenRows(1);
   PropertiesService.getScriptProperties().setProperty('BRANCH_TYPES_INITIALIZED', 'true');
   return jsonResponse({ ok: true, action: 'saveBranchTypes' });
@@ -880,8 +1049,8 @@ function deleteBranchRow(spreadsheet, branchName) {
 }
 
 function updateUnitRow(spreadsheet, values) {
-  if (String(values.status || '').trim() === 'For Diagnose' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
-    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnose' });
+  if (String(values.status || '').trim() === 'For Diagnosis' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnosis' });
   }
 
   const sheet = ensureSheet(spreadsheet, 'Units');
@@ -1115,6 +1284,8 @@ function ensureSheet(spreadsheet, sheetName) {
       ? 'branches'
       : normalizedSheetName === 'messages'
         ? 'messages'
+        : normalizedSheetName === 'appleproducts'
+          ? 'appleproducts'
         : 'units';
   const desiredHeaders = getHeadersForAction(sheetAction);
   if (sheetAction === 'units') {
@@ -1228,6 +1399,8 @@ function getHeadersForAction(action) {
       return ['Branch Type', 'Location', 'Branch Name', 'Head Admin', 'Status'];
     case 'messages':
       return ['Message ID', 'Sender', 'Sender Name', 'Recipient', 'Recipient Name', 'Cc', 'Cc Name', 'Bcc', 'Bcc Name', 'Subject', 'Body', 'Sent At', 'Read', 'Thread ID', 'Attachments'];
+    case 'appleproducts':
+      return ['Code', 'Client Name', 'Address', 'Contact Info', 'Status', 'Serial Number', 'IMEI', 'Branch', 'Date of Purchase', 'Date of Return', 'Date Transferred to Warehouse', 'Date Left Warehouse', 'Complaint'];
     case 'units':
     default:
       return [
@@ -1298,6 +1471,22 @@ function buildRowForAction(action, values) {
         values.threadId || values.messageId || '',
         values.attachments || '[]'
       ];
+    case 'appleproducts':
+      return [
+        values.code || '',
+        values.clientName || '',
+        values.address || '',
+        values.contactInfo || '',
+        values.status || '',
+        values.serialNumber || '',
+        values.imei || '',
+        values.branch || '',
+        values.dateOfPurchase || '',
+        values.dateOfReturn || '',
+        values.dateTransferredToWarehouse || '',
+        values.dateLeftWarehouse || '',
+        values.complaint || ''
+      ];
     case 'units':
     default:
       return [
@@ -1335,6 +1524,32 @@ function buildRowForAction(action, values) {
 
 function ensureUnitDateColumns(sheet) {
   migrateUnitSheetSchema(sheet);
+}
+
+function migrateAppleProductSheetSchema(sheet) {
+  const desiredHeaders = getHeadersForAction('appleproducts');
+  const sourceData = sheet.getDataRange().getValues();
+  const sourceHeaders = sourceData[0] || [];
+  const isCanonical = desiredHeaders.every((header, index) => (
+    String(sourceHeaders[index] || '').trim().toLowerCase() === header.toLowerCase()
+  )) && sourceHeaders.length >= desiredHeaders.length;
+  if (isCanonical) return;
+
+  const sourceHeaderIndexes = sourceHeaders.reduce((indexes, header, index) => {
+    const normalized = String(header || '').trim().toLowerCase();
+    if (normalized && indexes[normalized] === undefined) indexes[normalized] = index;
+    return indexes;
+  }, {});
+  const migratedData = [desiredHeaders];
+  sourceData.slice(1).forEach((sourceRow) => {
+    migratedData.push(desiredHeaders.map((header) => {
+      const sourceIndex = sourceHeaderIndexes[header.toLowerCase()];
+      return sourceIndex === undefined ? '' : sourceRow[sourceIndex];
+    }));
+  });
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, migratedData.length, desiredHeaders.length).setValues(migratedData);
 }
 
 function migrateUnitSheetSchema(sheet) {
