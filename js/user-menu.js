@@ -151,13 +151,36 @@ function getCustomRolePermissionDefaults() {
 }
 
 function getCustomRolePageDefaults() {
-  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
+  return { 'Laptop Dashboard': true, 'Phone Dashboard': false, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
+}
+
+function normalizePageAccessSettings(pageAccess = {}) {
+  const normalized = { ...pageAccess };
+  if (normalized['Laptop Dashboard'] === undefined) {
+    if (normalized.Dashboard !== undefined) normalized['Laptop Dashboard'] = normalized.Dashboard;
+    else if (normalized.Overview !== undefined) normalized['Laptop Dashboard'] = normalized.Overview;
+  }
+  delete normalized.Dashboard;
+  delete normalized.Overview;
+  return normalized;
 }
 
 function getCurrentPagePath() {
-  const currentPath = window.location.pathname;
-  const normalized = currentPath.split('/').pop();
-  return normalized === 'index.html' ? '../index.html' : currentPath.endsWith('messages.html') ? 'pages/messages.html' : currentPath.endsWith('units.html') ? 'pages/units.html' : currentPath.endsWith('trash.html') ? 'pages/trash.html' : currentPath.endsWith('branches.html') ? 'pages/branches.html' : currentPath.endsWith('accounts.html') ? 'pages/accounts.html' : currentPath.endsWith('settings.html') ? 'pages/settings.html' : currentPath.endsWith('phones.html') ? 'pages/phones.html' : currentPath.endsWith('apple-products.html') ? 'pages/phones.html' : '../index.html';
+  const normalized = window.location.pathname.split('/').pop();
+  if (normalized === 'index.html') return '../index.html';
+
+  const pagePaths = {
+    'phone-dashboard.html': 'pages/phone-dashboard.html',
+    'messages.html': 'pages/messages.html',
+    'units.html': 'pages/units.html',
+    'trash.html': 'pages/trash.html',
+    'branches.html': 'pages/branches.html',
+    'accounts.html': 'pages/accounts.html',
+    'settings.html': 'pages/settings.html',
+    'phones.html': 'pages/phones.html',
+    'apple-products.html': 'pages/phones.html'
+  };
+  return pagePaths[normalized] || '../index.html';
 }
 
 const DEFAULT_ROLE_PERMISSIONS = {
@@ -170,7 +193,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
 };
 
 const PAGE_ACCESS_OPTIONS = {
-  Overview: '../index.html',
+  'Laptop Dashboard': '../index.html',
+  'Phone Dashboard': 'pages/phone-dashboard.html',
   Messages: 'pages/messages.html',
   'Unit registry': 'pages/units.html',
   Trash: 'pages/trash.html',
@@ -182,10 +206,10 @@ const PAGE_ACCESS_OPTIONS = {
 const DEFAULT_PAGE_ACCESS = {
   'Super Admin': Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
   Administrator: Object.keys(PAGE_ACCESS_OPTIONS).reduce((access, page) => ({ ...access, [page]: true }), {}),
-  'Main Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
-  'Branch Head Admin': { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true },
-  Office: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
-  Technician: { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true }
+  'Main Head Admin': { 'Laptop Dashboard': true, 'Phone Dashboard': true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
+  'Branch Head Admin': { 'Laptop Dashboard': true, 'Phone Dashboard': true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true },
+  Office: { 'Laptop Dashboard': true, 'Phone Dashboard': true, Messages: true, 'Unit registry': true, Trash: false, Branches: true, Accounts: true, Phones: true },
+  Technician: { 'Laptop Dashboard': true, 'Phone Dashboard': true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: true }
 };
 
 function getRolePermissions() {
@@ -247,7 +271,7 @@ function getPageAccess() {
     const roleNames = new Set([...Object.keys(DEFAULT_PAGE_ACCESS), ...Object.keys(saved)]);
     const access = [...roleNames].reduce((pageAccess, role) => {
       const defaults = DEFAULT_PAGE_ACCESS[role] || getCustomRolePageDefaults();
-      pageAccess[role] = { ...defaults, ...(saved[role] || {}) };
+      pageAccess[role] = { ...defaults, ...normalizePageAccessSettings(saved[role] || {}) };
       return pageAccess;
     }, {});
     access['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
@@ -262,7 +286,7 @@ function getEffectivePageAccess(role = getCurrentRole()) {
   const username = String(localStorage.getItem('unitflowUser') || '').trim().toLowerCase();
   const override = getUserPermissionOverrides()[username];
   if (role !== 'Super Admin' && override && override.enabled && override.pageAccess) {
-    access[role] = { ...access[role], ...override.pageAccess };
+    access[role] = { ...access[role], ...normalizePageAccessSettings(override.pageAccess) };
   }
   return access;
 }
@@ -280,7 +304,7 @@ function isAllowedPage(targetHref, allowedPages) {
 function getAllowedPagesForRole(role) {
   const pageAccess = getEffectivePageAccess(role)[role] || DEFAULT_PAGE_ACCESS.Technician;
   const pages = Object.entries(PAGE_ACCESS_OPTIONS)
-    .filter(([page]) => pageAccess[page] && (page !== 'Phones' || canAccessAppleProducts(role)))
+    .filter(([page]) => pageAccess[page] && (!['Phones', 'Phone Dashboard'].includes(page) || canAccessAppleProducts(role)))
     .map(([, path]) => path);
 
   if (isPermissionManager(role)) {
@@ -355,6 +379,20 @@ function ensureAppleProductsNavigationLink() {
   else navScroll.append(link);
 }
 
+function ensurePhoneDashboardNavigationLink() {
+  const navScroll = document.querySelector('.nav-scroll');
+  if (!navScroll || navScroll.querySelector('[data-phone-dashboard-nav]')) return;
+  const dashboardLink = navScroll.querySelector('.nav-item[href$="index.html"]');
+  if (!dashboardLink) return;
+
+  const link = document.createElement('a');
+  link.className = 'nav-item';
+  link.href = resolveRoutePath('pages/phone-dashboard.html');
+  link.dataset.phoneDashboardNav = 'true';
+  link.innerHTML = '<span class="nav-icon" aria-hidden="true">📱</span>Phone Dashboard';
+  dashboardLink.after(link);
+}
+
 window.refreshAppleProductsNavigation = () => {
   ensureAppleProductsNavigationLink();
   applyRoleRestrictions();
@@ -375,10 +413,27 @@ function resolveRoutePath(targetPath) {
 
 function applyRoleRestrictions() {
   ensureAppleProductsNavigationLink();
+  ensurePhoneDashboardNavigationLink();
   const role = getCurrentRole();
   const allowedPages = getAllowedPagesForRole(role);
   const currentPagePath = getCurrentPagePath();
   const currentView = new URLSearchParams(window.location.search).get('view') || 'monitoring';
+
+  const dashboardLink = document.querySelector('.nav-item[href$="index.html"]');
+  if (dashboardLink) {
+    const isCurrentPage = window.location.pathname.endsWith('/index.html') || !window.location.pathname.split('/').pop();
+    dashboardLink.classList.toggle('active', isCurrentPage);
+    if (isCurrentPage) dashboardLink.setAttribute('aria-current', 'page');
+    else dashboardLink.removeAttribute('aria-current');
+  }
+
+  const phoneDashboardLink = document.querySelector('[data-phone-dashboard-nav]');
+  if (phoneDashboardLink) {
+    const isCurrentPage = window.location.pathname.endsWith('phone-dashboard.html');
+    phoneDashboardLink.classList.toggle('active', isCurrentPage);
+    if (isCurrentPage) phoneDashboardLink.setAttribute('aria-current', 'page');
+    else phoneDashboardLink.removeAttribute('aria-current');
+  }
 
   const manageBranchLink = document.getElementById('manageBranchLink');
   if (manageBranchLink) {

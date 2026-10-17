@@ -8,7 +8,7 @@ const DATA = {
       throw new Error('Add your spreadsheet ID in gs/config.js before loading the app.');
     }
 
-    const url = `https://docs.google.com/spreadsheets/d/${resolvedSheetId}/export?format=csv&gid=${resolvedGid}`;
+    const url = `https://docs.google.com/spreadsheets/d/${resolvedSheetId}/export?format=csv&gid=${resolvedGid}&_=${Date.now()}`;
     const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {

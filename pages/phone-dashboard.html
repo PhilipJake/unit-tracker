@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phone Dashboard | Unitflow</title>
+    <link rel="icon" type="image/svg+xml" href="../images/favicon.svg" />
+    <script src="../js/theme-init.js"></script>
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">U</div><span>unitflow</span></div>
+      <nav class="nav">
+        <div class="nav-scroll">
+          <div class="nav-label">Workspace</div>
+          <a class="nav-item" href="../index.html"><span class="nav-icon">▣</span>Laptop Dashboard</a>
+          <a class="nav-item messages-nav-item" href="messages.html" aria-label="Open Messages">
+            <span class="nav-icon">✉</span>
+            <span>Messages</span>
+            <span class="nav-count" data-message-nav-count hidden></span>
+          </a>
+          <div class="nav-group" data-unit-menu>
+            <div class="nav-group-header">
+              <a class="nav-item" href="units.html?view=monitoring"><span class="nav-icon">▤</span>Units</a>
+              <button class="nav-collapse-btn" type="button" data-unit-menu-toggle aria-expanded="false" aria-label="Expand Units menu" title="Expand Units menu"></button>
+            </div>
+            <div class="nav-submenu" aria-label="Unit views" hidden>
+              <a class="nav-item nav-subitem" href="units.html?view=for-release">For Release</a>
+              <a class="nav-item nav-subitem" href="units.html?view=released">Released</a>
+              <a class="nav-item nav-subitem" href="units.html?view=for-repair">For Repair</a>
+              <a class="nav-item nav-subitem" href="units.html?view=replaced">For Replacement</a>
+              <a class="nav-item nav-subitem" href="units.html?view=warehouse">Warehouse</a>
+              <a class="nav-item nav-subitem" href="units.html?view=pull-out">Pull Out</a>
+            </div>
+          </div>
+          <a class="nav-item" href="branches.html"><span class="nav-icon">⎇</span>Branches</a>
+          <a class="nav-item" href="phones.html" data-apple-products-nav="true"><span class="nav-icon" aria-hidden="true">📱</span>Phones</a>
+          <a class="nav-item" href="accounts.html"><span class="nav-icon">◉</span>Accounts</a>
+        </div>
+        <a class="nav-item" id="settingsLink" href="settings.html"><span class="nav-icon">⚙</span>Settings</a>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="breadcrumb">Workspace <span>/</span> Phone overview</div>
+        <div class="topbar-right">
+          <div class="sync-pill"><span class="dot live"></span><span id="phoneDashboardSyncStatus">Loading</span></div>
+          <div class="user-menu">
+            <button class="user-pill" id="userMenuButton" type="button" aria-expanded="false"><div class="user-avatar">U</div><span id="topbarUserName">User</span></button>
+            <div class="user-dropdown" id="userDropdown" hidden><button type="button" id="logoutButton">Logout</button></div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="header-row">
+          <div class="heading-block">
+            <div class="eyebrow" id="phoneDashboardDate">Phone workspace</div>
+            <h1 id="phoneDashboardGreeting">Phone Dashboard</h1>
+            <p>Track phone inventory, returns, and warehouse transfers for the branches you can access.</p>
+          </div>
+          <a class="action-btn primary" href="phones.html">Open Phones registry</a>
+        </div>
+
+        <section class="summary-grid" aria-label="Phone summary">
+          <article class="summary-card dark">
+            <div class="card-top"><span>Total phones</span><span class="card-icon" aria-hidden="true">📱</span></div>
+            <div><div class="value-row"><strong class="card-value" id="phoneDashboardTotal">—</strong></div><div class="card-meta" id="phoneDashboardBranchSummary">Across enabled branches</div></div>
+          </article>
+          <article class="summary-card">
+            <div class="card-top"><span>For release</span><span class="card-icon" aria-hidden="true">↗</span></div>
+            <div><div class="value-row"><strong class="card-value" id="phoneDashboardForRelease">—</strong></div><div class="card-meta">Awaiting return to client</div></div>
+          </article>
+          <article class="summary-card">
+            <div class="card-top"><span>Released</span><span class="card-icon" aria-hidden="true">✓</span></div>
+            <div><div class="value-row"><strong class="card-value" id="phoneDashboardReleased">—</strong></div><div class="card-meta">Returned to client</div></div>
+          </article>
+          <article class="summary-card">
+            <div class="card-top"><span>In warehouse</span><span class="card-icon" aria-hidden="true">▣</span></div>
+            <div><div class="value-row"><strong class="card-value" id="phoneDashboardWarehouse">—</strong></div><div class="card-meta">Currently transferred in</div></div>
+          </article>
+        </section>
+
+        <section class="lower-grid">
+          <div class="panel table-panel">
+            <div class="panel-header">
+              <h2>Recent phone purchases</h2>
+              <a href="phones.html">View registry →</a>
+            </div>
+            <div class="table-wrap">
+              <table class="overview-table">
+                <thead><tr><th>Phone code</th><th>Client name</th><th>Status</th><th>Branch</th><th>Date purchased</th></tr></thead>
+                <tbody id="phoneDashboardRecentRows"><tr><td colspan="5">Loading phones…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <aside class="panel branch-panel">
+            <div class="panel-header"><h2>Phones by branch</h2></div>
+            <div id="phoneDashboardBranchList" class="branch-list"><div class="empty-state">Loading branches…</div></div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script src="../gs/config.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="../js/user-menu.js"></script>
+    <script src="../js/phone-dashboard.js"></script>
+  </body>
+</html>

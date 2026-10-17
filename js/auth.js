@@ -235,7 +235,7 @@ if (loginForm) {
       await new Promise((resolve) => setTimeout(resolve, remainingLoadingTime));
     }
 
-    const landingPage = isAppleProductBranch(account.branch) ? 'pages/phones.html' : 'index.html';
+    const landingPage = isAppleProductBranch(account.branch) ? 'pages/phone-dashboard.html' : 'index.html';
     window.location.href = resolveAppPath(landingPage);
   });
 }

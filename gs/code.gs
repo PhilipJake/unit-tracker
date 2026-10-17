@@ -209,17 +209,17 @@ function doPost(e) {
 }
 
 function getPermissionHeaders() {
-  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Overview', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement', 'Repair', 'Phones'];
+  return ['Role', 'View', 'Create', 'Edit', 'Delete', 'Export', 'Release', 'Laptop Dashboard', 'Phone Dashboard', 'Messages', 'Unit registry', 'Trash', 'Branches', 'Accounts', 'Warehouse', 'Pullout', 'For Replacement', 'Repair', 'Phones'];
 }
 
 function getDefaultPermissionRows() {
   return [
-    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    ['Office', true, false, false, false, true, false, true, true, true, false, true, true, false, false, false, false, true],
-    ['Main Head Admin', true, true, true, true, true, false, true, true, true, false, true, true, true, true, true, true, true],
-    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, false, false, false, true, true, true, true, true],
-    ['Technician', true, true, true, false, false, true, true, true, true, false, false, false, true, true, true, true, true]
+    ['Super Admin', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Administrator', true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    ['Office', true, false, false, false, true, false, true, true, true, true, false, true, true, false, false, false, false, true],
+    ['Main Head Admin', true, true, true, true, true, false, true, true, true, true, false, true, true, true, true, true, true, true],
+    ['Branch Head Admin', true, true, true, false, false, false, true, true, true, true, false, false, false, true, true, true, true, true],
+    ['Technician', true, true, true, false, false, true, true, true, true, true, false, false, false, true, true, true, true, true]
   ];
 }
 
@@ -228,24 +228,50 @@ function ensurePermissionSheet(spreadsheet) {
   if (!sheet) sheet = spreadsheet.insertSheet('Permissions');
 
   const headers = getPermissionHeaders();
+  const existingWidth = Math.max(sheet.getLastColumn(), 1);
+  const existingHeaders = sheet.getRange(1, 1, 1, existingWidth).getValues()[0];
+  if (sheet.getLastRow() === 0 || existingHeaders.every((cell) => String(cell).trim() === '')) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(2, 1, getDefaultPermissionRows().length, headers.length).setValues(getDefaultPermissionRows());
+    sheet.setFrozenRows(1);
+    sheet.setTabColor('#7fe2a7');
+    return sheet;
+  }
+
   const currentWidth = Math.max(sheet.getLastColumn(), headers.length - 1);
-  const currentHeaders = sheet.getRange(1, 1, 1, currentWidth).getValues()[0];
+  let currentHeaders = sheet.getRange(1, 1, 1, currentWidth).getValues()[0];
   if (!currentHeaders.some((cell) => String(cell).trim().toLowerCase() === 'release')) {
     sheet.insertColumnAfter(6);
     sheet.getRange(1, 7).setValue('Release');
+    currentHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length - 1)).getValues()[0];
   }
   const headerRange = sheet.getRange(1, 1, 1, headers.length);
   const refreshedHeaders = headerRange.getValues()[0];
   if (refreshedHeaders.every((cell) => String(cell).trim() === '')) {
     headerRange.setValues([headers]);
   } else {
-    headers.slice(13).forEach((header) => {
+    headers.slice(7).forEach((header) => {
       const width = Math.max(sheet.getLastColumn(), headers.length - 3);
       const existingHeaders = sheet.getRange(1, 1, 1, width).getValues()[0];
-      if (!existingHeaders.some((cell) => String(cell).trim().toLowerCase() === header.toLowerCase())) {
+      const hasHeader = existingHeaders.some((cell) => {
+        const normalized = String(cell).trim().toLowerCase();
+        return normalized === header.toLowerCase()
+          || (header === 'Laptop Dashboard' && ['overview', 'dashboard'].includes(normalized));
+      });
+      if (!hasHeader) {
         sheet.getRange(1, width + 1).setValue(header);
       }
     });
+  }
+
+  const allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const laptopDashboardColumn = allHeaders.findIndex((cell) => ['overview', 'dashboard', 'laptop dashboard'].includes(String(cell).trim().toLowerCase())) + 1;
+  if (laptopDashboardColumn > 0 && String(allHeaders[laptopDashboardColumn - 1]).trim().toLowerCase() !== 'laptop dashboard') {
+    sheet.getRange(1, laptopDashboardColumn).setValue('Laptop Dashboard');
+  }
+  const phoneDashboardColumn = allHeaders.findIndex((cell) => String(cell).trim().toLowerCase() === 'phone dashboard') + 1;
+  if (phoneDashboardColumn > 0 && laptopDashboardColumn > 0 && phoneDashboardColumn !== laptopDashboardColumn + 1) {
+    sheet.moveColumns(sheet.getRange(1, phoneDashboardColumn, sheet.getMaxRows(), 1), laptopDashboardColumn + 1);
   }
 
   if (sheet.getLastRow() <= 1) {
@@ -253,10 +279,34 @@ function ensurePermissionSheet(spreadsheet) {
   }
   migrateTechnicianReleaseDefault(sheet);
   migrateUnitActionPermissionDefaults(sheet);
+  migratePhoneDashboardPermissionDefault(sheet);
 
   sheet.setFrozenRows(1);
   sheet.setTabColor('#7fe2a7');
   return sheet;
+}
+
+function migratePhoneDashboardPermissionDefault(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map((header) => String(header || '').trim().toLowerCase());
+  const phoneAccessIndex = headers.indexOf('phones');
+  const dashboardAccessIndex = headers.indexOf('phone dashboard');
+  if (dashboardAccessIndex < 0) return;
+  const defaultsByRole = getDefaultPermissionRows().reduce((defaults, row) => {
+    defaults[row[0]] = row;
+    return defaults;
+  }, {});
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, getPermissionHeaders().length).getValues();
+  rows.forEach((row, rowIndex) => {
+    if (String(row[dashboardAccessIndex] == null ? '' : row[dashboardAccessIndex]).trim() !== '') return;
+    const role = String(row[0] || '').trim();
+    const roleDefaults = defaultsByRole[role];
+    const phonesEnabled = phoneAccessIndex >= 0 && String(row[phoneAccessIndex] == null ? '' : row[phoneAccessIndex]).trim() !== ''
+      ? toPermissionBoolean(row[phoneAccessIndex])
+      : Boolean(roleDefaults && roleDefaults[18]);
+    sheet.getRange(rowIndex + 2, dashboardAccessIndex + 1).setValue(phonesEnabled);
+  });
 }
 
 function migrateUnitActionPermissionDefaults(sheet) {
@@ -270,7 +320,7 @@ function migrateUnitActionPermissionDefaults(sheet) {
     const roleDefaults = defaultsByRole[String(row[0] || '').trim()];
     if (!roleDefaults) return;
     sheet.getRange(rowIndex + 2, 2).setValue(true);
-    [14, 15, 16, 17].forEach((column) => {
+    [15, 16, 17, 18].forEach((column) => {
       if (String(row[column - 1] == null ? '' : row[column - 1]).trim() === '') {
         sheet.getRange(rowIndex + 2, column).setValue(roleDefaults[column - 1]);
       }
@@ -280,10 +330,17 @@ function migrateUnitActionPermissionDefaults(sheet) {
 
 function migrateTechnicianReleaseDefault(sheet) {
   if (sheet.getLastRow() < 2) return;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map((header) => String(header || '').trim().toLowerCase());
+  const fieldIndexes = ['role', 'view', 'create', 'edit', 'delete', 'export', 'release', 'laptop dashboard', 'messages', 'unit registry', 'trash', 'branches', 'accounts']
+    .map((header) => headers.indexOf(header));
+  if (fieldIndexes.some((index) => index < 0)) return;
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, getPermissionHeaders().length).getValues();
-  const oldTechnicianDefaults = ['Technician', true, true, true, false, false, false, true, true, true, false, false, false];
-  const rowIndex = rows.findIndex((row) => oldTechnicianDefaults.every((value, index) => (
-    index === 0 ? String(row[index] || '').trim() === value : toPermissionBoolean(row[index]) === value
+  const oldDefaultValues = ['technician', true, true, true, false, false, false, true, true, true, false, false, false];
+  const rowIndex = rows.findIndex((row) => fieldIndexes.every((fieldIndex, index) => (
+    index === 0
+      ? String(row[fieldIndex] || '').trim().toLowerCase() === oldDefaultValues[index]
+      : toPermissionBoolean(row[fieldIndex]) === oldDefaultValues[index]
   )));
   if (rowIndex !== -1) sheet.getRange(rowIndex + 2, 7).setValue(true);
 }
@@ -301,26 +358,28 @@ function readPermissionSettings(spreadsheet) {
 
   rows.forEach((row) => {
     const role = String(row[0]).trim();
-    permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[13]), pullOut: toPermissionBoolean(row[14]), forReplacement: toPermissionBoolean(row[15]), repair: toPermissionBoolean(row[16]) };
-    const savedPhonesAccess = row[17];
+    permissions[role] = { view: true, create: toPermissionBoolean(row[2]), edit: toPermissionBoolean(row[3]), delete: toPermissionBoolean(row[4]), export: toPermissionBoolean(row[5]), release: toPermissionBoolean(row[6]), warehouse: toPermissionBoolean(row[14]), pullOut: toPermissionBoolean(row[15]), forReplacement: toPermissionBoolean(row[16]), repair: toPermissionBoolean(row[17]) };
     const legacyPhonesDefault = ['Super Admin', 'Administrator', 'Main Head Admin', 'Branch Head Admin', 'Office', 'Technician'].includes(role);
     pageAccess[role] = {
-      Overview: toPermissionBoolean(row[7]),
-      Messages: toPermissionBoolean(row[8]),
-      'Unit registry': toPermissionBoolean(row[9]),
-      Trash: toPermissionBoolean(row[10]),
-      Branches: toPermissionBoolean(row[11]),
-      Accounts: toPermissionBoolean(row[12]),
-      Phones: String(savedPhonesAccess === undefined ? '' : savedPhonesAccess).trim() === ''
+      'Laptop Dashboard': toPermissionBoolean(row[7]),
+      'Phone Dashboard': String(row[8] === undefined ? '' : row[8]).trim() === ''
         ? legacyPhonesDefault
-        : toPermissionBoolean(savedPhonesAccess)
+        : toPermissionBoolean(row[8]),
+      Messages: toPermissionBoolean(row[9]),
+      'Unit registry': toPermissionBoolean(row[10]),
+      Trash: toPermissionBoolean(row[11]),
+      Branches: toPermissionBoolean(row[12]),
+      Accounts: toPermissionBoolean(row[13]),
+      Phones: String(row[18] === undefined ? '' : row[18]).trim() === ''
+        ? legacyPhonesDefault
+        : toPermissionBoolean(row[18])
     };
   });
 
   const defaults = getDefaultPermissionRows();
   const superAdminDefaults = defaults[0];
-  permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[13], pullOut: superAdminDefaults[14], forReplacement: superAdminDefaults[15], repair: superAdminDefaults[16] };
-  pageAccess['Super Admin'] = { ...(pageAccess['Super Admin'] || {}), Phones: true };
+  permissions['Super Admin'] = { view: true, create: superAdminDefaults[2], edit: superAdminDefaults[3], delete: superAdminDefaults[4], export: superAdminDefaults[5], release: superAdminDefaults[6], warehouse: superAdminDefaults[14], pullOut: superAdminDefaults[15], forReplacement: superAdminDefaults[16], repair: superAdminDefaults[17] };
+  pageAccess['Super Admin'] = { ...(pageAccess['Super Admin'] || {}), Phones: true, 'Phone Dashboard': true };
   const branchFeatures = readBranchFeatureAssignments(spreadsheet);
   return jsonResponse({
     ok: true,
@@ -529,11 +588,11 @@ function savePermissionSettings(spreadsheet, values) {
   }, {});
   const roleNames = [...defaults.map((row) => row[0]), ...Object.keys(permissions).filter((role) => !defaultsByRole[role])];
   const rows = roleNames.map((role) => {
-    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, true, true, false, false, false, false, false, false, false, false];
+    const defaultRow = defaultsByRole[role] || [role, true, false, false, false, false, false, true, false, true, true, false, false, false, false, false, false, false, false];
     const rolePermissions = role === 'Super Admin' ? {} : (permissions[role] || {});
     const roleAccess = role === 'Super Admin' ? {} : (pageAccess[role] || {});
     const isSuperAdmin = role === 'Super Admin';
-    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[13] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.forReplacement), isSuperAdmin ? defaultRow[16] : Boolean(rolePermissions.repair), isSuperAdmin ? defaultRow[17] : Boolean(roleAccess.Phones)];
+    return [role, true, isSuperAdmin ? defaultRow[2] : Boolean(rolePermissions.create), isSuperAdmin ? defaultRow[3] : Boolean(rolePermissions.edit), isSuperAdmin ? defaultRow[4] : Boolean(rolePermissions.delete), isSuperAdmin ? defaultRow[5] : Boolean(rolePermissions.export), isSuperAdmin ? defaultRow[6] : Boolean(rolePermissions.release), isSuperAdmin ? defaultRow[7] : Boolean(roleAccess['Laptop Dashboard'] ?? roleAccess.Dashboard ?? roleAccess.Overview), isSuperAdmin ? defaultRow[8] : Boolean(roleAccess['Phone Dashboard']), isSuperAdmin ? defaultRow[9] : Boolean(roleAccess.Messages), isSuperAdmin ? defaultRow[10] : Boolean(roleAccess['Unit registry']), isSuperAdmin ? defaultRow[11] : Boolean(roleAccess.Trash), isSuperAdmin ? defaultRow[12] : Boolean(roleAccess.Branches), isSuperAdmin ? defaultRow[13] : Boolean(roleAccess.Accounts), isSuperAdmin ? defaultRow[14] : Boolean(rolePermissions.warehouse), isSuperAdmin ? defaultRow[15] : Boolean(rolePermissions.pullOut), isSuperAdmin ? defaultRow[16] : Boolean(rolePermissions.forReplacement), isSuperAdmin ? defaultRow[17] : Boolean(rolePermissions.repair), isSuperAdmin ? defaultRow[18] : Boolean(roleAccess.Phones)];
   });
 
   const sheet = ensurePermissionSheet(spreadsheet);

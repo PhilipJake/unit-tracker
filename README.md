@@ -9,6 +9,7 @@ A lightweight web app for tracking client units by branch using Google Sheets as
 - `js/app.js` – app logic and polling
 - `js/data.js` – CSV parsing and live fetch logic
 - `js/ui.js` – rendering summary and table UI
+- `pages/phone-dashboard.html` and `js/phone-dashboard.js` – phone overview for Apple Product branch accounts
 - `pages/phones.html` and `js/apple-products.js` – Phones registry and entry form for Apple Product branches
 - `gs/config.js` – Google Sheets configuration
 
@@ -66,7 +67,7 @@ Then visit:
 
 ## Notes
 
-- The overview and unit registry automatically poll the Google Sheet every 15 seconds by default, so changes made by other users appear without refreshing the page. The interval can be changed in `gs/config.js`.
+- The overview and unit registry automatically poll the Google Sheet every 15 seconds by default, so added or changed units appear without refreshing the page. Each CSV request uses a unique cache-busting query parameter, and the overview refreshes when you return to its tab. The interval can be changed in `gs/config.js`.
 - The app expects the sheet to be exported as CSV and the first sheet/tab to be used by default.
 
 ## Messaging
@@ -83,9 +84,9 @@ Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUn
 
 ## Access control
 
-Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. The Phones page has a role-level access option, and Apple Product branch eligibility is also required. Account type options refresh from saved database roles. View is always allowed and locked; release, warehouse, pullout, replacement, and repair permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
+Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. The Laptop Dashboard and Phone Dashboard appear next to each other in navigation when enabled for the role; the Phones registry and Phone Dashboard have separate access options, and Apple Product branch eligibility is also required for phone pages. Account type options refresh from saved database roles. View is always allowed and locked; release, warehouse, pullout, replacement, and repair permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
 
-Super Admins and Administrators can enable Apple Products for a branch type using the checkbox in Settings → Branch Types. Every branch using an enabled shortcut can use the Phones registry, which is the default landing page for accounts assigned to those branches. The registry stores records in `AppleProducts` with `Status` immediately after `Contact Info` and `Branch` after `IMEI`, so records remain associated with the selected branch. Run `initializeClientUnitTrackerSheets()` to create the sheet, or let the Apps Script create it when the registry is first opened. Redeploy the Apps Script web app after updating `gs/code.gs`.
+Super Admins and Administrators can enable Apple Products for a branch type using the checkbox in Settings → Branch Types. Every branch using an enabled shortcut can use the Phones registry. Accounts assigned to those branches land on a phone-specific dashboard with phone totals, release and warehouse counts, recent purchases, and branch totals; the Phones navigation opens the full registry. The registry stores records in `AppleProducts` with `Status` immediately after `Contact Info` and `Branch` after `IMEI`, so records remain associated with the selected branch. Run `initializeClientUnitTrackerSheets()` to create the sheet, or let the Apps Script create it when the registry is first opened. Redeploy the Apps Script web app after updating `gs/code.gs`.
 
 Super Admins and Administrators can also enable Unit Registry per branch type in Settings → Branch Types. The Units navigation and submenu are hidden for branches whose type does not have Unit Registry enabled. Existing branch types are migrated with Unit Registry enabled to preserve current access; disable it for Apple Products-only types as needed. Redeploy the Apps Script web app after updating `gs/code.gs`.
 

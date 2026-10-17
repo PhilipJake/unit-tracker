@@ -345,7 +345,7 @@ function createCustomRolePermissions() {
 }
 
 function createCustomRolePageAccess() {
-  return { Overview: true, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
+  return { 'Laptop Dashboard': true, 'Phone Dashboard': false, Messages: true, 'Unit registry': true, Trash: false, Branches: false, Accounts: false, Phones: false };
 }
 
 function cloneDefaultPermissions() {
@@ -559,7 +559,7 @@ function renderMemberPermissions() {
   const rolePermissions = rolePermissionsState[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician;
   const rolePageAccess = pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician;
   const permissions = { ...rolePermissions, ...(override && override.permissions) };
-  const pageAccess = { ...rolePageAccess, ...(override && override.pageAccess) };
+  const pageAccess = { ...rolePageAccess, ...normalizePageAccessSettings((override && override.pageAccess) || {}) };
   memberPageAccessGrid.innerHTML = Object.keys(PAGE_ACCESS_OPTIONS).map((page) => `
     <label class="page-access-option"><span><strong>${page}</strong><small>Allow this member to open ${page}.</small></span><input type="checkbox" data-member-page="${page}" ${pageAccess[page] ? 'checked' : ''}></label>
   `).join('');
@@ -605,7 +605,7 @@ function captureMemberOverrides() {
   const username = member.username.toLowerCase();
   const existing = userPermissionOverrides[username] || {};
   const permissions = { ...(rolePermissionsState[member.role] || DEFAULT_ROLE_PERMISSIONS.Technician), ...(existing.permissions || {}) };
-  const pageAccess = { ...(pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician), ...(existing.pageAccess || {}) };
+  const pageAccess = { ...(pageAccessState[member.role] || DEFAULT_PAGE_ACCESS.Technician), ...normalizePageAccessSettings(existing.pageAccess || {}) };
   memberPermissionEditor.querySelectorAll('[data-member-action]').forEach((input) => {
     permissions[input.dataset.memberAction] = input.checked;
   });
@@ -750,8 +750,12 @@ async function loadPermissionsFromServer() {
     if (!response.ok || result.ok === false || !result.permissions || !result.pageAccess) throw new Error(result.error || 'Permission load failed');
 
     localStorage.setItem('unitflowRolePermissions', JSON.stringify(result.permissions));
-    const pageAccess = { ...result.pageAccess, 'Super Admin': { ...DEFAULT_PAGE_ACCESS['Super Admin'] } };
-    userPermissionOverrides = result.userPermissions || {};
+    const pageAccess = Object.fromEntries(Object.entries(result.pageAccess).map(([role, access]) => [role, normalizePageAccessSettings(access)]));
+    pageAccess['Super Admin'] = { ...DEFAULT_PAGE_ACCESS['Super Admin'] };
+    userPermissionOverrides = Object.fromEntries(Object.entries(result.userPermissions || {}).map(([username, override]) => [
+      username,
+      { ...override, pageAccess: normalizePageAccessSettings(override.pageAccess || {}) }
+    ]));
     roleColorsState = setRoleColors(result.roleColors || roleColorsState);
     localStorage.setItem('unitflowPageAccess', JSON.stringify(pageAccess));
     localStorage.setItem('unitflowUserPermissionOverrides', JSON.stringify(userPermissionOverrides));

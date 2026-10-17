@@ -66,6 +66,9 @@ function startPolling() {
   setInterval(() => {
     loadUnits();
   }, intervalMs);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadUnits();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
