@@ -36,14 +36,22 @@ async function loadUnits() {
 
   try {
     setSyncStatus('Syncing…');
-    const [rows, registeredBranches] = await Promise.all([
+    const [rows, registeredBranches, branchFeatures] = await Promise.all([
       DATA.fetchUnits(),
-      DATA.fetchBranches()
+      DATA.fetchBranches(),
+      DATA.fetchBranchFeatureAssignments()
     ]);
     state.allUnits = rows;
 
-    renderSummary(rows, registeredBranches);
-    renderBranchCodeChart(rows, registeredBranches);
+    const appleProductBranches = new Set(branchFeatures.appleProductBranches.map(normalizeBranchName));
+    const unitRegistryBranches = new Set(branchFeatures.unitRegistryBranches.map(normalizeBranchName));
+    const laptopDashboardBranches = registeredBranches.filter((branch) => {
+      const branchName = normalizeBranchName(branch.branchName || branch.branchname || branch.name || branch.branch || branch.location);
+      return unitRegistryBranches.has(branchName) && !appleProductBranches.has(branchName);
+    });
+
+    renderSummary(rows, laptopDashboardBranches);
+    renderBranchCodeChart(rows, laptopDashboardBranches);
     renderActivityChart(rows);
     renderTable(rows);
     renderBranchPulse(rows);

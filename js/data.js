@@ -47,6 +47,21 @@ const DATA = {
     return DATA.fetchSheet({ gid: config.branchesGid || config.gid || '0', includeAllRows: true });
   },
 
+  async fetchBranchFeatureAssignments() {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(`${config.appScriptUrl}?action=applebranches`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Branch feature request failed with status ${response.status}.`);
+    const result = await response.json();
+    if (result.ok === false || !Array.isArray(result.branches) || !Array.isArray(result.unitRegistryBranches)) {
+      throw new Error(result.error || 'Branch feature assignments could not be loaded.');
+    }
+    return {
+      appleProductBranches: result.branches,
+      unitRegistryBranches: result.unitRegistryBranches
+    };
+  },
+
   async fetchAppleProducts(branch = '') {
     const config = window.GS_CONFIG || {};
     if (!config.appleProductsGid) throw new Error('Apple Products sheet GID is not configured.');
