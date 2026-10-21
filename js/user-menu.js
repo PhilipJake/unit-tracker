@@ -128,22 +128,25 @@ async function loadBranchTypeDefinitions() {
   }
 }
 
-async function saveBranchTypeDefinitions(definitions) {
+async function saveBranchTypeDefinitions(definitions, renames = []) {
   const normalized = setBranchTypeDefinitions(definitions);
   const config = window.GS_CONFIG || {};
-  if (!config.appScriptUrl || config.appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') return false;
+  if (!config.appScriptUrl || config.appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
+    return { synced: false, migratedBranches: 0 };
+  }
   const response = await fetch(config.appScriptUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: new URLSearchParams({
       action: 'savebranchtypes',
       actorRole: getCurrentRole(),
-      branchTypes: JSON.stringify(normalized)
+      branchTypes: JSON.stringify(normalized),
+      branchTypeRenames: JSON.stringify(renames)
     }).toString()
   });
   const result = await response.json();
   if (!response.ok || result.ok === false) throw new Error(result.error || 'Branch type save failed');
-  return true;
+  return { synced: true, migratedBranches: result.migratedBranches || 0 };
 }
 
 function getCustomRolePermissionDefaults() {

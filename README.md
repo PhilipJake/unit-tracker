@@ -90,6 +90,8 @@ Super Admins and Administrators can enable Apple Products for a branch type usin
 
 Super Admins and Administrators can also enable Unit Registry per branch type in Settings → Branch Types. The Units navigation and submenu are hidden for branches whose type does not have Unit Registry enabled. Existing branch types are migrated with Unit Registry enabled to preserve current access; disable it for Apple Products-only types as needed. Redeploy the Apps Script web app after updating `gs/code.gs`.
 
+Changing a shortcut in Settings → Branch Types automatically reassigns all branches using it, updates their names, and migrates matching references in Units, Trash, Accounts, and AppleProducts. You can also change an individual branch's type from the Branches page. Redeploy the Apps Script web app after updating `gs/code.gs`.
+
 The Phones registry displays Apple Product records in responsive cards. Users with Create/Edit permissions can register phones or use a card's Edit action to update a record.
 
 ## Trash

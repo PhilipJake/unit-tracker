@@ -7,6 +7,8 @@ const state = {
   }
 };
 let unitsLoadInProgress = false;
+let branchMetadataLoadInProgress = false;
+let laptopDashboardBranches = [];
 
 function setOverviewHeader() {
   const dateElement = document.getElementById('overviewDate');
@@ -36,19 +38,8 @@ async function loadUnits() {
 
   try {
     setSyncStatus('Syncing…');
-    const [rows, registeredBranches, branchFeatures] = await Promise.all([
-      DATA.fetchUnits(),
-      DATA.fetchBranches(),
-      DATA.fetchBranchFeatureAssignments()
-    ]);
+    const rows = await DATA.fetchUnits();
     state.allUnits = rows;
-
-    const appleProductBranches = new Set(branchFeatures.appleProductBranches.map(normalizeBranchName));
-    const unitRegistryBranches = new Set(branchFeatures.unitRegistryBranches.map(normalizeBranchName));
-    const laptopDashboardBranches = registeredBranches.filter((branch) => {
-      const branchName = normalizeBranchName(branch.branchName || branch.branchname || branch.name || branch.branch || branch.location);
-      return unitRegistryBranches.has(branchName) && !appleProductBranches.has(branchName);
-    });
 
     renderSummary(rows, laptopDashboardBranches);
     renderBranchCodeChart(rows, laptopDashboardBranches);
@@ -56,16 +47,38 @@ async function loadUnits() {
     renderTable(rows);
     renderBranchPulse(rows);
     setSyncStatus('Live sync', true);
+    loadBranchMetadata();
   } catch (error) {
     console.error(error);
     setSyncStatus('Could not load live data', false);
-    renderSummary([], []);
-    renderBranchCodeChart([], []);
-    renderActivityChart([]);
-    renderTable([]);
-    UI.branchPulseList.innerHTML = '<div class="empty-state">Unable to load live spreadsheet data.</div>';
   } finally {
     unitsLoadInProgress = false;
+  }
+}
+
+async function loadBranchMetadata() {
+  if (branchMetadataLoadInProgress) return;
+  branchMetadataLoadInProgress = true;
+
+  try {
+    const [registeredBranches, branchFeatures] = await Promise.all([
+      DATA.fetchBranches(),
+      DATA.fetchBranchFeatureAssignments()
+    ]);
+    const appleProductBranches = new Set(branchFeatures.appleProductBranches.map(normalizeBranchName));
+    const unitRegistryBranches = new Set(branchFeatures.unitRegistryBranches.map(normalizeBranchName));
+    laptopDashboardBranches = registeredBranches.filter((branch) => {
+      const branchName = normalizeBranchName(branch.branchName || branch.branchname || branch.name || branch.branch || branch.location);
+      return unitRegistryBranches.has(branchName) && !appleProductBranches.has(branchName);
+    });
+
+    renderSummary(state.allUnits, laptopDashboardBranches);
+    renderBranchCodeChart(state.allUnits, laptopDashboardBranches);
+  } catch (error) {
+    console.error('Unable to load laptop dashboard branch metadata:', error);
+    setSyncStatus('Unit activity live · branch metadata unavailable', true);
+  } finally {
+    branchMetadataLoadInProgress = false;
   }
 }
 

@@ -87,6 +87,7 @@ let selectedSettingsTab = 'permissions';
 let branchTypeDefinitions = getBranchTypeDefinitions();
 let selectedBranchType = branchTypeDefinitions[0]?.code || '';
 let branchTypeDefinitionsChanged = false;
+let branchTypeRenames = [];
 let pendingSettingsConfirmation = null;
 let settingsToastTimer = null;
 
@@ -232,15 +233,11 @@ function captureSelectedBranchType() {
     branchTypeSaveStatus.dataset.state = 'notice';
     return false;
   }
-  if (code !== definition.code && !managedBranchesLoaded) {
-    branchTypeSaveStatus.textContent = 'Branch usage is unavailable; reload before changing this shortcut.';
-    branchTypeSaveStatus.dataset.state = 'notice';
-    return false;
-  }
-  if (code !== definition.code && managedBranches.some((branch) => getBranchRecordType(branch).toUpperCase() === definition.code)) {
-    branchTypeSaveStatus.textContent = 'Reassign branches using this shortcut before changing it.';
-    branchTypeSaveStatus.dataset.state = 'notice';
-    return false;
+  if (code !== definition.code) {
+    const pendingRename = branchTypeRenames.find((rename) => rename.to === definition.code);
+    const originalCode = pendingRename ? pendingRename.from : definition.code;
+    branchTypeRenames = branchTypeRenames.filter((rename) => rename !== pendingRename && rename.from !== originalCode && rename.to !== code);
+    if (originalCode !== code) branchTypeRenames.push({ from: originalCode, to: code });
   }
   const fullName = String(branchTypeFullName.value || '').trim();
   const color = normalizeHexColor(branchTypeColor.value);
@@ -261,11 +258,17 @@ function captureSelectedBranchType() {
 async function saveSelectedBranchType() {
   if (!captureSelectedBranchType()) return;
   try {
-    const synced = await saveBranchTypeDefinitions(branchTypeDefinitions);
-    if (synced) await refreshAppleProductBranches();
-    branchTypeSaveStatus.textContent = synced ? 'Branch type saved.' : 'Saved in this browser. Configure Apps Script to share it.';
-    branchTypeSaveStatus.dataset.state = synced ? 'success' : 'notice';
-    showSettingsToast(synced ? 'Changes Saved Successfully' : 'Changes saved in this browser only');
+    const result = await saveBranchTypeDefinitions(branchTypeDefinitions, branchTypeRenames);
+    if (result.synced) {
+      branchTypeRenames = [];
+      await refreshAppleProductBranches();
+    }
+    const migratedBranches = Number(result.migratedBranches) || 0;
+    branchTypeSaveStatus.textContent = result.synced
+      ? `Branch type saved.${migratedBranches ? ` ${migratedBranches} branch${migratedBranches === 1 ? '' : 'es'} reassigned.` : ''}`
+      : 'Saved in this browser. Configure Apps Script to share it.';
+    branchTypeSaveStatus.dataset.state = result.synced ? 'success' : 'notice';
+    showSettingsToast(result.synced ? 'Changes Saved Successfully' : 'Changes saved in this browser only');
     renderBranchTypeSelector();
   } catch (error) {
     branchTypeSaveStatus.textContent = 'Saved in this browser; Google Sheets could not be updated.';
@@ -778,7 +781,7 @@ async function loadManagedBranches() {
     managedBranchesLoaded = true;
   } catch (error) {
     managedBranches = [];
-    managedBranchesLoaded = true;
+    managedBranchesLoaded = false;
     console.warn('Unable to load branches for settings:', error);
   }
 }

@@ -22,6 +22,7 @@ let activeEditBranchName = '';
 let activeBranchRecord = null;
 let pendingConfirmAction = null;
 let loadedBranches = [];
+let headAdminOptionsRequest = 0;
 const builtInBranchTypeOrder = ['BNB', 'EZ', '1LR'];
 
 function getBranchTypeLabel(type) {
@@ -168,22 +169,31 @@ function renderBranchesDirectory() {
   }).join('');
 }
 
-async function loadHeadAdminOptions() {
+async function loadHeadAdminOptions(selectedManager = '') {
   if (!headAdminSelect) return;
+  const requestId = ++headAdminOptionsRequest;
+  const managerName = String(selectedManager || '').trim();
 
   try {
     const accounts = await DATA.fetchAccounts();
+    if (requestId !== headAdminOptionsRequest) return;
     const filtered = accounts.filter((row) => {
       const role = String(row.accountType || row.accounttype || row.role || row.userType || '').trim();
       return role && !['Super Admin', 'Office'].includes(role);
     });
+    const managerKey = managerName.toLowerCase();
+    const assignedAccount = filtered.find((account) => [
+      account.fullName,
+      account.fullname,
+      account.name,
+      account.username,
+      account.userName
+    ].some((name) => String(name || '').trim().toLowerCase() === managerKey));
+    const assignedAccountName = assignedAccount
+      ? String(assignedAccount.fullName || assignedAccount.fullname || assignedAccount.name || assignedAccount.username || assignedAccount.userName || '').trim()
+      : '';
 
-    if (!filtered.length) {
-      headAdminSelect.innerHTML = '<option value="">No head admin assigned</option>';
-      return;
-    }
-
-    headAdminSelect.innerHTML = filtered
+    headAdminSelect.innerHTML = '<option value="">Select head admin</option>' + filtered
       .map((account) => {
         const name = account.fullName || account.fullname || account.name || account.username || account.userName || 'Unknown';
         const role = account.accountType || account.accounttype || account.role || account.userType || 'Account';
@@ -191,11 +201,19 @@ async function loadHeadAdminOptions() {
       })
       .join('');
 
-    headAdminSelect.insertAdjacentHTML('beforeend', '<option value="">Select head admin</option>');
-    headAdminSelect.value = '';
+    const selectedValue = assignedAccountName || managerName;
+    if (managerName && !Array.from(headAdminSelect.options).some((option) => option.value.toLowerCase() === selectedValue.toLowerCase())) {
+      headAdminSelect.add(new Option(`${managerName} — currently assigned`, managerName));
+    }
+    const matchingOption = Array.from(headAdminSelect.options).find((option) => option.value.trim().toLowerCase() === selectedValue.toLowerCase());
+    headAdminSelect.value = managerName && matchingOption ? matchingOption.value : '';
   } catch (error) {
+    if (requestId !== headAdminOptionsRequest) return;
     console.error(error);
-    headAdminSelect.innerHTML = '<option value="">Unable to load head admins</option>';
+    headAdminSelect.innerHTML = managerName
+      ? `<option value="${escapeHtml(managerName)}">${escapeHtml(managerName)} — currently assigned</option>`
+      : '<option value="">Unable to load head admins</option>';
+    headAdminSelect.value = managerName;
   }
 }
 
@@ -248,7 +266,7 @@ function openBranchModal(mode = 'create', branch = null) {
   }
 
   if (branchTypeSelect) {
-    branchTypeSelect.disabled = branchForm && branchForm.dataset.mode === 'edit';
+    branchTypeSelect.disabled = false;
   }
   if (branchLocationInput) {
     branchLocationInput.readOnly = !!(branchForm && branchForm.dataset.mode === 'edit');
@@ -256,12 +274,16 @@ function openBranchModal(mode = 'create', branch = null) {
 
   branchModalBackdrop.classList.add('visible');
   branchModalBackdrop.setAttribute('aria-hidden', 'false');
-  syncBranchName();
-  loadHeadAdminOptions();
+  if (mode !== 'edit') syncBranchName();
+  const selectedManager = mode === 'edit' && branch
+    ? branch.manager || branch.branchManager || branch.headAdmin || branch.headadmin || branch.head || ''
+    : '';
+  loadHeadAdminOptions(selectedManager);
 }
 
 function closeBranchModal() {
   if (!branchModalBackdrop) return;
+  headAdminOptionsRequest += 1;
   branchModalBackdrop.classList.remove('visible');
   branchModalBackdrop.setAttribute('aria-hidden', 'true');
   activeEditBranchName = '';
@@ -366,12 +388,18 @@ async function saveBranchToSheet(event) {
 
     await syncAccountBranchAssignment(headAdmin, branchName);
 
-    showPopupMessage(isEditMode ? 'Branch updated successfully to the spreadsheet.' : 'Branch saved successfully to the spreadsheet.');
+    const migratedReferences = Number(result && result.migratedReferences) || 0;
+    const migrationSummary = migratedReferences
+      ? ` ${migratedReferences} linked field${migratedReferences === 1 ? '' : 's'} updated.`
+      : '';
+    showPopupMessage(isEditMode
+      ? `Branch updated successfully to the spreadsheet.${migrationSummary}`
+      : 'Branch saved successfully to the spreadsheet.');
     closeBranchModal();
     loadBranches();
   } catch (error) {
     console.error(error);
-    showPopupMessage('Branch save failed. Please confirm the Apps Script Web App URL is correct.');
+    showPopupMessage(error.message || 'Branch save failed. Please confirm the Apps Script Web App URL is correct.');
   }
 }
 

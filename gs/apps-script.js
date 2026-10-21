@@ -482,25 +482,72 @@ function updateBranchRow(spreadsheet, values) {
   const sheet = spreadsheet.getSheetByName('Branches') || spreadsheet.getSheets()[0];
   const data = sheet.getDataRange().getValues();
   const headerRow = data[0] || [];
-  const nameIndex = (headerRow || []).findIndex((header) => String(header).trim().toLowerCase().includes('branch name'));
+  const normalizedHeaders = headerRow.map((header) => String(header).trim().toLowerCase());
+  const nameIndex = normalizedHeaders.findIndex((header) => ['branch name', 'branch'].includes(header));
   const targetName = String(values.originalBranchName || values.branchName || '').trim();
+  const nextName = String(values.branchName || '').trim();
 
   if (nameIndex === -1) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Branch name column not found' })).setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ ok: false, error: 'Branch name column not found' });
   }
+  if (!targetName || !nextName) return jsonResponse({ ok: false, error: 'Missing branch name' });
 
-  const rowToWrite = buildRowForAction('branches', values);
-
+  const matchingRows = [];
   for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
     const currentName = String(data[rowIndex][nameIndex] || '').trim();
-    if (currentName === targetName) {
-      const targetRange = sheet.getRange(rowIndex + 1, 1, 1, rowToWrite.length);
-      targetRange.setValues([rowToWrite]);
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, action: 'updateBranch', updatedName: targetName })).setMimeType(ContentService.MimeType.JSON);
+    if (currentName.toLowerCase() === targetName.toLowerCase()) matchingRows.push(rowIndex);
+    if (nextName.toLowerCase() !== targetName.toLowerCase() && currentName.toLowerCase() === nextName.toLowerCase()) {
+      return jsonResponse({ ok: false, error: 'A branch with that name already exists.' });
     }
   }
+  if (matchingRows.length !== 1) {
+    return jsonResponse({ ok: false, error: matchingRows.length ? 'More than one matching branch was found; the record was not changed.' : 'Branch not found for update' });
+  }
 
-  return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Branch not found for update' })).setMimeType(ContentService.MimeType.JSON);
+  const references = nextName === targetName ? [] : collectBranchReferenceUpdates(spreadsheet, targetName);
+  const rowNumber = matchingRows[0] + 1;
+  const branchFields = [
+    { headers: ['branch name', 'branch'], value: nextName },
+    { headers: ['branch code', 'branch type', 'type', 'code'], value: values.branchType || values.branchCode || '' },
+    { headers: ['location', 'branch location'], value: values.location || '' },
+    { headers: ['manager', 'branch manager', 'head admin'], value: values.manager || values.headAdmin || '' },
+    { headers: ['status'], value: values.status || 'Active' }
+  ];
+  branchFields.forEach(({ headers, value }) => {
+    const columnIndex = normalizedHeaders.findIndex((header) => headers.includes(header));
+    if (columnIndex >= 0) sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
+  });
+  references.forEach(({ sheet: referenceSheet, row, column }) => {
+    referenceSheet.getRange(row, column).setValue(nextName);
+  });
+
+  return jsonResponse({ ok: true, action: 'updateBranch', originalName: targetName, updatedName: nextName, migratedReferences: references.length });
+}
+
+function collectBranchReferenceUpdates(spreadsheet, branchName) {
+  const branchToken = String(branchName || '').trim().toLowerCase();
+  const referenceSheets = [
+    { name: 'Units', headers: ['branch', 'branch location', 'current location', 'uploaded branch'] },
+    { name: 'Trash', headers: ['branch', 'branch location', 'current location', 'uploaded branch'] },
+    { name: 'Accounts', headers: ['branch'] },
+    { name: 'AppleProducts', headers: ['branch'] }
+  ];
+
+  return referenceSheets.reduce((updates, reference) => {
+    const referenceSheet = spreadsheet.getSheetByName(reference.name);
+    if (!referenceSheet || referenceSheet.getLastRow() < 2) return updates;
+    const values = referenceSheet.getDataRange().getValues();
+    const headers = values[0].map((header) => String(header).trim().toLowerCase());
+    headers.forEach((header, columnIndex) => {
+      if (!reference.headers.includes(header)) return;
+      for (let rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+        if (String(values[rowIndex][columnIndex] || '').trim().toLowerCase() === branchToken) {
+          updates.push({ sheet: referenceSheet, row: rowIndex + 1, column: columnIndex + 1 });
+        }
+      }
+    });
+    return updates;
+  }, []);
 }
 
 function updateAccountBranchRow(spreadsheet, values) {
