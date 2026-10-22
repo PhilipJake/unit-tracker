@@ -26,7 +26,9 @@ function initializeClientUnitTrackerSheets() {
     'Urgent',
     'Deleted At',
     'Deleted By',
-    'Previous Status'
+    'Previous Status',
+    'Client Pays',
+    'Payment Amount'
   ];
 
   const accountsHeaders = [

@@ -4483,17 +4483,11 @@ tbody tr:hover td {
   padding-top: 20px;
 }
 
-.unit-editor-client {
-  grid-column: 1;
-}
-
-.unit-editor-unit {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-
-.unit-editor-service {
-  grid-column: 1;
+.unit-editor-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .unit-editor-notes {
@@ -4647,12 +4641,8 @@ tbody tr:hover td {
     grid-template-columns: 1fr;
   }
 
-  .unit-editor-client,
-  .unit-editor-unit,
-  .unit-editor-service,
   .unit-editor-notes {
     grid-column: 1;
-    grid-row: auto;
   }
 
   .unit-editor-fields {

@@ -133,6 +133,7 @@
 
         <form class="unit-form" id="unitForm">
           <div class="unit-editor-sections">
+            <div class="unit-editor-column">
             <section class="unit-detail-section unit-editor-client">
               <h3>Client &amp; contact</h3>
               <div class="unit-editor-fields">
@@ -153,7 +154,33 @@
                 </div>
               </div>
             </section>
+            <section class="unit-detail-section unit-editor-service">
+              <h3>Service &amp; history</h3>
+              <div class="unit-editor-fields">
+                <div class="field-group">
+                  <label for="status">Status <span class="required-indicator" aria-hidden="true">*</span></label>
+                  <select id="status" name="status" required>
+                    <option selected>For Diagnosis</option>
+                    <option>Transferred to Technical</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label for="datePurchase">Date Purchased <span class="required-indicator" aria-hidden="true">*</span></label>
+                  <input id="datePurchase" name="datePurchase" type="date" required />
+                </div>
+                <div class="field-group">
+                  <label for="dateReturn">Date of Return <span class="required-indicator" aria-hidden="true">*</span></label>
+                  <input id="dateReturn" name="dateReturn" type="date" required />
+                </div>
+                <div class="field-group">
+                  <label for="dateReleased">Date Released</label>
+                  <input id="dateReleased" name="dateReleased" type="date" readonly />
+                </div>
+              </div>
+            </section>
+            </div>
 
+            <div class="unit-editor-column">
             <section class="unit-detail-section unit-editor-unit">
               <h3>Unit details</h3>
               <div class="unit-editor-fields">
@@ -203,30 +230,23 @@
               </div>
             </section>
 
-            <section class="unit-detail-section unit-editor-service">
-              <h3>Service &amp; history</h3>
+            <section class="unit-detail-section unit-editor-payment">
+              <h3>Client payment</h3>
               <div class="unit-editor-fields">
                 <div class="field-group">
-                  <label for="status">Status <span class="required-indicator" aria-hidden="true">*</span></label>
-                  <select id="status" name="status" required>
-                    <option selected>For Diagnosis</option>
-                    <option>Transferred to Technical</option>
+                  <label for="clientPays">Will the client have to pay?</label>
+                  <select id="clientPays" name="clientPays">
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
                   </select>
                 </div>
-                <div class="field-group">
-                  <label for="datePurchase">Date Purchased <span class="required-indicator" aria-hidden="true">*</span></label>
-                  <input id="datePurchase" name="datePurchase" type="date" required />
-                </div>
-                <div class="field-group">
-                  <label for="dateReturn">Date of Return <span class="required-indicator" aria-hidden="true">*</span></label>
-                  <input id="dateReturn" name="dateReturn" type="date" required />
-                </div>
-                <div class="field-group">
-                  <label for="dateReleased">Date Released</label>
-                  <input id="dateReleased" name="dateReleased" type="date" readonly />
+                <div class="field-group" id="clientPaymentAmountGroup" hidden>
+                  <label for="clientPaymentAmount">Amount to collect</label>
+                  <input id="clientPaymentAmount" name="clientPaymentAmount" type="text" inputmode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" placeholder="Enter amount" autocomplete="off" />
                 </div>
               </div>
             </section>
+            </div>
 
             <section class="unit-detail-section unit-editor-notes">
               <h3>Notes &amp; inclusions</h3>
@@ -270,10 +290,11 @@
       <div class="modal message-modal" role="dialog" aria-modal="true" aria-labelledby="messageModalTitle">
         <div class="modal-header">
           <h3 id="messageModalTitle">Notice</h3>
-          <button class="modal-close" id="closeMessageModalBtn" aria-label="Close message">×</button>
+          <button class="modal-close" id="closeMessageModalBtn" type="button" aria-label="Close message">×</button>
         </div>
         <div class="modal-body" id="messageModalBody"></div>
         <div class="modal-actions">
+          <button type="button" class="action-btn" id="cancelPaymentPromptBtn" hidden>Cancel</button>
           <button type="button" class="action-btn primary" id="okMessageModalBtn">OK</button>
         </div>
       </div>

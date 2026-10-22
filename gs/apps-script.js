@@ -88,6 +88,9 @@ function doPost(e) {
   if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
     return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
   }
+  if (action === 'units' && !isValidClientPayment(values)) {
+    return jsonResponse({ ok: false, error: 'Enter a valid payment amount when the client has to pay' });
+  }
   if (action === 'units' && String(values.status || '').trim() === 'For Diagnosis' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
     return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnosis' });
   }
@@ -270,6 +273,17 @@ function updateUnitRow(spreadsheet, values) {
     if (!requestedContactInfo && contactInfoIndex >= 0) values.contactInfo = data[rowIndex][contactInfoIndex] || '';
     if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
       values.unitPrice = data[rowIndex][unitPriceIndex] || '';
+    }
+    const clientPaysIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'client pays');
+    const paymentAmountIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'payment amount');
+    if (values.clientPays === undefined) {
+      values.clientPays = clientPaysIndex >= 0 ? data[rowIndex][clientPaysIndex] || 'No' : 'No';
+    }
+    if (values.clientPaymentAmount === undefined) {
+      values.clientPaymentAmount = paymentAmountIndex >= 0 ? data[rowIndex][paymentAmountIndex] || '' : '';
+    }
+    if (!isValidClientPayment(values)) {
+      return jsonResponse({ ok: false, error: 'Enter a valid payment amount when the client has to pay' });
     }
     if (!canEditTechnicianNotes(values.actorRole) && notesIndex >= 0) {
       values.technicianNotes = data[rowIndex][notesIndex] || '';
@@ -781,7 +795,9 @@ function getHeadersForAction(action) {
         'Inclusion',
         'Uploaded Branch',
         'Technician Notes',
-        'Urgent'
+        'Urgent',
+        'Client Pays',
+        'Payment Amount'
       ];
   }
 }
@@ -843,9 +859,19 @@ function buildRowForAction(action, values) {
         values.inclusion || '',
         values.uploadedBranch || values.branchLocation || '',
         values.technicianNotes || '',
-        values.isUrgent || ''
+        values.isUrgent || '',
+        String(values.clientPays || 'No').trim(),
+        String(values.clientPays || '').trim().toLowerCase() === 'yes' ? String(values.clientPaymentAmount || '').trim() : ''
       ];
   }
+}
+
+function isValidClientPayment(values) {
+  const clientPays = String(values.clientPays || 'No').trim().toLowerCase();
+  if (!['yes', 'no'].includes(clientPays)) return false;
+  if (clientPays === 'no') return true;
+  const amount = String(values.clientPaymentAmount || '').trim();
+  return /^\d+(?:\.\d{1,2})?$/.test(amount) && Number(amount) > 0;
 }
 
 function canEditTechnicianNotes(role) {

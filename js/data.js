@@ -282,6 +282,8 @@ function normalizeRow(rawRow) {
   const technicianNotes = legacyValue(15, ['technician notes', 'techniciannotes', 'technician note']);
   const isUrgent = legacyValue(16, ['urgent', 'is urgent', 'urgent flag']);
   const unitPrice = legacyValue(5, ['unit price', 'price']);
+  const clientPays = findValue(row, ['client pays', 'will client pay']);
+  const clientPaymentAmount = findValue(row, ['payment amount', 'client payment amount', 'amount to collect']);
   const specs = legacyValue(4, ['specs', 'unit specs', 'unitspecs', 'processor', 'storage size', 'storage']);
   const branchLocation = findValue(row, ['branch location', 'branchlocation', 'branch']);
   const uploadedBranch = findValue(row, ['uploaded branch', 'uploadedbranch']) || branchLocation;
@@ -323,6 +325,8 @@ function normalizeRow(rawRow) {
     technicianNotes: technicianNotes || '',
     isUrgent: isUrgent || '',
     unitPrice: unitPrice || '',
+    clientPays: clientPays || 'No',
+    clientPaymentAmount: clientPaymentAmount || '',
     specs: specs || '',
     branchLocation: branchLocation || '',
     uploadedBranch: uploadedBranch || '',

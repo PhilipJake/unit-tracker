@@ -26,9 +26,11 @@ This app reads data directly from a Google Sheet using the public CSV export URL
 1. Create a Google Sheet with a sheet name like `Units`.
 2. Add the exact columns below as the header row:
 
-   `Unit Code, Client Name, Contact Info, Unit Brand, Unit Specs, Unit Price, Status, Branch Location, Current Location, Date Received, Return Date, Warranty, Unit Problem, Inclusion, Uploaded Branch, Technician Notes, Urgent`
+   `Code, Client Name, Contact Info, Unit Brand, Unit Specs, Unit Price, Status, Branch Location, Current Location, Date Purchased, Date of Return, Date Released, Released By, Date Sent to Warehouse, Date Left Warehouse, Warranty, Unit Problem, Inclusion, Uploaded Branch, Technician Notes, Urgent, Deleted At, Deleted By, Previous Status, Client Pays, Payment Amount`
 
 3. Put your data under those headers.
+   The Apps Script migrates existing unit sheets to this schema automatically. Client payment fields are updated when a unit status action is used and can also be edited on the unit form.
+   Redeploy the Apps Script web app after updating `gs/code.gs`.
 4. In the Google Sheet, make sure the sheet is shared publicly or available through the CSV export endpoint.
 5. Copy the spreadsheet ID from the URL and paste it into `gs/config.js`.
 

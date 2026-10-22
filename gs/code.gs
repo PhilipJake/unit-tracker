@@ -175,6 +175,9 @@ function doPost(e) {
   if (action === 'units' && !isValidContactInfo(values.contactInfo || '')) {
     return jsonResponse({ ok: false, error: 'Contact Info must use +63 followed by 10 digits' });
   }
+  if (action === 'units' && !isValidClientPayment(values)) {
+    return jsonResponse({ ok: false, error: 'Enter a valid payment amount when the client has to pay' });
+  }
   if (action === 'units' && String(values.status || '').trim() === 'For Diagnosis' && !['Super Admin', 'Administrator', 'Technician'].includes(String(values.actorRole || '').trim())) {
     return jsonResponse({ ok: false, error: 'Only Super Admin, Administrator, and Technician roles can set For Diagnosis' });
   }
@@ -941,6 +944,14 @@ function isValidContactInfo(value) {
   return /^\+63[0-9]{10}$/.test(contactInfo);
 }
 
+function isValidClientPayment(values) {
+  const clientPays = String(values.clientPays || 'No').trim().toLowerCase();
+  if (!['yes', 'no'].includes(clientPays)) return false;
+  if (clientPays === 'no') return true;
+  const amount = String(values.clientPaymentAmount || '').trim();
+  return /^\d+(?:\.\d{1,2})?$/.test(amount) && Number(amount) > 0;
+}
+
 function isProtectedSuperAdminRequest(actorRole, accountType) {
   return ['Administrator', 'Main Head Admin'].includes(String(actorRole || '').trim())
     && String(accountType || '').trim() === 'Super Admin';
@@ -1247,6 +1258,8 @@ function updateUnitRow(spreadsheet, values) {
       const contactInfoIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'contact info');
       const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
       const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
+      const clientPaysIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'client pays');
+      const paymentAmountIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'payment amount');
       const urgentIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'urgent');
       const currentLocationIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'current location');
       const warehouseDateInIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'date sent to warehouse');
@@ -1262,6 +1275,15 @@ function updateUnitRow(spreadsheet, values) {
       if (!requestedContactInfo && contactInfoIndex >= 0) values.contactInfo = data[rowIndex][contactInfoIndex] || '';
       if (!String(values.unitPrice || '').trim() && unitPriceIndex >= 0) {
         values.unitPrice = data[rowIndex][unitPriceIndex] || '';
+      }
+      if (values.clientPays === undefined) {
+        values.clientPays = clientPaysIndex >= 0 ? data[rowIndex][clientPaysIndex] || 'No' : 'No';
+      }
+      if (values.clientPaymentAmount === undefined) {
+        values.clientPaymentAmount = paymentAmountIndex >= 0 ? data[rowIndex][paymentAmountIndex] || '' : '';
+      }
+      if (!isValidClientPayment(values)) {
+        return jsonResponse({ ok: false, error: 'Enter a valid payment amount when the client has to pay' });
       }
       if (!canEditTechnicianNotes(values.actorRole) && technicianNotesIndex >= 0) {
         values.technicianNotes = data[rowIndex][technicianNotesIndex] || '';
@@ -1645,7 +1667,9 @@ function getHeadersForAction(action) {
         'Urgent',
         'Deleted At',
         'Deleted By',
-        'Previous Status'
+        'Previous Status',
+        'Client Pays',
+        'Payment Amount'
       ];
   }
 }
@@ -1735,7 +1759,9 @@ function buildRowForAction(action, values) {
         values.isUrgent || '',
         values.deletedAt || '',
         values.deletedBy || '',
-        values.previousStatus || ''
+        values.previousStatus || '',
+        String(values.clientPays || 'No').trim(),
+        String(values.clientPays || '').trim().toLowerCase() === 'yes' ? String(values.clientPaymentAmount || '').trim() : ''
       ];
   }
 }
@@ -1789,7 +1815,9 @@ function migrateUnitSheetSchema(sheet) {
     'deleted at': ['deleted at'],
     'deleted by': ['deleted by'],
     'previous status': ['previous status', 'status before deletion'],
-    urgent: ['urgent', 'is urgent', 'urgent flag']
+    urgent: ['urgent', 'is urgent', 'urgent flag'],
+    'client pays': ['client pays', 'will client pay'],
+    'payment amount': ['payment amount', 'client payment amount', 'amount to collect']
   };
   const normalizedHeaders = sourceHeaders.map((header) => String(header || '').trim().toLowerCase());
   const indexesFor = (header) => {

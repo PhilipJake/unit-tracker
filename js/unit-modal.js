@@ -13,8 +13,10 @@ const unitDetailsContent = document.getElementById('unitDetailsContent');
 const closeUnitDetailsBtn = document.getElementById('closeUnitDetailsBtn');
 const messageModalBackdrop = document.getElementById('messageModalBackdrop');
 const messageModalBody = document.getElementById('messageModalBody');
+const messageModalTitle = document.getElementById('messageModalTitle');
 const closeMessageModalBtn = document.getElementById('closeMessageModalBtn');
 const okMessageModalBtn = document.getElementById('okMessageModalBtn');
+const cancelPaymentPromptBtn = document.getElementById('cancelPaymentPromptBtn');
 const unitSearchInput = document.getElementById('unitSearchInput') || document.querySelector('.search-box input');
 const clearUnitSearchButton = document.getElementById('clearUnitSearchBtn');
 const unitStatusFilter = document.getElementById('unitStatusFilter');
@@ -23,12 +25,18 @@ const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
 const urgentField = document.getElementById('isUrgent');
 const dateReleasedField = document.getElementById('dateReleased');
+const clientPaysField = document.getElementById('clientPays');
+const clientPaysGroup = clientPaysField ? clientPaysField.closest('.field-group') : null;
+const clientPaymentSection = clientPaysField ? clientPaysField.closest('.unit-editor-payment') : null;
+const clientPaymentAmountGroup = document.getElementById('clientPaymentAmountGroup');
+const clientPaymentAmountField = document.getElementById('clientPaymentAmount');
 const otherInclusionOption = document.getElementById('otherInclusionOption');
 const otherInclusionText = document.getElementById('otherInclusionText');
 const unitToast = document.getElementById('unitToast');
 let activeEditCode = '';
 let activeEditRowIndex = null;
 let pendingConfirmAction = null;
+let pendingPaymentAction = null;
 let registryRowsCache = [];
 let registryRowsLoaded = false;
 let registryLoadInProgress = false;
@@ -49,19 +57,50 @@ function formatContactInfoValue(value) {
 function showPopupMessage(message, onConfirm = null) {
   if (!messageModalBackdrop || !messageModalBody) return showAppPopup(message, onConfirm);
 
+  if (messageModalTitle) messageModalTitle.textContent = 'Notice';
   pendingConfirmAction = onConfirm || null;
+  pendingPaymentAction = null;
+  if (cancelPaymentPromptBtn) cancelPaymentPromptBtn.hidden = true;
+  if (okMessageModalBtn) okMessageModalBtn.textContent = onConfirm ? 'Yes' : 'OK';
   messageModalBody.textContent = message;
   messageModalBackdrop.classList.add('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'false');
+}
 
-  if (okMessageModalBtn) {
-    okMessageModalBtn.textContent = onConfirm ? 'Yes' : 'OK';
+function showClientPaymentPrompt(unitCode, nextStatus, onConfirm) {
+  if (!messageModalBackdrop || !messageModalBody) {
+    showPopupMessage('Unable to open the client payment prompt.');
+    return;
   }
+
+  pendingConfirmAction = null;
+  pendingPaymentAction = onConfirm;
+  if (messageModalTitle) messageModalTitle.textContent = 'Confirm status change';
+  if (cancelPaymentPromptBtn) cancelPaymentPromptBtn.hidden = false;
+  if (okMessageModalBtn) okMessageModalBtn.textContent = 'Save & continue';
+  messageModalBody.innerHTML = `
+    <p>Move unit ${escapeHtml(unitCode)} to ${escapeHtml(nextStatus)}?</p>
+    <div class="field-group status-payment-choice">
+      <label for="statusClientPays">Will the client have to pay?</label>
+      <select id="statusClientPays">
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+    </div>
+    <div class="field-group status-payment-amount" id="statusClientPaymentAmountGroup" hidden>
+      <label for="statusClientPaymentAmount">Amount to collect</label>
+      <input id="statusClientPaymentAmount" type="text" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,2})?" placeholder="Enter amount" autocomplete="off" />
+    </div>`;
+  messageModalBackdrop.classList.add('visible');
+  messageModalBackdrop.setAttribute('aria-hidden', 'false');
 }
 
 function closePopupMessage() {
   if (!messageModalBackdrop) return;
   pendingConfirmAction = null;
+  pendingPaymentAction = null;
+  if (messageModalTitle) messageModalTitle.textContent = 'Notice';
+  if (cancelPaymentPromptBtn) cancelPaymentPromptBtn.hidden = true;
   if (okMessageModalBtn) {
     okMessageModalBtn.textContent = 'OK';
   }
@@ -104,6 +143,10 @@ function openUnitDetails(unit, trigger) {
       ['Date left warehouse', formatWarehouseDateDisplay(unit.warehouseDateOut)],
       ['Days in warehouse', computeRunningDays(unit.warehouseDateIn, unit.warehouseDateOut)]
     ]],
+    ['Client payment', [
+      ['Client has to pay', String(unit.clientPays || 'No').trim() || 'No'],
+      ['Amount to collect', String(unit.clientPays || '').trim().toLowerCase() === 'yes' ? formatCurrency(unit.clientPaymentAmount) : 'No charge']
+    ]],
     ['Notes & inclusions', [
       ['Unit problem', unit.unitProblem || unit.problem],
       ['Inclusions', unit.inclusion],
@@ -125,6 +168,7 @@ function openUnitDetails(unit, trigger) {
       'Client & contact': 'unit-detail-client',
       'Unit details': 'unit-detail-unit',
       'Service & history': 'unit-detail-service',
+      'Client payment': 'unit-detail-payment',
       'Notes & inclusions': 'unit-detail-notes',
       'Recovery record': 'unit-detail-recovery'
     }[title] || '';
@@ -146,11 +190,11 @@ function openUnitDetails(unit, trigger) {
     </header>
     <div class="unit-details-sections">
       <div class="unit-details-column">${sections[0] || ''}${sections[2] || ''}</div>
-      <div class="unit-details-column">${sections[1] || ''}</div>
+      <div class="unit-details-column">${sections[1] || ''}${sections[3] || ''}</div>
     </div>
-    <div class="unit-details-bottom${sections[4] ? ' has-recovery' : ''}">
-      ${sections[3] || ''}
+    <div class="unit-details-bottom${sections[5] ? ' has-recovery' : ''}">
       ${sections[4] || ''}
+      ${sections[5] || ''}
     </div>
     <footer class="unit-details-footer">
       <span>Client unit record</span>
@@ -197,6 +241,7 @@ function openUnitModal(mode = 'create', unit = null) {
     if (unitModalDescription) unitModalDescription.textContent = 'Update client, equipment, and service information.';
     if (unitSubmitButton) unitSubmitButton.textContent = 'Update Unit';
     populateUnitForm(unit);
+    syncClientPaymentFields();
     if (unitEditorAvatar) unitEditorAvatar.textContent = String(unit.clientName || '').trim().charAt(0).toUpperCase() || 'U';
 
     const unitPriceField = unitForm.elements.namedItem('unitPrice');
@@ -233,6 +278,7 @@ function openUnitModal(mode = 'create', unit = null) {
       statusField.value = canDiagnose ? 'For Diagnosis' : 'Transferred to Technical';
     }
     syncOtherInclusionField();
+    syncClientPaymentFields();
     const contactInfoField = unitForm.elements.namedItem('contactInfo');
     if (contactInfoField) contactInfoField.value = contactInfoPrefix;
 
@@ -322,7 +368,9 @@ function populateUnitForm(unit) {
     branchLocation: unit.branchLocation || unit.currentLocation || unit.uploadedBranch || '',
     currentLocation: savedCurrentLocation === uploadedBranch ? '__branch_location__' : savedCurrentLocation,
     uploadedBranch,
-    unitPrice: unit.unitPrice || ''
+    unitPrice: unit.unitPrice || '',
+    clientPays: String(unit.clientPays || 'No').trim().toLowerCase() === 'yes' ? 'Yes' : 'No',
+    clientPaymentAmount: unit.clientPaymentAmount || ''
   };
   unitForm.dataset.originalStatus = String(unit.status || '');
 
@@ -344,6 +392,31 @@ function populateUnitForm(unit) {
   }
 
   setCurrentLocationOptions(uploadedBranch, savedCurrentLocation);
+}
+
+function normalizeNumericAmount(value) {
+  let normalized = String(value || '').replace(/[^\d.]/g, '');
+  const decimalIndex = normalized.indexOf('.');
+  if (decimalIndex >= 0) {
+    normalized = `${normalized.slice(0, decimalIndex + 1)}${normalized.slice(decimalIndex + 1).replace(/\./g, '').slice(0, 2)}`;
+  }
+  return normalized;
+}
+
+function syncClientPaymentFields() {
+  if (!clientPaysField || !clientPaysGroup || !clientPaymentSection || !clientPaymentAmountGroup || !clientPaymentAmountField) return;
+  const canEditPayment = unitForm.dataset.mode === 'edit';
+  const clientPays = canEditPayment && clientPaysField.value === 'Yes';
+  clientPaymentSection.hidden = !canEditPayment;
+  clientPaysGroup.hidden = !canEditPayment;
+  clientPaysField.disabled = !canEditPayment;
+  clientPaymentAmountGroup.hidden = !clientPays;
+  clientPaymentAmountField.disabled = !clientPays;
+  clientPaymentAmountField.required = clientPays;
+  if (!clientPays) {
+    if (canEditPayment) clientPaymentAmountField.value = '';
+    clientPaymentAmountField.setCustomValidity('');
+  }
 }
 
 function setTechnicianNotesAccess(value) {
@@ -445,6 +518,10 @@ function normalizeSavedUnitPayload(form) {
     unitBrand: String(raw.unitBrand || '').trim(),
     unitSpecs: String(raw.unitSpecs || '').trim(),
     unitPrice: String(raw.unitPrice || '').trim(),
+    clientPays: String(raw.clientPays || 'No').trim(),
+    clientPaymentAmount: String(raw.clientPays || '').trim().toLowerCase() === 'yes'
+      ? normalizeNumericAmount(raw.clientPaymentAmount)
+      : '',
     status: String(raw.status || (form.dataset.mode === 'edit' ? form.dataset.originalStatus : '') || '').trim(),
     branchLocation,
     currentLocation,
@@ -462,7 +539,7 @@ function normalizeSavedUnitPayload(form) {
   };
 }
 
-async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation, successMessage) {
+async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation, successMessage, payment) {
   const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
   if (!appScriptUrl || appScriptUrl === 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
     showPopupMessage('Please configure the Apps Script URL before moving a unit.');
@@ -470,6 +547,12 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
   }
 
   const unitCode = String(unit.unitCode || unit.code || '').trim();
+  const savedPayment = payment || {
+    clientPays: unit.clientPays || 'No',
+    clientPaymentAmount: unit.clientPaymentAmount || ''
+  };
+  const today = getManilaDateKey(new Date());
+  const dateReleased = nextStatus === 'Released' ? unit.dateReleased || today : unit.dateReleased || '';
   const body = new URLSearchParams({
     action: 'updateUnit',
     originalUnitCode: unitCode,
@@ -480,12 +563,14 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     unitSpecs: unit.specs || '',
     unitPrice: unit.unitPrice || '',
     status: nextStatus,
+    clientPays: savedPayment.clientPays,
+    clientPaymentAmount: savedPayment.clientPaymentAmount,
     branchLocation: unit.branchLocation || unit.uploadedBranch || '',
     uploadedBranch: unit.uploadedBranch || unit.branchLocation || '',
     currentLocation: nextLocation || unit.currentLocation || '',
     dateReceived: unit.dateReceived || '',
     dateReturn: unit.dateReturn || '',
-    dateReleased: unit.dateReleased || '',
+    dateReleased,
     warranty: unit.warranty || '',
     unitProblem: unit.unitProblem || '',
     inclusion: unit.inclusion || '',
@@ -505,7 +590,6 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     if (!response.ok || (result && result.ok === false)) {
       throw new Error(result && result.error ? result.error : `HTTP ${response.status}`);
     }
-    const today = getManilaDateKey(new Date());
     registryRowsCache = registryRowsCache.map((cachedUnit) => {
       if (String(cachedUnit.unitCode || cachedUnit.code || '').trim().toLowerCase() !== unitCode.toLowerCase()) return cachedUnit;
 
@@ -516,8 +600,10 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
       return {
         ...cachedUnit,
         status: nextStatus,
+        clientPays: savedPayment.clientPays,
+        clientPaymentAmount: savedPayment.clientPaymentAmount,
         currentLocation,
-        dateReleased: nextStatus === 'Released' ? cachedUnit.dateReleased || today : cachedUnit.dateReleased || '',
+        dateReleased: nextStatus === 'Released' ? cachedUnit.dateReleased || dateReleased : cachedUnit.dateReleased || '',
         releasedBy: nextStatus === 'Released' ? getLoggedInUserName() : cachedUnit.releasedBy || '',
         warehouseDateIn: isInWarehouse ? (wasInWarehouse ? cachedUnit.warehouseDateIn || today : today) : cachedUnit.warehouseDateIn || '',
         warehouseDateOut: isInWarehouse ? '' : (wasInWarehouse ? today : cachedUnit.warehouseDateOut || ''),
@@ -572,6 +658,14 @@ async function saveUnitToSheet(event) {
   }
 
   const payload = normalizeSavedUnitPayload(form);
+  if (payload.clientPays === 'Yes' && Number(payload.clientPaymentAmount) <= 0) {
+    if (clientPaymentAmountField) {
+      clientPaymentAmountField.setCustomValidity('Enter an amount greater than zero.');
+      clientPaymentAmountField.reportValidity();
+    }
+    return;
+  }
+  if (clientPaymentAmountField) clientPaymentAmountField.setCustomValidity('');
   if (payload.status === 'For Diagnosis' && !canSetForDiagnose.includes(role)) {
     showPopupMessage('Only Super Admin, Administrator, and Technician roles can set For Diagnosis.');
     return;
@@ -733,8 +827,35 @@ function initUnitModal() {
     closeMessageModalBtn.addEventListener('click', closePopupMessage);
   }
 
+  if (cancelPaymentPromptBtn) {
+    cancelPaymentPromptBtn.addEventListener('click', closePopupMessage);
+  }
+
   if (okMessageModalBtn) {
     okMessageModalBtn.addEventListener('click', async () => {
+      if (pendingPaymentAction) {
+        const clientPays = messageModalBody.querySelector('#statusClientPays');
+        const amountField = messageModalBody.querySelector('#statusClientPaymentAmount');
+        const clientPaymentAmount = normalizeNumericAmount(amountField ? amountField.value : '');
+        const shouldPay = clientPays && clientPays.value === 'Yes';
+        if (shouldPay && amountField) {
+          amountField.value = clientPaymentAmount;
+          if (!/^\d+(?:\.\d{1,2})?$/.test(clientPaymentAmount) || Number(clientPaymentAmount) <= 0) {
+            amountField.setCustomValidity('Enter an amount greater than zero with up to two decimal places.');
+            amountField.reportValidity();
+            return;
+          }
+          amountField.setCustomValidity('');
+        }
+
+        const action = pendingPaymentAction;
+        closePopupMessage();
+        await action({
+          clientPays: shouldPay ? 'Yes' : 'No',
+          clientPaymentAmount: shouldPay ? clientPaymentAmount : ''
+        });
+        return;
+      }
       if (pendingConfirmAction) {
         const action = pendingConfirmAction;
         closePopupMessage();
@@ -761,9 +882,48 @@ function initUnitModal() {
     });
   }
 
+  if (messageModalBody) {
+    messageModalBody.addEventListener('change', (event) => {
+      if (event.target.id !== 'statusClientPays') return;
+      const amountGroup = messageModalBody.querySelector('#statusClientPaymentAmountGroup');
+      const amountField = messageModalBody.querySelector('#statusClientPaymentAmount');
+      const shouldPay = event.target.value === 'Yes';
+      if (amountGroup) amountGroup.hidden = !shouldPay;
+      if (amountField) {
+        amountField.required = shouldPay;
+        if (!shouldPay) {
+          amountField.value = '';
+          amountField.setCustomValidity('');
+        }
+      }
+    });
+    messageModalBody.addEventListener('input', (event) => {
+      if (event.target.id !== 'statusClientPaymentAmount') return;
+      event.target.value = normalizeNumericAmount(event.target.value);
+      event.target.setCustomValidity('');
+    });
+  }
+
   if (unitForm) {
     const inclusionOptions = unitForm.querySelectorAll('input[name="inclusionOption"]');
     const contactInfoInput = unitForm.elements.namedItem('contactInfo');
+
+    if (clientPaysField) {
+      clientPaysField.addEventListener('change', syncClientPaymentFields);
+      syncClientPaymentFields();
+    }
+
+    if (clientPaymentAmountField) {
+      clientPaymentAmountField.addEventListener('input', () => {
+        clientPaymentAmountField.value = normalizeNumericAmount(clientPaymentAmountField.value);
+        clientPaymentAmountField.setCustomValidity('');
+      });
+      clientPaymentAmountField.addEventListener('blur', () => {
+        if (clientPaymentAmountField.value.endsWith('.')) {
+          clientPaymentAmountField.value = clientPaymentAmountField.value.slice(0, -1);
+        }
+      });
+    }
 
     if (contactInfoInput) {
       contactInfoInput.addEventListener('input', () => {
@@ -858,7 +1018,9 @@ function initUnitModal() {
         'Unit Problem',
         'Status',
         'Inclusion',
-        'Technician Notes'
+        'Technician Notes',
+        'Client Pays',
+        'Payment Amount'
       ];
 
       const rowsCsv = filteredRows.map((unit) => [
@@ -877,7 +1039,9 @@ function initUnitModal() {
         unit.unitProblem || '',
         unit.status || '',
         unit.inclusion || '',
-        unit.technicianNotes || ''
+        unit.technicianNotes || '',
+        String(unit.clientPays || 'No').trim(),
+        String(unit.clientPays || '').trim().toLowerCase() === 'yes' ? unit.clientPaymentAmount || '' : ''
       ]);
 
       const csvContent = [headers, ...rowsCsv]
@@ -970,8 +1134,8 @@ function initUnitModal() {
         ];
         const move = statusMoves.find(({ action }) => button.classList.contains(action));
         if (move) {
-          showPopupMessage(`Update unit ${unitCode} to ${move.status}?`, async () => {
-            const moved = await transferUnitStatus(unit, selectedRowIndex, currentRole, move.status, move.location || unit.currentLocation, move.message);
+          const confirmMove = async (payment) => {
+            const moved = await transferUnitStatus(unit, selectedRowIndex, currentRole, move.status, move.location || unit.currentLocation, move.message, payment);
             if (moved && (move.action === 'repaired' || move.action === 'return-tracking')) {
               const url = new URL(window.location.href);
               url.searchParams.set('view', 'monitoring');
@@ -979,7 +1143,12 @@ function initUnitModal() {
               syncRegistryViewLinks();
               renderUnitCards(registryRowsCache);
             }
-          });
+          };
+          if (move.action === 'for-release') {
+            showClientPaymentPrompt(unitCode, move.status, confirmMove);
+          } else {
+            showPopupMessage(`Update unit ${unitCode} to ${move.status}?`, () => confirmMove());
+          }
         }
         return;
       }
@@ -999,36 +1168,22 @@ function initUnitModal() {
 
       if (button.classList.contains('release')) {
         if (!canManageAction('release', currentRole)) return;
-        const appScriptUrl = window.GS_CONFIG ? window.GS_CONFIG.appScriptUrl : '';
-        if (!appScriptUrl) {
-          showPopupMessage('Please configure the Apps Script URL before releasing a unit.');
+        const releaseUnit = Number.isInteger(selectedRowIndex) && selectedRowIndex >= 0
+          ? registryRowsCache[selectedRowIndex]
+          : registryRowsCache.find((item) => String(item.unitCode || item.code || '').trim().toLowerCase() === unitCode.toLowerCase());
+        if (!releaseUnit) {
+          showPopupMessage('Unit not found in the live spreadsheet.');
           return;
         }
 
-        showPopupMessage(`Mark unit ${unitCode} as Released?`, async () => {
-          try {
-            const response = await fetch(appScriptUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-              body: new URLSearchParams({ action: 'releaseUnit', unitCode, actorRole: currentRole || '', actorName: getLoggedInUserName() }).toString()
-            });
-            const result = await response.json().catch(() => null);
-            if (!response.ok || (result && result.ok === false)) {
-              throw new Error(result && result.error ? result.error : `HTTP ${response.status}`);
-            }
-            const dateReleased = result && result.dateReleased ? result.dateReleased : getManilaDateKey(new Date());
-            registryRowsCache = registryRowsCache.map((cachedUnit) => (
-              String(cachedUnit.unitCode || cachedUnit.code || '').trim().toLowerCase() === unitCode.toLowerCase()
-                ? { ...cachedUnit, status: 'Released', dateReleased }
-                : cachedUnit
-            ));
-            showUnitToast('Unit released successfully.');
-            renderUnitCards(registryRowsCache);
-          } catch (error) {
-            console.error('Release unit failed:', error);
-            showPopupMessage('Release failed. Please confirm the Apps Script URL is correct.');
-          }
-        });
+        showPopupMessage(`Mark unit ${unitCode} as Released?`, () => transferUnitStatus(
+          releaseUnit,
+          selectedRowIndex,
+          currentRole,
+          'Released',
+          releaseUnit.currentLocation,
+          'Unit released successfully.'
+        ));
       }
 
       if (button.classList.contains('delete')) {
@@ -1208,6 +1363,8 @@ function renderUnitCards(rows) {
       const status = unit.status || 'Unknown';
       const normalizedStatus = normalizeSearchText(status);
       const branch = unit.uploadedBranch || unit.branchLocation || unit.currentLocation || '—';
+      const clientPays = String(unit.clientPays || 'No').trim().toLowerCase() === 'yes';
+      const clientPayment = clientPays ? formatCurrency(unit.clientPaymentAmount) : 'No charge';
       const canEdit = canManageAction('edit', currentRole);
       const canDelete = canManageAction('delete', currentRole);
       const canRelease = canManageAction('release', currentRole);
@@ -1278,6 +1435,7 @@ function renderUnitCards(rows) {
             <span class="unit-record-facts">
               <span><small>Branch</small><strong>${escapeHtml(branch)}</strong></span>
               <span><small>Current location</small><strong>${escapeHtml(unit.currentLocation || branch || '—')}</strong></span>
+              <span><small>Client payment</small><strong>${escapeHtml(clientPayment)}</strong></span>
             </span>
             ${isUnitUrgent ? '<span class="unit-record-urgent">Urgent attention</span>' : ''}
             <span class="unit-record-open-label">View full record <span aria-hidden="true">→</span></span>
