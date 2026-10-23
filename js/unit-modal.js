@@ -23,6 +23,8 @@ const unitStatusFilter = document.getElementById('unitStatusFilter');
 const unitBranchFilter = document.getElementById('unitBranchFilter');
 const currentLocationSelect = document.getElementById('currentLocation');
 const technicianNotesField = document.getElementById('technicianNotes');
+const assignedTechnicianField = document.getElementById('assignedTechnician');
+const assignedTechnicianStatus = document.getElementById('assignedTechnicianStatus');
 const urgentField = document.getElementById('isUrgent');
 const dateReleasedField = document.getElementById('dateReleased');
 const clientPaysField = document.getElementById('clientPays');
@@ -48,6 +50,8 @@ let unitToastTimer = null;
 let unitDetailsReturnFocus = null;
 const contactInfoPrefix = '+63 ';
 const canSetForDiagnose = ['Super Admin', 'Administrator', 'Technician'];
+let technicianOptions = [];
+let technicianNamesByUsername = new Map();
 
 function formatContactInfoValue(value) {
   const digits = String(value || '').replace(/[^0-9]/g, '').replace(/^63/, '').slice(0, 10);
@@ -89,8 +93,12 @@ function showClientPaymentPrompt(unitCode, nextStatus, onConfirm) {
     </div>
     <div class="field-group status-payment-amount" id="statusClientPaymentAmountGroup" hidden>
       <label for="statusClientPaymentAmount">Amount to collect</label>
-      <input id="statusClientPaymentAmount" type="text" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,2})?" placeholder="Enter amount" autocomplete="off" />
+      <div class="currency-input-wrap">
+        <span class="currency-input-prefix" aria-hidden="true">₱</span>
+        <input id="statusClientPaymentAmount" type="text" inputmode="decimal" placeholder="1,500.00" autocomplete="off" />
+      </div>
     </div>`;
+  bindPaymentAmountInput(messageModalBody.querySelector('#statusClientPaymentAmount'));
   messageModalBackdrop.classList.add('visible');
   messageModalBackdrop.setAttribute('aria-hidden', 'false');
 }
@@ -150,7 +158,8 @@ function openUnitDetails(unit, trigger) {
     ['Notes & inclusions', [
       ['Unit problem', unit.unitProblem || unit.problem],
       ['Inclusions', unit.inclusion],
-      ['Technical notes', unit.technicianNotes]
+      ['Technical notes', unit.technicianNotes],
+      ['Technician handling this unit', getTechnicianDisplayName(unit.assignedTechnician)]
     ]]
   ];
 
@@ -212,7 +221,7 @@ function closeUnitDetails() {
   unitDetailsBackdrop.classList.remove('visible');
   unitDetailsBackdrop.setAttribute('aria-hidden', 'true');
   if (unitDetailsReturnFocus instanceof HTMLElement && unitDetailsReturnFocus.isConnected) {
-    unitDetailsReturnFocus.focus();
+    unitDetailsReturnFocus.focus({ preventScroll: true });
   }
 }
 
@@ -279,6 +288,7 @@ function openUnitModal(mode = 'create', unit = null) {
     }
     syncOtherInclusionField();
     syncClientPaymentFields();
+    setAssignedTechnicianValue('');
     const contactInfoField = unitForm.elements.namedItem('contactInfo');
     if (contactInfoField) contactInfoField.value = contactInfoPrefix;
 
@@ -316,6 +326,7 @@ function closeUnitModal() {
   if (unitForm) {
     unitForm.dataset.mode = 'create';
     unitForm.reset();
+    setAssignedTechnicianValue('');
   }
   if (unitModalTitle) unitModalTitle.textContent = 'Register a New Unit';
   if (unitModalDescription) unitModalDescription.textContent = 'Add client and equipment details to the registry.';
@@ -364,6 +375,7 @@ function populateUnitForm(unit) {
     dateReleased: unit.dateReleased || '',
     unitProblem: unit.unitProblem || unit.problem || '',
     technicianNotes: unit.technicianNotes || '',
+    assignedTechnician: unit.assignedTechnician || '',
     status: unit.status || '',
     branchLocation: unit.branchLocation || unit.currentLocation || unit.uploadedBranch || '',
     currentLocation: savedCurrentLocation === uploadedBranch ? '__branch_location__' : savedCurrentLocation,
@@ -380,6 +392,10 @@ function populateUnitForm(unit) {
       field.value = value;
     }
   });
+  if (clientPaymentAmountField) {
+    clientPaymentAmountField.value = formatPaymentAmount(clientPaymentAmountField.value);
+  }
+  setAssignedTechnicianValue(unit.assignedTechnician || '');
 
   const statusField = unitForm.elements.namedItem('status');
   if (statusField) {
@@ -401,6 +417,31 @@ function normalizeNumericAmount(value) {
     normalized = `${normalized.slice(0, decimalIndex + 1)}${normalized.slice(decimalIndex + 1).replace(/\./g, '').slice(0, 2)}`;
   }
   return normalized;
+}
+
+function formatPaymentAmount(value) {
+  const normalized = normalizeNumericAmount(value);
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return String(value || '');
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) return String(value || '');
+  return new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+function bindPaymentAmountInput(input) {
+  if (!input) return;
+  input.addEventListener('focus', () => {
+    input.value = normalizeNumericAmount(input.value);
+  });
+  input.addEventListener('input', () => {
+    input.value = normalizeNumericAmount(input.value);
+    input.setCustomValidity('');
+  });
+  input.addEventListener('blur', () => {
+    input.value = formatPaymentAmount(input.value);
+  });
 }
 
 function syncClientPaymentFields() {
@@ -532,6 +573,7 @@ function normalizeSavedUnitPayload(form) {
     unitProblem: String(raw.unitProblem || '').trim(),
     inclusion: String(raw.inclusion || '').trim(),
     technicianNotes: String(raw.technicianNotes || '').trim(),
+    assignedTechnician: String(raw.assignedTechnician || '').trim(),
     isUrgent: urgentField && urgentField.checked ? 'TRUE' : '',
     actorRole: role || '',
     actorName: getLoggedInUserName(),
@@ -713,6 +755,80 @@ async function saveUnitToSheet(event) {
   }
 }
 
+function getTechnicianDisplayName(username) {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  return technicianNamesByUsername.get(normalizedUsername) || username || '';
+}
+
+function setAssignedTechnicianValue(username) {
+  if (!assignedTechnicianField) return;
+  const value = String(username || '').trim();
+  assignedTechnicianField.dataset.selected = value;
+  const matchingOption = Array.from(assignedTechnicianField.options)
+    .find((option) => option.value.toLowerCase() === value.toLowerCase());
+  if (value && !matchingOption) {
+    const existingAccount = technicianOptions.find((option) => option.username.toLowerCase() === value.toLowerCase());
+    assignedTechnicianField.add(new Option(
+      existingAccount ? existingAccount.fullName : `${value} (not in technician settings)`,
+      value
+    ));
+  }
+  assignedTechnicianField.value = matchingOption ? matchingOption.value : value;
+}
+
+async function loadAssignedTechnicianOptions() {
+  if (!assignedTechnicianField) return;
+  if (typeof DATA === 'undefined') {
+    assignedTechnicianField.replaceChildren(new Option('Technician list unavailable', ''));
+    if (assignedTechnicianStatus) assignedTechnicianStatus.textContent = 'Unit data could not be loaded. Refresh the page to try again.';
+    console.error('Unable to load technicians: unit data module is unavailable.');
+    return;
+  }
+  assignedTechnicianField.disabled = true;
+  assignedTechnicianField.replaceChildren(new Option('Loading technicians...', ''));
+
+  try {
+    const [rows, settings] = await Promise.all([
+      DATA.fetchAccounts(),
+      DATA.fetchTechnicianSettings()
+    ]);
+    const activeAccounts = rows
+      .map((row) => ({
+        username: String(row.username || row.userName || row.accountUsername || '').trim(),
+        role: String(row.accountType || row.role || row.userType || '').trim(),
+        fullName: String(row.fullName || row.name || row.username || '').trim(),
+        status: String(row.status || 'Active').trim().toLowerCase()
+      }))
+      .filter((account) => account.username && !['inactive', 'disabled', 'deactivated'].includes(account.status));
+    technicianNamesByUsername = new Map(activeAccounts.map((account) => [
+      account.username.toLowerCase(),
+      account.fullName || account.username
+    ]));
+    const allowedUsernames = settings.configured
+      ? new Set(settings.technicians.map((username) => String(username).toLowerCase()))
+      : null;
+    technicianOptions = activeAccounts.filter((account) => allowedUsernames
+      ? allowedUsernames.has(account.username.toLowerCase())
+      : account.role.toLowerCase() === 'technician');
+    assignedTechnicianField.replaceChildren(new Option('Unassigned', ''));
+    technicianOptions.forEach((account) => {
+      assignedTechnicianField.add(new Option(account.fullName || account.username, account.username));
+    });
+    assignedTechnicianField.disabled = false;
+    setAssignedTechnicianValue(assignedTechnicianField.dataset.selected || '');
+    if (assignedTechnicianStatus) {
+      assignedTechnicianStatus.textContent = settings.configured
+        ? 'Technicians are managed in Settings.'
+        : 'Accounts with the Technician role are included by default. Manage this list in Settings.';
+    }
+    if (registryRowsLoaded) renderUnitCards(registryRowsCache);
+  } catch (error) {
+    assignedTechnicianField.replaceChildren(new Option('Technician list unavailable', ''));
+    if (assignedTechnicianStatus) assignedTechnicianStatus.textContent = 'Could not load technicians. Refresh the page to try again.';
+    console.error('Unable to load technicians for unit assignment:', error);
+  }
+}
+
 function showTrashView() {
   if (!unitsMainView) unitsMainView = document.querySelector('.workspace > main.content');
   if (!trashMainView) {
@@ -798,6 +914,13 @@ function initRegistryViewNavigation() {
 
 function initUnitModal() {
   initRegistryViewNavigation();
+  loadAssignedTechnicianOptions();
+
+  if (assignedTechnicianField) {
+    assignedTechnicianField.addEventListener('change', () => {
+      assignedTechnicianField.dataset.selected = assignedTechnicianField.value;
+    });
+  }
 
   if (openBtn) {
     openBtn.addEventListener('click', () => openUnitModal('create'));
@@ -897,11 +1020,6 @@ function initUnitModal() {
         }
       }
     });
-    messageModalBody.addEventListener('input', (event) => {
-      if (event.target.id !== 'statusClientPaymentAmount') return;
-      event.target.value = normalizeNumericAmount(event.target.value);
-      event.target.setCustomValidity('');
-    });
   }
 
   if (unitForm) {
@@ -914,10 +1032,7 @@ function initUnitModal() {
     }
 
     if (clientPaymentAmountField) {
-      clientPaymentAmountField.addEventListener('input', () => {
-        clientPaymentAmountField.value = normalizeNumericAmount(clientPaymentAmountField.value);
-        clientPaymentAmountField.setCustomValidity('');
-      });
+      bindPaymentAmountInput(clientPaymentAmountField);
       clientPaymentAmountField.addEventListener('blur', () => {
         if (clientPaymentAmountField.value.endsWith('.')) {
           clientPaymentAmountField.value = clientPaymentAmountField.value.slice(0, -1);
@@ -1019,6 +1134,7 @@ function initUnitModal() {
         'Status',
         'Inclusion',
         'Technician Notes',
+        'Assigned Technician',
         'Client Pays',
         'Payment Amount'
       ];
@@ -1040,6 +1156,7 @@ function initUnitModal() {
         unit.status || '',
         unit.inclusion || '',
         unit.technicianNotes || '',
+        getTechnicianDisplayName(unit.assignedTechnician),
         String(unit.clientPays || 'No').trim(),
         String(unit.clientPays || '').trim().toLowerCase() === 'yes' ? unit.clientPaymentAmount || '' : ''
       ]);
@@ -1433,9 +1550,10 @@ function renderUnitCards(rows) {
             </span>
             <span class="unit-record-specs">${escapeHtml(brand)} <span aria-hidden="true">·</span> ${escapeHtml(specs)}</span>
             <span class="unit-record-facts">
-              <span><small>Branch</small><strong>${escapeHtml(branch)}</strong></span>
-              <span><small>Current location</small><strong>${escapeHtml(unit.currentLocation || branch || '—')}</strong></span>
-              <span><small>Client payment</small><strong>${escapeHtml(clientPayment)}</strong></span>
+              <span class="unit-record-branch"><small>Branch</small><strong>${escapeHtml(branch)}</strong></span>
+              <span class="unit-record-location"><small>Current location</small><strong>${escapeHtml(unit.currentLocation || branch || '—')}</strong></span>
+              <span class="unit-record-technician"><small>Technician</small><strong>${escapeHtml(getTechnicianDisplayName(unit.assignedTechnician) || 'Unassigned')}</strong></span>
+              <span class="unit-record-payment"><small>Client payment</small><strong>${escapeHtml(clientPayment)}</strong></span>
             </span>
             ${isUnitUrgent ? '<span class="unit-record-urgent">Urgent attention</span>' : ''}
             <span class="unit-record-open-label">View full record <span aria-hidden="true">→</span></span>

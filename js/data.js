@@ -42,6 +42,37 @@ const DATA = {
     return result;
   },
 
+  async fetchTechnicianSettings() {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(`${config.appScriptUrl}?action=technicians`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Technician settings request failed with status ${response.status}.`);
+    const result = await response.json();
+    if (result.ok === false || typeof result.configured !== 'boolean' || !Array.isArray(result.technicians)) {
+      throw new Error(result.error || 'Technician settings could not be loaded.');
+    }
+    return result;
+  },
+
+  async saveTechnicianSettings(usernames, actorRole) {
+    const config = window.GS_CONFIG || {};
+    if (!config.appScriptUrl) throw new Error('Apps Script URL is not configured.');
+    const response = await fetch(config.appScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        action: 'savetechnicians',
+        actorRole: actorRole || '',
+        technicians: JSON.stringify(usernames)
+      }).toString()
+    });
+    const result = await response.json();
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || `Technician settings save failed with status ${response.status}.`);
+    }
+    return result;
+  },
+
   async fetchBranches() {
     const config = window.GS_CONFIG || {};
     return DATA.fetchSheet({ gid: config.branchesGid || config.gid || '0', includeAllRows: true });
@@ -280,6 +311,7 @@ function normalizeRow(rawRow) {
   const unitProblem = legacyValue(12, ['unit problem', 'unitproblem', 'problem']);
   const inclusion = legacyValue(13, ['inclusion', 'inclusions']);
   const technicianNotes = legacyValue(15, ['technician notes', 'techniciannotes', 'technician note']);
+  const assignedTechnician = findValue(row, ['assigned technician', 'assignedtechnician', 'technician assigned']);
   const isUrgent = legacyValue(16, ['urgent', 'is urgent', 'urgent flag']);
   const unitPrice = legacyValue(5, ['unit price', 'price']);
   const clientPays = findValue(row, ['client pays', 'will client pay']);
@@ -323,6 +355,7 @@ function normalizeRow(rawRow) {
     unitProblem: unitProblem || '',
     inclusion: inclusion || '',
     technicianNotes: technicianNotes || '',
+    assignedTechnician: assignedTechnician || '',
     isUrgent: isUrgent || '',
     unitPrice: unitPrice || '',
     clientPays: clientPays || 'No',

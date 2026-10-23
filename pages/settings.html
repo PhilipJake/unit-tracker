@@ -81,6 +81,7 @@
         <div class="settings-view-tabs" role="tablist" aria-label="Settings section">
           <button class="settings-view-tab active" id="rolesSettingsTab" type="button" role="tab" aria-selected="true" aria-controls="rolesManagerPanel" data-settings-view="roles">Roles</button>
           <button class="settings-view-tab" id="branchTypesSettingsTab" type="button" role="tab" aria-selected="false" aria-controls="branchTypesManagerPanel" data-settings-view="branchTypes">Branch Types</button>
+          <button class="settings-view-tab" id="techniciansSettingsTab" type="button" role="tab" aria-selected="false" aria-controls="techniciansManagerPanel" data-settings-view="technicians">Technicians</button>
         </div>
 
         <div class="settings-managers-grid">
@@ -205,6 +206,33 @@
               </footer>
             </section>
           </div>
+        </section>
+
+        <section class="branch-type-settings technician-settings" id="techniciansManagerPanel" role="tabpanel" aria-labelledby="techniciansSettingsTab" hidden>
+          <section class="role-editor-panel">
+            <header class="role-editor-header">
+              <div>
+                <div class="eyebrow">Unit assignment</div>
+                <h2>Technicians</h2>
+                <p>Choose which active accounts can be assigned to a unit.</p>
+              </div>
+            </header>
+            <div class="role-editor-content technician-settings-content">
+              <div class="permission-section-heading">
+                <div>
+                  <h3>Available technicians</h3>
+                  <p>If you have not saved a custom list, all active accounts with the Technician role are included automatically.</p>
+                </div>
+              </div>
+              <div class="technician-option-list" id="technicianOptionList" aria-live="polite">
+                <p class="member-empty-state">Loading accounts...</p>
+              </div>
+              <p class="technician-settings-status" id="technicianSettingsStatus" role="status" aria-live="polite"></p>
+            </div>
+            <footer class="role-editor-footer">
+              <button class="action-btn primary" id="saveTechnicianSettingsButton" type="button" disabled>Save technicians</button>
+            </footer>
+          </section>
         </section>
 
         </div>

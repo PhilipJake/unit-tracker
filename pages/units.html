@@ -242,7 +242,10 @@
                 </div>
                 <div class="field-group" id="clientPaymentAmountGroup" hidden>
                   <label for="clientPaymentAmount">Amount to collect</label>
-                  <input id="clientPaymentAmount" name="clientPaymentAmount" type="text" inputmode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" placeholder="Enter amount" autocomplete="off" />
+                  <div class="currency-input-wrap">
+                    <span class="currency-input-prefix" aria-hidden="true">₱</span>
+                    <input id="clientPaymentAmount" name="clientPaymentAmount" type="text" inputmode="decimal" placeholder="1,500.00" autocomplete="off" />
+                  </div>
                 </div>
               </div>
             </section>
@@ -277,6 +280,20 @@
               </div>
             </section>
           </div>
+
+          <section class="unit-detail-section unit-editor-assignment">
+            <h3>Technician assignment</h3>
+            <p>Choose who will handle this unit. Technician accounts are included automatically unless the list is customized in Settings.</p>
+            <div class="unit-editor-fields">
+              <div class="field-group">
+                <label for="assignedTechnician">Technician handling this unit</label>
+                <select id="assignedTechnician" name="assignedTechnician" disabled>
+                  <option value="">Loading technicians...</option>
+                </select>
+                <small class="field-help" id="assignedTechnicianStatus" aria-live="polite"></small>
+              </div>
+            </div>
+          </section>
 
           <footer class="unit-details-footer unit-editor-actions">
             <button type="button" class="action-btn" id="cancelUnitModalBtn">Cancel</button>

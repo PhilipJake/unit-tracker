@@ -26,7 +26,7 @@ This app reads data directly from a Google Sheet using the public CSV export URL
 1. Create a Google Sheet with a sheet name like `Units`.
 2. Add the exact columns below as the header row:
 
-   `Code, Client Name, Contact Info, Unit Brand, Unit Specs, Unit Price, Status, Branch Location, Current Location, Date Purchased, Date of Return, Date Released, Released By, Date Sent to Warehouse, Date Left Warehouse, Warranty, Unit Problem, Inclusion, Uploaded Branch, Technician Notes, Urgent, Deleted At, Deleted By, Previous Status, Client Pays, Payment Amount`
+   `Code, Client Name, Contact Info, Unit Brand, Unit Specs, Unit Price, Status, Branch Location, Current Location, Date Purchased, Date of Return, Date Released, Released By, Date Sent to Warehouse, Date Left Warehouse, Warranty, Unit Problem, Inclusion, Uploaded Branch, Technician Notes, Urgent, Deleted At, Deleted By, Previous Status, Client Pays, Payment Amount, Assigned Technician`
 
 3. Put your data under those headers.
    The Apps Script migrates existing unit sheets to this schema automatically. Client payment fields are updated when a unit status action is used and can also be edited on the unit form.
@@ -87,6 +87,8 @@ Attachments are uploaded by Apps Script to a Google Drive folder named `ClientUn
 ## Access control
 
 Super Admins and Administrators can configure page and action permissions by role in Settings and create custom roles. New roles start with View and basic pages allowed, with all other permissions off; they can be assigned when creating accounts. The Laptop Dashboard and Phone Dashboard appear next to each other in navigation when enabled for the role; the Phones registry and Phone Dashboard have separate access options, and Apple Product branch eligibility is also required for phone pages. Account type options refresh from saved database roles. View is always allowed and locked; release, warehouse, pullout, replacement, and repair permissions control their matching unit views and workflows. Member overrides customize an individual account without changing role defaults. Super Admin access is locked. Saving settings creates or updates the `User Permissions` sheet automatically. Redeploy the Apps Script web app after changing `gs/code.gs`.
+
+Super Admins and Administrators can manage the accounts available in the unit editor's Technician assignment prompt under Settings → Technicians. Until a custom list is saved, active accounts with the Technician role are included automatically. The assignment is stored with each unit and retained when its status changes. Technician settings are stored in the `Unit Settings` sheet. Redeploy the Apps Script web app after changing `gs/code.gs`.
 
 Super Admins and Administrators can enable Apple Products for a branch type using the checkbox in Settings → Branch Types. Every branch using an enabled shortcut can use the Phones registry. Accounts assigned to those branches land on a phone-specific dashboard with phone totals, release and warehouse counts, recent purchases, and branch totals; the Phones navigation opens the full registry. The registry stores records in `AppleProducts` with `Status` immediately after `Contact Info` and `Branch` after `IMEI`, so records remain associated with the selected branch. Run `initializeClientUnitTrackerSheets()` to create the sheet, or let the Apps Script create it when the registry is first opened. Redeploy the Apps Script web app after updating `gs/code.gs`.
 

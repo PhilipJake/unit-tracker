@@ -7,6 +7,10 @@ function doGet(e) {
     return readPermissionSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
   }
 
+  if (action === 'technicians') {
+    return readTechnicianSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
+  }
+
   if (action === 'branchtypes') {
     return readBranchTypeSettings(SpreadsheetApp.openById(SPREADSHEET_ID));
   }
@@ -67,6 +71,10 @@ function doPost(e) {
 
   if (action === 'savepermissions') {
     return savePermissionSettings(spreadsheet, values);
+  }
+
+  if (action === 'savetechnicians') {
+    return saveTechnicianSettings(spreadsheet, values);
   }
 
   if (action === 'savebranchtypes') {
@@ -616,6 +624,83 @@ function savePermissionSettings(spreadsheet, values) {
   userSheet.setFrozenRows(1);
   PropertiesService.getScriptProperties().setProperty('ROLE_COLORS', JSON.stringify(normalizedRoleColors));
   return jsonResponse({ ok: true, action: 'savePermissions' });
+}
+
+function getTechnicianSettingsSheet(spreadsheet) {
+  let sheet = spreadsheet.getSheetByName('Unit Settings');
+  if (!sheet) sheet = spreadsheet.insertSheet('Unit Settings');
+  if (sheet.getLastRow() === 0 || String(sheet.getRange(1, 1).getValue() || '').trim() === '') {
+    sheet.getRange(1, 1, 1, 2).setValues([['Setting', 'Value']]);
+  }
+  return sheet;
+}
+
+function readTechnicianSettings(spreadsheet) {
+  const sheet = getTechnicianSettingsSheet(spreadsheet);
+  const rows = sheet.getDataRange().getValues();
+  const settingRow = rows.find((row, index) => index > 0 && String(row[0] || '').trim().toLowerCase() === 'technicians');
+  if (!settingRow) return jsonResponse({ ok: true, configured: false, technicians: [] });
+
+  let technicians;
+  try {
+    technicians = JSON.parse(String(settingRow[1] || '[]'));
+  } catch (error) {
+    return jsonResponse({ ok: false, error: 'Saved technician settings are invalid.' });
+  }
+  if (!Array.isArray(technicians) || technicians.some((username) => typeof username !== 'string')) {
+    return jsonResponse({ ok: false, error: 'Saved technician settings are invalid.' });
+  }
+  return jsonResponse({
+    ok: true,
+    configured: true,
+    technicians: [...new Set(technicians.map((username) => username.trim()).filter(Boolean))]
+  });
+}
+
+function saveTechnicianSettings(spreadsheet, values) {
+  if (!['Super Admin', 'Administrator'].includes(String(values.actorRole || '').trim())) {
+    return jsonResponse({ ok: false, error: 'Only Super Admin or Administrator can save technician settings.' });
+  }
+
+  let requestedTechnicians;
+  try {
+    requestedTechnicians = JSON.parse(String(values.technicians || '[]'));
+  } catch (error) {
+    return jsonResponse({ ok: false, error: 'Invalid technician settings.' });
+  }
+  if (!Array.isArray(requestedTechnicians) || requestedTechnicians.some((username) => typeof username !== 'string')) {
+    return jsonResponse({ ok: false, error: 'Invalid technician settings.' });
+  }
+
+  const accountsSheet = spreadsheet.getSheetByName('Accounts');
+  if (!accountsSheet) return jsonResponse({ ok: false, error: 'Accounts sheet was not found.' });
+  const accountRows = accountsSheet.getDataRange().getValues();
+  const accountHeaders = (accountRows[0] || []).map((header) => String(header || '').trim().toLowerCase());
+  const usernameIndex = accountHeaders.findIndex((header) => ['username', 'user name', 'user', 'login'].includes(header));
+  const statusIndex = accountHeaders.findIndex((header) => header === 'status');
+  if (usernameIndex < 0) return jsonResponse({ ok: false, error: 'Username column was not found in Accounts.' });
+
+  const activeUsernames = new Map();
+  accountRows.slice(1).forEach((row) => {
+    const username = String(row[usernameIndex] || '').trim();
+    const status = statusIndex < 0 ? 'active' : String(row[statusIndex] || 'Active').trim().toLowerCase();
+    if (username && !['inactive', 'disabled', 'deactivated'].includes(status)) {
+      activeUsernames.set(username.toLowerCase(), username);
+    }
+  });
+
+  const usernames = [...new Set(requestedTechnicians.map((username) => username.trim()).filter(Boolean))];
+  if (usernames.some((username) => !activeUsernames.has(username.toLowerCase()))) {
+    return jsonResponse({ ok: false, error: 'Technician selections must be active accounts.' });
+  }
+  const savedUsernames = usernames.map((username) => activeUsernames.get(username.toLowerCase()));
+  const sheet = getTechnicianSettingsSheet(spreadsheet);
+  const settingsRows = sheet.getDataRange().getValues();
+  const settingIndex = settingsRows.findIndex((row, index) => index > 0 && String(row[0] || '').trim().toLowerCase() === 'technicians');
+  const settingRow = ['technicians', JSON.stringify(savedUsernames)];
+  if (settingIndex < 0) sheet.appendRow(settingRow);
+  else sheet.getRange(settingIndex + 1, 1, 1, 2).setValues([settingRow]);
+  return jsonResponse({ ok: true, configured: true, technicians: savedUsernames });
 }
 
 function ensureBranchTypeSheet(spreadsheet) {
@@ -1257,6 +1342,7 @@ function updateUnitRow(spreadsheet, values) {
     if (currentCode === targetCode) {
       const contactInfoIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'contact info');
       const technicianNotesIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'technician notes');
+      const assignedTechnicianIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'assigned technician');
       const unitPriceIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'unit price');
       const clientPaysIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'client pays');
       const paymentAmountIndex = headerRow.findIndex((header) => String(header).trim().toLowerCase() === 'payment amount');
@@ -1287,6 +1373,9 @@ function updateUnitRow(spreadsheet, values) {
       }
       if (!canEditTechnicianNotes(values.actorRole) && technicianNotesIndex >= 0) {
         values.technicianNotes = data[rowIndex][technicianNotesIndex] || '';
+      }
+      if (values.assignedTechnician === undefined && assignedTechnicianIndex >= 0) {
+        values.assignedTechnician = data[rowIndex][assignedTechnicianIndex] || '';
       }
       if (urgentIndex >= 0 && ['true', '1', 'yes', 'urgent'].includes(String(data[rowIndex][urgentIndex] || '').trim().toLowerCase())) {
         values.isUrgent = 'TRUE';
@@ -1669,7 +1758,8 @@ function getHeadersForAction(action) {
         'Deleted By',
         'Previous Status',
         'Client Pays',
-        'Payment Amount'
+        'Payment Amount',
+        'Assigned Technician'
       ];
   }
 }
@@ -1761,7 +1851,8 @@ function buildRowForAction(action, values) {
         values.deletedBy || '',
         values.previousStatus || '',
         String(values.clientPays || 'No').trim(),
-        String(values.clientPays || '').trim().toLowerCase() === 'yes' ? String(values.clientPaymentAmount || '').trim() : ''
+        String(values.clientPays || '').trim().toLowerCase() === 'yes' ? String(values.clientPaymentAmount || '').trim() : '',
+        values.assignedTechnician || ''
       ];
   }
 }

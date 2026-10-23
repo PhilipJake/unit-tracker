@@ -54,8 +54,13 @@ const settingsViewTitle = document.getElementById('settingsViewTitle');
 const settingsViewDescription = document.getElementById('settingsViewDescription');
 const rolesManagerPanel = document.getElementById('rolesManagerPanel');
 const branchTypesManagerPanel = document.getElementById('branchTypesManagerPanel');
+const techniciansManagerPanel = document.getElementById('techniciansManagerPanel');
 const rolesSettingsTab = document.getElementById('rolesSettingsTab');
 const branchTypesSettingsTab = document.getElementById('branchTypesSettingsTab');
+const techniciansSettingsTab = document.getElementById('techniciansSettingsTab');
+const technicianOptionList = document.getElementById('technicianOptionList');
+const technicianSettingsStatus = document.getElementById('technicianSettingsStatus');
+const saveTechnicianSettingsButton = document.getElementById('saveTechnicianSettingsButton');
 const branchTypeSelector = document.getElementById('branchTypeSelector');
 const branchTypeCount = document.getElementById('branchTypeCount');
 const selectedBranchTypeTitle = document.getElementById('selectedBranchTypeTitle');
@@ -77,6 +82,9 @@ const branchTypeSaveStatus = document.getElementById('branchTypeSaveStatus');
 const branchTypeAppleProducts = document.getElementById('branchTypeAppleProducts');
 const branchTypeUnitRegistry = document.getElementById('branchTypeUnitRegistry');
 let managedAccounts = [];
+let managedAccountsLoaded = false;
+let selectedTechnicianUsernames = null;
+let technicianSettingsLoaded = false;
 let roleAssignments = [];
 let userPermissionOverrides = {};
 let rolePermissionsState = getRolePermissions();
@@ -93,16 +101,22 @@ let settingsToastTimer = null;
 
 function setSettingsView(view) {
   const showBranchTypes = view === 'branchTypes';
-  rolesManagerPanel.hidden = showBranchTypes;
+  const showTechnicians = view === 'technicians';
+  rolesManagerPanel.hidden = showBranchTypes || showTechnicians;
   branchTypesManagerPanel.hidden = !showBranchTypes;
-  rolesSettingsTab.classList.toggle('active', !showBranchTypes);
+  techniciansManagerPanel.hidden = !showTechnicians;
+  rolesSettingsTab.classList.toggle('active', !showBranchTypes && !showTechnicians);
   branchTypesSettingsTab.classList.toggle('active', showBranchTypes);
-  rolesSettingsTab.setAttribute('aria-selected', String(!showBranchTypes));
+  techniciansSettingsTab.classList.toggle('active', showTechnicians);
+  rolesSettingsTab.setAttribute('aria-selected', String(!showBranchTypes && !showTechnicians));
   branchTypesSettingsTab.setAttribute('aria-selected', String(showBranchTypes));
-  settingsViewTitle.textContent = showBranchTypes ? 'Branch Types' : 'Roles';
+  techniciansSettingsTab.setAttribute('aria-selected', String(showTechnicians));
+  settingsViewTitle.textContent = showBranchTypes ? 'Branch Types' : showTechnicians ? 'Technicians' : 'Roles';
   settingsViewDescription.textContent = showBranchTypes
     ? 'Manage the shortcuts, names, and Apple Products access used by branches.'
-    : 'Manage workspace permissions by role or member.';
+    : showTechnicians
+      ? 'Choose which accounts can be assigned to unit work.'
+      : 'Manage workspace permissions by role or member.';
 }
 
 function renderColorSwatches(palette, selectedColor) {
@@ -594,12 +608,83 @@ async function loadManagedAccounts() {
       const secondOrder = secondRoleOrder === -1 ? roleHierarchy.length : secondRoleOrder;
       return firstOrder - secondOrder || first.fullName.localeCompare(second.fullName);
     });
+    managedAccountsLoaded = true;
     renderManagedMemberOptions();
   } catch (error) {
     memberAccountSelect.replaceChildren(new Option('Unable to load accounts', ''));
     console.error('Unable to load accounts for member permissions:', error);
   }
   renderMemberPermissions();
+  renderTechnicianOptions();
+}
+
+function renderTechnicianOptions() {
+  if (!technicianOptionList || !saveTechnicianSettingsButton) return;
+  technicianOptionList.replaceChildren();
+  const selectedUsernames = selectedTechnicianUsernames === null
+    ? managedAccounts.filter((account) => account.role.toLowerCase() === 'technician').map((account) => account.username.toLowerCase())
+    : selectedTechnicianUsernames;
+  const selected = new Set(selectedUsernames);
+
+  if (!managedAccountsLoaded) {
+    technicianOptionList.textContent = 'Unable to load accounts. Refresh the page to try again.';
+  } else if (!managedAccounts.length) {
+    technicianOptionList.textContent = 'No active accounts are available.';
+  } else {
+    managedAccounts.forEach((account) => {
+      const label = document.createElement('label');
+      label.className = 'technician-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.technicianUsername = account.username.toLowerCase();
+      checkbox.checked = selected.has(account.username.toLowerCase());
+      const name = document.createElement('span');
+      name.className = 'technician-option-name';
+      name.textContent = account.fullName;
+      const detail = document.createElement('small');
+      detail.textContent = `${account.role} - ${account.username}`;
+      label.append(checkbox, name, detail);
+      technicianOptionList.append(label);
+    });
+  }
+  saveTechnicianSettingsButton.disabled = !technicianSettingsLoaded || !managedAccountsLoaded;
+}
+
+async function loadTechnicianSettings() {
+  try {
+    const result = await DATA.fetchTechnicianSettings();
+    selectedTechnicianUsernames = result.configured
+      ? result.technicians.map((username) => String(username).trim().toLowerCase())
+      : null;
+    technicianSettingsLoaded = true;
+    technicianSettingsStatus.textContent = result.configured
+      ? 'Custom technician list loaded.'
+      : 'Using all active accounts with the Technician role by default. Saving will create a custom list.';
+  } catch (error) {
+    technicianSettingsStatus.textContent = 'Could not load technician settings. Refresh before saving.';
+    console.error('Unable to load technician settings:', error);
+  }
+  renderTechnicianOptions();
+}
+
+async function saveTechnicianSettings() {
+  if (!technicianSettingsLoaded || !managedAccountsLoaded) return;
+  const usernames = Array.from(technicianOptionList.querySelectorAll('[data-technician-username]'))
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.dataset.technicianUsername);
+  saveTechnicianSettingsButton.disabled = true;
+  technicianSettingsStatus.textContent = 'Saving technician list...';
+  try {
+    const result = await DATA.saveTechnicianSettings(usernames, getCurrentRole());
+    selectedTechnicianUsernames = result.technicians.map((username) => String(username).toLowerCase());
+    technicianSettingsStatus.textContent = 'Technician list saved.';
+    showSettingsToast('Technician settings saved');
+  } catch (error) {
+    technicianSettingsStatus.textContent = error.message || 'Technician settings could not be saved.';
+    console.error('Unable to save technician settings:', error);
+  } finally {
+    renderTechnicianOptions();
+  }
 }
 
 function captureMemberOverrides() {
@@ -817,6 +902,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const button = event.target.closest('[data-settings-view]');
     if (button) setSettingsView(button.dataset.settingsView);
   });
+  saveTechnicianSettingsButton.addEventListener('click', saveTechnicianSettings);
   addRoleButton.addEventListener('click', openRoleCreateForm);
   cancelCreateRoleButton.addEventListener('click', closeRoleCreateForm);
   deleteRoleButton.addEventListener('click', deleteSelectedRole);
@@ -902,5 +988,5 @@ document.addEventListener('DOMContentLoaded', async () => {
       : (branchTypeDefinitions[0]?.code || '');
     renderBranchTypeSelector();
   });
-  await loadManagedAccounts();
+  await Promise.all([loadManagedAccounts(), loadTechnicianSettings()]);
 });

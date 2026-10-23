@@ -28,7 +28,8 @@ function initializeClientUnitTrackerSheets() {
     'Deleted By',
     'Previous Status',
     'Client Pays',
-    'Payment Amount'
+    'Payment Amount',
+    'Assigned Technician'
   ];
 
   const accountsHeaders = [
