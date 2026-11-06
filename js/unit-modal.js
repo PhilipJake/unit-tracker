@@ -595,6 +595,7 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
   };
   const today = getManilaDateKey(new Date());
   const dateReleased = nextStatus === 'Released' ? unit.dateReleased || today : unit.dateReleased || '';
+  const shouldCollectPayment = String(savedPayment.clientPays || 'No').trim().toLowerCase() === 'yes';
   const body = new URLSearchParams({
     action: 'updateUnit',
     originalUnitCode: unitCode,
@@ -606,7 +607,7 @@ async function transferUnitStatus(unit, rowIndex, role, nextStatus, nextLocation
     unitPrice: unit.unitPrice || '',
     status: nextStatus,
     clientPays: savedPayment.clientPays,
-    clientPaymentAmount: savedPayment.clientPaymentAmount,
+    clientPaymentAmount: shouldCollectPayment ? normalizeNumericAmount(savedPayment.clientPaymentAmount) : '',
     branchLocation: unit.branchLocation || unit.uploadedBranch || '',
     uploadedBranch: unit.uploadedBranch || unit.branchLocation || '',
     currentLocation: nextLocation || unit.currentLocation || '',

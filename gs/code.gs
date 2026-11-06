@@ -1033,7 +1033,7 @@ function isValidClientPayment(values) {
   const clientPays = String(values.clientPays || 'No').trim().toLowerCase();
   if (!['yes', 'no'].includes(clientPays)) return false;
   if (clientPays === 'no') return true;
-  const amount = String(values.clientPaymentAmount || '').trim();
+  const amount = String(values.clientPaymentAmount || '').trim().replace(/[^\d.]/g, '');
   return /^\d+(?:\.\d{1,2})?$/.test(amount) && Number(amount) > 0;
 }
 
